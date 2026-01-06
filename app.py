@@ -46,6 +46,7 @@ st.markdown("""
     .invoice-card { background: white; border: 2px solid #27ae60; padding: 20px; border-radius: 10px; color: #2c3e50; direction: rtl; margin-bottom: 20px; }
     .customer-box { background: #f0f2f6; padding: 15px; border-radius: 10px; border-right: 5px solid #2980b9; }
     .report-card { background: #ffffff; padding: 20px; border-radius: 12px; border-right: 10px solid #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; text-align: center; }
+    .inventory-card { background: #ebf5fb; padding: 15px; border-radius: 10px; border-right: 5px solid #3498db; margin-top: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -60,6 +61,7 @@ if 'logged_in' not in st.session_state:
                 st.rerun()
             else: st.error("غلط يا أبو عمر!")
 else:
+    st.sidebar.markdown(f"<h3 style='text-align:center;'>مرحباً يا أبو عمر</h3>", unsafe_allow_html=True)
     st.sidebar.markdown("<h2 style='text-align:center;'>🍎 القائمة</h2>", unsafe_allow_html=True)
     menu = st.sidebar.radio("", ["🛒 شاشة البيع", "📦 إدارة المخزن", "📋 عملية الجرد", "📊 التقارير المالية"], label_visibility="collapsed")
     if st.sidebar.button("🚪 خروج"):
@@ -120,7 +122,7 @@ else:
             if st.button("✅ تأكيد عملية البيع", use_container_width=True, type="primary"):
                 if bill_items:
                     total_amt = sum(i['amount'] for i in bill_items)
-                    bill_id = datetime.now().strftime("%Y%m%d%H%M%S") # معرف فريد للفاتورة
+                    bill_id = datetime.now().strftime("%Y%m%d%H%M%S")
                     indices_added = []
                     inv_html = f'<div class="invoice-card"><div style="text-align:center;"><h2>🧾 فاتورة مبيعات</h2><p>{datetime.now().strftime("%Y-%m-%d %H:%M")} | {st.session_state.p_method}</p></div><table style="width:100%; text-align: right;"><tr><th>الصنف</th><th>الكمية</th><th>السعر</th></tr>'
                     
@@ -166,9 +168,21 @@ else:
                 for item, new_val in jard_updates.items(): st.session_state.inventory[item]['كمية'] = new_val
                 auto_save(); st.success("تم تحديث المخزن!"); st.rerun()
 
-    # --- 4. التقارير المالية (التعديل المطلوب هنا) ---
+    # --- 4. التقارير المالية ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 ملخص الحسابات والمبيعات البنكية</h1>", unsafe_allow_html=True)
+        
+        # حساب رأس المال المتبقي في المخزن
+        total_inventory_value = sum(item['كمية'] * item['شراء'] for item in st.session_state.inventory.values())
+        
+        st.markdown(f"""
+            <div class='inventory-card'>
+                <h4>📊 حالة المخزن الحالية (رأس المال المتبقي)</h4>
+                <h2 style='color:#2980b9;'>{total_inventory_value:,.1f} ₪</h2>
+                <p>هذه القيمة تمثل (الكمية المتبقية × سعر الشراء) لجميع الأصناف.</p>
+            </div>
+        """, unsafe_allow_html=True)
+        
         df = st.session_state.sales_df.copy()
         if not df.empty:
             df['date'] = pd.to_datetime(df['date'])
@@ -181,12 +195,10 @@ else:
                 c3.markdown(f"<div class='report-card'><h3>📱 تطبيق</h3><h2>{df_f[df_f['method']=='تطبيق']['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
                 c4.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>✅ صافي ربح</h3><h2>{df_f['profit'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
                 
-                # --- تقرير مبيعات التطبيق المجمع حسب الفاتورة ---
                 st.write("---")
                 st.subheader("💳 سجل مبيعات التطبيق (حسب الزبون)")
                 df_bank_raw = df_f[df_f['method'] == 'تطبيق']
                 if not df_bank_raw.empty:
-                    # تجميع البيانات بناءً على معرف الفاتورة واسم الزبون
                     df_bank_grouped = df_bank_raw.groupby(['bill_id', 'customer_name', 'customer_phone', 'date']).agg({'amount': 'sum'}).reset_index()
                     df_bank_grouped = df_bank_grouped[['date', 'customer_name', 'customer_phone', 'amount']]
                     df_bank_grouped.columns = ['التاريخ والوقت', 'اسم الزبون', 'رقم الجوال', 'إجمالي الفاتورة']
