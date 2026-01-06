@@ -28,7 +28,7 @@ def auto_save():
 if 'inventory' not in st.session_state:
     st.session_state.inventory = pd.read_csv(DB_FILE, index_col=0).to_dict('index') if os.path.exists(DB_FILE) else {}
 if 'sales_df' not in st.session_state:
-    st.session_state.sales_df = pd.read_csv(SALES_FILE) if os.path.exists(SALES_FILE) else pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone'])
+    st.session_state.sales_df = pd.read_csv(SALES_FILE) if os.path.exists(SALES_FILE) else pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id'])
 if 'categories' not in st.session_state:
     st.session_state.categories = pd.read_csv(CATS_FILE)['name'].tolist() if os.path.exists(CATS_FILE) else ["خضار وفواكه", "مكسرات"]
 
@@ -45,6 +45,7 @@ st.markdown("""
     .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 25px; }
     .invoice-card { background: white; border: 2px solid #27ae60; padding: 20px; border-radius: 10px; color: #2c3e50; direction: rtl; margin-bottom: 20px; }
     .customer-box { background: #f0f2f6; padding: 15px; border-radius: 10px; border-right: 5px solid #2980b9; }
+    .report-card { background: #ffffff; padding: 20px; border-radius: 12px; border-right: 10px solid #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -71,23 +72,20 @@ else:
         if st.session_state.last_report:
             st.markdown(st.session_state.last_report, unsafe_allow_html=True)
             
-            # قسم إضافة بيانات الزبون بعد صدور الفاتورة
             if st.session_state.p_method == "تطبيق":
                 with st.container():
                     st.markdown("<div class='customer-box'>", unsafe_allow_html=True)
-                    st.subheader("👤 تسجيل بيانات الزبون (للمبيعات البنكية)")
+                    st.subheader("👤 تسجيل بيانات الزبون (للفاتورة الحالية)")
                     c_name = st.text_input("اسم الزبون الكامل", key="c_name_input")
-                    c_phone = st.text_input("رقم الجوال / الواتساب", key="c_phone_input")
-                    if st.button("💾 حفظ بيانات الزبون في السجلات"):
-                        if c_name and c_phone:
-                            # تحديث آخر أسطر تمت إضافتها في السجل ببيانات الزبون
+                    c_phone = st.text_input("رقم الجوال", key="c_phone_input")
+                    if st.button("💾 حفظ البيانات"):
+                        if c_name:
                             for idx in st.session_state.last_sale_indices:
                                 st.session_state.sales_df.at[idx, 'customer_name'] = c_name
                                 st.session_state.sales_df.at[idx, 'customer_phone'] = c_phone
                             auto_save()
-                            st.success(f"تم ربط الفاتورة بـ {c_name} بنجاح!")
-                        else:
-                            st.warning("الرجاء إدخال الاسم والرقم للحفظ.")
+                            st.success(f"تم ربط الفاتورة بـ {c_name}!")
+                        else: st.warning("اكتب الاسم على الأقل!")
                     st.markdown("</div>", unsafe_allow_html=True)
 
             if st.button("➕ فاتورة جديدة", type="primary"):
@@ -122,15 +120,14 @@ else:
             if st.button("✅ تأكيد عملية البيع", use_container_width=True, type="primary"):
                 if bill_items:
                     total_amt = sum(i['amount'] for i in bill_items)
+                    bill_id = datetime.now().strftime("%Y%m%d%H%M%S") # معرف فريد للفاتورة
                     indices_added = []
                     inv_html = f'<div class="invoice-card"><div style="text-align:center;"><h2>🧾 فاتورة مبيعات</h2><p>{datetime.now().strftime("%Y-%m-%d %H:%M")} | {st.session_state.p_method}</p></div><table style="width:100%; text-align: right;"><tr><th>الصنف</th><th>الكمية</th><th>السعر</th></tr>'
                     
                     for e in bill_items:
                         st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
                         inv_html += f"<tr><td>{e['item']}</td><td>{e['qty']:.2f}</td><td>{e['amount']:.1f} ₪</td></tr>"
-                        
-                        # إضافة السطر للسجل
-                        new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method, 'customer_name': '', 'customer_phone': ''}
+                        new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method, 'customer_name': '', 'customer_phone': '', 'bill_id': bill_id}
                         st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
                         indices_added.append(len(st.session_state.sales_df) - 1)
                     
@@ -169,7 +166,7 @@ else:
                 for item, new_val in jard_updates.items(): st.session_state.inventory[item]['كمية'] = new_val
                 auto_save(); st.success("تم تحديث المخزن!"); st.rerun()
 
-    # --- 4. التقارير المالية ---
+    # --- 4. التقارير المالية (التعديل المطلوب هنا) ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 ملخص الحسابات والمبيعات البنكية</h1>", unsafe_allow_html=True)
         df = st.session_state.sales_df.copy()
@@ -184,9 +181,19 @@ else:
                 c3.markdown(f"<div class='report-card'><h3>📱 تطبيق</h3><h2>{df_f[df_f['method']=='تطبيق']['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
                 c4.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>✅ صافي ربح</h3><h2>{df_f['profit'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
                 
-                st.subheader("💳 سجل مبيعات التطبيق المفصل")
-                df_bank = df_f[df_f['method'] == 'تطبيق'][['date', 'customer_name', 'customer_phone', 'item', 'amount']]
-                if not df_bank.empty:
-                    df_bank.columns = ['التاريخ', 'اسم الزبون', 'رقم الجوال', 'الصنف', 'المبلغ']
-                    st.table(df_bank.sort_values(by='التاريخ', ascending=False))
+                # --- تقرير مبيعات التطبيق المجمع حسب الفاتورة ---
+                st.write("---")
+                st.subheader("💳 سجل مبيعات التطبيق (حسب الزبون)")
+                df_bank_raw = df_f[df_f['method'] == 'تطبيق']
+                if not df_bank_raw.empty:
+                    # تجميع البيانات بناءً على معرف الفاتورة واسم الزبون
+                    df_bank_grouped = df_bank_raw.groupby(['bill_id', 'customer_name', 'customer_phone', 'date']).agg({'amount': 'sum'}).reset_index()
+                    df_bank_grouped = df_bank_grouped[['date', 'customer_name', 'customer_phone', 'amount']]
+                    df_bank_grouped.columns = ['التاريخ والوقت', 'اسم الزبون', 'رقم الجوال', 'إجمالي الفاتورة']
+                    st.table(df_bank_grouped.sort_values(by='التاريخ والوقت', ascending=False))
+                else:
+                    st.info("لا توجد مبيعات بنكية في هذه الفترة.")
+
+                st.write("---")
+                st.write("### 📜 السجل التفصيلي لجميع الحركات:")
                 st.dataframe(df_f.sort_values(by='date', ascending=False), use_container_width=True)
