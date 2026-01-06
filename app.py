@@ -13,71 +13,79 @@ if 'logged_in' not in st.session_state:
             st.session_state['logged_in'] = True
             st.rerun()
 else:
-    # القائمة الجانبية
-    st.sidebar.title("🛠️ التحكم")
-    menu = st.sidebar.radio("القائمة:", ["البيع السريع (سلة)", "إضافة بضاعة", "تعديل الأسعار"])
-
     # البيانات الأساسية
     if 'inventory' not in st.session_state:
         st.session_state.inventory = {
             "بطاطا": {"كمية": 38.4, "شراء": 3.0, "بيع": 3.33},
             "ليمون": {"كمية": 27.5, "شراء": 4.0, "بيع": 6.0},
-            "بندورة": {"كمية": 12.0, "شراء": 7.0, "بيع": 10.0}
+            "تفاح": {"كمية": 23.0, "شراء": 9.0, "بيع": 12.0},
+            "بندورة": {"كمية": 12.0, "شراء": 7.0, "بيع": 10.0},
+            "خيار": {"كمية": 12.6, "شراء": 5.0, "بيع": 8.0}
         }
-    if 'cart' not in st.session_state: st.session_state.cart = []
     if 'daily_profit' not in st.session_state: st.session_state.daily_profit = 0.0
 
-    # --- نظام البيع السريع (السلة) ---
-    if menu == "البيع السريع (سلة)":
-        st.header("🛒 سلة مشتريات الزبون")
+    st.title("🛒 فاتورة بيع سريعة")
+    st.write("حدد الأصناف التي اشتراها الزبون واضغط تأكيد في الأسفل")
+
+    # إنشاء قائمة المشتريات المؤقتة
+    bill_items = []
+    
+    # عرض الأصناف تحت بعض مع مربعات اختيار
+    st.write("---")
+    
+    # ترويسة الجدول
+    h1, h2, h3, h4 = st.columns([1, 2, 2, 2])
+    h1.write("**اختر**")
+    h2.write("**الصنف**")
+    h3.write("**طريقة البيع**")
+    h4.write("**القيمة (كمية أو شيكل)**")
+
+    for item in st.session_state.inventory.keys():
+        c1, c2, c3, c4 = st.columns([1, 2, 2, 2])
         
-        col1, col2, col3 = st.columns([2, 2, 1])
-        with col1:
-            item = st.selectbox("اختر الصنف", list(st.session_state.inventory.keys()))
-        with col2:
-            mode = st.radio("البيع بـ:", ["شيكل", "كيلو"], horizontal=True)
-            val = st.number_input("القيمة", min_value=0.0, step=0.5)
-        with col3:
-            st.write("##")
-            if st.button("➕ أضف"):
-                # حساب الكمية والسعر والربح
-                p_buy = st.session_state.inventory[item]["شراء"]
-                p_sell = st.session_state.inventory[item]["بيع"]
-                if mode == "كيلo":
-                    q = val
-                    total = val * p_sell
-                else:
-                    q = val / p_sell
-                    total = val
-                
-                profit = (p_sell - p_buy) * q
-                st.session_state.cart.append({"الصنف": item, "الكمية": round(q, 2), "المبلغ": round(total, 2), "ربح": profit})
-
-        # عرض السلة
-        if st.session_state.cart:
-            st.subheader("📝 طلبات الزبون الحالية:")
-            cart_df = pd.DataFrame(st.session_state.cart)
-            st.table(cart_df[["الصنف", "الكمية", "المبلغ"]])
+        with c1:
+            selected = st.checkbox("", key=f"check_{item}")
+        with c2:
+            st.write(f"**{item}**")
+        with c3:
+            mode = st.radio("نوع:", ["شيكل", "كيلو"], key=f"mode_{item}", horizontal=True, label_visibility="collapsed")
+        with c4:
+            val = st.number_input("القيمة", min_value=0.0, step=0.5, key=f"val_{item}", label_visibility="collapsed")
+        
+        if selected and val > 0:
+            p_buy = st.session_state.inventory[item]["شراء"]
+            p_sell = st.session_state.inventory[item]["بيع"]
             
-            total_bill = cart_df["المبلغ"].sum()
-            st.info(f"💰 الحساب الكلي: {total_bill:.2f} شيكل")
+            if mode == "كيلو":
+                qty = val
+                total = val * p_sell
+            else:
+                qty = val / p_sell
+                total = val
             
-            c_done, c_empty = st.columns(2)
-            with c_done:
-                if st.button("✅ تأكيد وخصم من المخزن"):
-                    for entry in st.session_state.cart:
-                        st.session_state.inventory[entry["الصنف"]]["كمية"] -= entry["الكمية"]
-                        st.session_state.daily_profit += entry["ربح"]
-                    st.session_state.cart = [] # تفريغ السلة
-                    st.success("تم تسجيل العملية بنجاح!")
-                    st.rerun()
-            with c_empty:
-                if st.button("🗑️ إفراغ السلة"):
-                    st.session_state.cart = []
-                    st.rerun()
+            profit = (p_sell - p_buy) * qty
+            bill_items.append({"صنف": item, "كمية": qty, "مبلغ": total, "ربح": profit})
 
-        st.divider()
-        st.subheader("📈 أرباح اليوم: " + f"{st.session_state.daily_profit:.2f} شيكل")
+    st.write("---")
 
-    # بقية الأقسام (إضافة وتعديل) كما هي...
-    # (يمكنك إضافتها من الكود السابق)
+    # المجموع وزر التأكيد
+    if bill_items:
+        total_bill = sum(item['مبلغ'] for item in bill_items)
+        st.subheader(f"💰 مجموع الفاتورة: {total_bill:.2f} شيكل")
+        
+        if st.button("✅ تأكيد البيع وخصم الكل من المخزن", use_container_width=True):
+            for entry in bill_items:
+                st.session_state.inventory[entry["صنف"]]["كمية"] -= entry["كمية"]
+                st.session_state.daily_profit += entry["ربح"]
+            st.success("تم تسجيل الفاتورة بنجاح!")
+            st.rerun()
+    else:
+        st.info("قم باختيار الأصناف من الأعلى لتجهيز الفاتورة")
+
+    st.divider()
+    # عرض الأرباح والجرد المتبقي
+    col_stat1, col_stat2 = st.columns(2)
+    col_stat1.metric("📈 أرباح اليوم", f"{st.session_state.daily_profit:.2f} شيكل")
+    
+    with st.expander("📊 عرض الجرد المتبقي في المخزن"):
+        df = pd.DataFrame(st.
