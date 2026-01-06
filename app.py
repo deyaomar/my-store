@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 # 1. إعدادات الصفحة
 st.set_page_config(page_title="نظام أبو عمر المحاسبي", layout="wide", page_icon="🍏")
 
-# وظيفة لتحويل النص لرقم (تعالج الفاصلة والنقطة)
+# وظيفة لتحويل النص لرقم
 def clean_num(text):
     try:
         if text is None or text == "": return 0.0
@@ -43,10 +43,8 @@ st.markdown("""
     .stButton > button[kind="primary"] { background-color: #27ae60 !important; color: white !important; height: 3.5em; width: 100%; font-weight: bold; }
     .stButton > button[kind="secondary"] { background-color: #ecf0f1 !important; color: #2c3e50 !important; height: 3.5em; width: 100%; }
     .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 25px; }
-    
     .invoice-card { background-color: #ffffff; border: 2px solid #27ae60; border-radius: 15px; padding: 25px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); color: #2c3e50; direction: rtl; }
     .total-line { font-size: 24px; font-weight: 900; color: #27ae60; text-align: center; border-top: 2px dashed #bdc3c7; padding-top: 15px; margin-top: 15px; }
-    
     .report-card { background: #ffffff; padding: 20px; border-radius: 12px; border-right: 10px solid #2c3e50; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
     .profit-text { color: #27ae60; font-weight: bold; }
     </style>
@@ -114,6 +112,7 @@ else:
     # --- 2. إدارة المخزن ---
     elif menu == "📦 إدارة المخزن":
         st.markdown("<h1 class='main-title'>📦 تفاصيل المخزن والجرد</h1>", unsafe_allow_html=True)
+        # (كود المخزن ثابت كما هو)
         with st.expander("➕ إضافة صنف جديد"):
             with st.form("add_form", clear_on_submit=True):
                 n, c = st.text_input("اسم الصنف"), st.selectbox("القسم", st.session_state.categories)
@@ -124,34 +123,41 @@ else:
         if st.session_state.inventory:
             st.table(pd.DataFrame([{"الصنف": k, "القسم": v['قسم'], "المتبقي": f"{v['كمية']:.1f}", "شراء": f"{v['شراء']} ₪", "بيع": f"{v['بيع']} ₪"} for k, v in st.session_state.inventory.items()]))
 
-    # --- 3. التقارير المالية (التحديث الجديد) ---
+    # --- 3. التقارير المالية (تحديث فلتر التاريخ) ---
     elif menu == "📊 التقارير المالية":
-        st.markdown("<h1 class='main-title'>📊 ملخص الأرباح والمبيعات</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>📊 ملخص المبيعات والأرباح</h1>", unsafe_allow_html=True)
+        
         df = st.session_state.sales_df.copy()
         if not df.empty:
             df['date'] = pd.to_datetime(df['date'])
-            today = datetime.now().date()
-            week_ago = today - timedelta(days=7)
             
-            df_today = df[df['date'].dt.date == today]
-            df_week = df[df['date'].dt.date >= week_ago]
-
-            # صف تقارير اليوم
-            st.subheader("📅 ملخص مبيعات اليوم")
+            # --- نظام الفلترة الجديد ---
+            st.sidebar.markdown("---")
+            st.sidebar.markdown("### 🔍 بحث بالتاريخ")
+            date_option = st.sidebar.radio("نوع البحث", ["اليوم", "فترة محددة"])
+            
+            if date_option == "اليوم":
+                search_date = st.sidebar.date_input("اختر اليوم", datetime.now().date())
+                df_filtered = df[df['date'].dt.date == search_date]
+                st.subheader(f"📅 تقرير يوم: {search_date}")
+            else:
+                date_range = st.sidebar.date_input("اختر الفترة (من - إلى)", [datetime.now().date() - timedelta(days=7), datetime.now().date()])
+                if len(date_range) == 2:
+                    start_date, end_date = date_range
+                    df_filtered = df[(df['date'].dt.date >= start_date) & (df['date'].dt.date <= end_date)]
+                    st.subheader(f"📅 تقرير الفترة من {start_date} إلى {end_date}")
+                else:
+                    df_filtered = df # حالة مؤقتة
+            
+            # عرض البطاقات بناءً على الفلتر
             c1, c2, c3, c4 = st.columns(4)
-            with c1: st.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{df_today['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
-            with c2: st.markdown(f"<div class='report-card'><h3>💵 كاش</h3><h2>{df_today[df_today['method']=='نقداً']['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
-            with c3: st.markdown(f"<div class='report-card'><h3>📱 تطبيق</h3><h2>{df_today[df_today['method']=='تطبيق']['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
-            with c4: st.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>✅ ربح اليوم</h3><h2 class='profit-text'>{df_today['profit'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
+            with c1: st.markdown(f"<div class='report-card'><h3>💰 إجمالي المبيعات</h3><h2>{df_filtered['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
+            with c2: st.markdown(f"<div class='report-card'><h3>💵 كاش</h3><h2>{df_filtered[df_filtered['method']=='نقداً']['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
+            with c3: st.markdown(f"<div class='report-card'><h3>📱 تطبيق</h3><h2>{df_filtered[df_filtered['method']=='تطبيق']['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
+            with c4: st.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>✅ الصافي (الربح)</h3><h2 class='profit-text'>{df_filtered['profit'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
 
-            # صف تقارير الأسبوع
             st.write("---")
-            st.subheader("🗓️ ملخص مبيعات الأسبوع (آخر 7 أيام)")
-            w1, w2 = st.columns(2)
-            with w1: st.markdown(f"<div class='report-card'><h3>📈 إجمالي مبيعات الأسبوع</h3><h2>{df_week['amount'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
-            with w2: st.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>💸 صافي أرباح الأسبوع</h3><h2 class='profit-text'>{df_week['profit'].sum():.1f} ₪</h2></div>", unsafe_allow_html=True)
-
-            st.write("### 📜 سجل العمليات المفصل:")
-            st.dataframe(df.sort_values(by='date', ascending=False), use_container_width=True)
+            st.write("### 📜 تفاصيل العمليات للفترة المختارة:")
+            st.dataframe(df_filtered.sort_values(by='date', ascending=False), use_container_width=True)
         else:
-            st.info("لا يوجد بيانات مبيعات بعد.")
+            st.info("لا يوجد بيانات مبيعات لعرضها يا أبو عمر.")
