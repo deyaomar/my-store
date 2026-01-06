@@ -12,8 +12,10 @@ if 'logged_in' not in st.session_state:
         if pwd == PASSWORD:
             st.session_state['logged_in'] = True
             st.rerun()
+        else:
+            st.error("كلمة المرور خطأ")
 else:
-    # البيانات الأساسية
+    # البيانات الأساسية (الجرد الذي ثبتناه يا أبو عمر)
     if 'inventory' not in st.session_state:
         st.session_state.inventory = {
             "بطاطا": {"كمية": 38.4, "شراء": 3.0, "بيع": 3.33},
@@ -25,21 +27,19 @@ else:
     if 'daily_profit' not in st.session_state: st.session_state.daily_profit = 0.0
 
     st.title("🛒 فاتورة بيع سريعة")
-    st.write("حدد الأصناف التي اشتراها الزبون واضغط تأكيد في الأسفل")
+    st.write("حدد الأصناف التي اشتراها الزبون واضغط تأكيد")
 
-    # إنشاء قائمة المشتريات المؤقتة
     bill_items = []
-    
-    # عرض الأصناف تحت بعض مع مربعات اختيار
     st.write("---")
     
-    # ترويسة الجدول
+    # ترويسة الجدول لتسهيل القراءة
     h1, h2, h3, h4 = st.columns([1, 2, 2, 2])
     h1.write("**اختر**")
     h2.write("**الصنف**")
     h3.write("**طريقة البيع**")
     h4.write("**القيمة (كمية أو شيكل)**")
 
+    # عرض الأصناف
     for item in st.session_state.inventory.keys():
         c1, c2, c3, c4 = st.columns([1, 2, 2, 2])
         
@@ -50,7 +50,7 @@ else:
         with c3:
             mode = st.radio("نوع:", ["شيكل", "كيلو"], key=f"mode_{item}", horizontal=True, label_visibility="collapsed")
         with c4:
-            val = st.number_input("القيمة", min_value=0.0, step=0.5, key=f"val_{item}", label_visibility="collapsed")
+            val = st.number_input("القيمة", min_value=0.0, step=0.1, key=f"val_{item}", label_visibility="collapsed")
         
         if selected and val > 0:
             p_buy = st.session_state.inventory[item]["شراء"]
@@ -68,24 +68,25 @@ else:
 
     st.write("---")
 
-    # المجموع وزر التأكيد
+    # زر التأكيد والحساب
     if bill_items:
-        total_bill = sum(item['مبلغ'] for item in bill_items)
+        total_bill = sum(i['مبلغ'] for i in bill_items)
         st.subheader(f"💰 مجموع الفاتورة: {total_bill:.2f} شيكل")
         
-        if st.button("✅ تأكيد البيع وخصم الكل من المخزن", use_container_width=True):
+        if st.button("✅ تأكيد البيع وخصم الكل", use_container_width=True):
             for entry in bill_items:
                 st.session_state.inventory[entry["صنف"]]["كمية"] -= entry["كمية"]
                 st.session_state.daily_profit += entry["ربح"]
             st.success("تم تسجيل الفاتورة بنجاح!")
             st.rerun()
     else:
-        st.info("قم باختيار الأصناف من الأعلى لتجهيز الفاتورة")
+        st.info("قم باختيار الأصناف لتجهيز الفاتورة")
 
     st.divider()
-    # عرض الأرباح والجرد المتبقي
-    col_stat1, col_stat2 = st.columns(2)
-    col_stat1.metric("📈 أرباح اليوم", f"{st.session_state.daily_profit:.2f} شيكل")
     
-    with st.expander("📊 عرض الجرد المتبقي في المخزن"):
-        df = pd.DataFrame(st.
+    # الإحصائيات والجرد
+    st.metric("📈 أرباح اليوم", f"{st.session_state.daily_profit:.2f} شيكل")
+    
+    with st.expander("📊 عرض المخزن المتبقي (الجرد)"):
+        inventory_df = pd.DataFrame(st.session_state.inventory).T
+        st.table(inventory_df)
