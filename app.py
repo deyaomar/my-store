@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta
 
 # 1. إعدادات الصفحة
-st.set_page_config(page_title="نظام أبو عمر المحاسبي", layout="wide", page_icon="🍏")
+st.set_page_config(page_title="نظام أبو عمر - النسخة الرسمية", layout="wide", page_icon="🍏")
 
 # 2. ملفات البيانات
 DB_FILE = 'inventory_final.csv'
@@ -23,64 +23,82 @@ if 'sales_df' not in st.session_state:
 if 'categories' not in st.session_state:
     st.session_state.categories = pd.read_csv(CATS_FILE)['name'].tolist() if os.path.exists(CATS_FILE) else ["خضار وفواكه", "مكسرات"]
 
-# 3. تصميم CSS فاخر جداً (قائمة وأزرار دفع)
+# 3. الهوية البصرية (رصاصي غامق + خطوط عريضة + أزرار خضراء)
 st.markdown("""
     <style>
-    /* تنسيق القائمة الجانبية الفاخرة */
+    /* خلفية التطبيق العامة */
+    .stApp { background-color: #f4f4f4; }
+    
+    /* تنسيق القائمة الجانبية (رصاصي غامق) */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1e4d2b 0%, #0d2113 100%);
-        border-left: 2px solid gold;
+        background-color: #2c3e50 !important;
+        border-left: 2px solid #95a5a6;
     }
-    .st-emotion-cache-16q9ruw { color: white !important; } /* خطوط الراديو */
     
-    /* أزرار الدفع - اللون الأخضر عند الاختيار */
-    div.stButton > button:first-child {
-        border-radius: 12px;
-        transition: 0.3s;
-        height: 4em;
+    /* خط القائمة المنسدلة (عريض وكبير) */
+    [data-testid="stSidebar"] .st-emotion-cache-16q9ruw {
+        font-weight: 900 !important;
+        font-size: 22px !important;
+        color: white !important;
+        margin-bottom: 15px;
+    }
+    
+    /* تنسيق أزرار الدفع عند الاختيار (أخضر) */
+    .stButton > button[kind="primary"] {
+        background-color: #27ae60 !important;
+        color: white !important;
+        border: 2px solid #2ecc71 !important;
         font-weight: bold;
-        font-size: 20px;
+        height: 4em;
     }
     
+    /* تنسيق الأزرار غير المختارة */
+    .stButton > button[kind="secondary"] {
+        background-color: #ecf0f1 !important;
+        color: #2c3e50 !important;
+        border: 1px solid #bdc3c7 !important;
+        height: 4em;
+    }
+
     /* العناوين */
-    .main-title { color: #1e4d2b; text-align: center; border-bottom: 3px solid gold; padding-bottom: 10px; margin-bottom: 25px; font-weight: bold; }
+    .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 800; }
     
     /* بطاقات التقارير */
     .report-card {
-        background: white; padding: 25px; border-radius: 15px;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-        border-right: 10px solid #1e4d2b; text-align: center;
+        background: white; padding: 25px; border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-right: 10px solid #2c3e50; text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. تسجيل الدخول
+# 4. نظام الدخول
 if 'logged_in' not in st.session_state:
-    st.markdown("<h1 class='main-title'>🔐 نظام أبو عمر الملكي</h1>", unsafe_allow_html=True)
-    pwd = st.text_input("أدخل كلمة المرور", type="password")
+    st.markdown("<h1 class='main-title'>🔐 نظام أبو عمر</h1>", unsafe_allow_html=True)
+    pwd = st.text_input("كلمة المرور", type="password")
     if st.button("دخول"):
         if pwd == "123":
             st.session_state.logged_in = True
             st.rerun()
 else:
-    # القائمة الجانبية بتنسيق جديد
-    st.sidebar.markdown("<h1 style='color:gold; text-align:center;'>🍏 الماركة</h1>", unsafe_allow_html=True)
-    st.sidebar.write("---")
-    menu = st.sidebar.radio("القائمة:", ["💎 شاشة البيع", "📦 المخزن والتعديل", "📊 التقارير الذكية"])
+    # القائمة الجانبية (خط عريض)
+    st.sidebar.markdown("<h2 style='color:white; text-align:center; font-weight:900;'>🍎 القائمة</h2>", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
+    menu = st.sidebar.radio("", ["💎 شاشة البيع", "📦 المخزن والتعديل", "📊 التقارير الذكية"], label_visibility="collapsed")
     
     if st.sidebar.button("🚪 خروج"):
         st.session_state.clear(); st.rerun()
 
-    # --- 1. شاشة البيع (أزرار ملونة) ---
+    # --- 1. شاشة البيع ---
     if menu == "💎 شاشة البيع":
         st.markdown("<h1 class='main-title'>🛒 فاتورة البيع</h1>", unsafe_allow_html=True)
         
         if 'p_method' not in st.session_state: st.session_state.p_method = "نقداً"
         
+        st.write("### اختر طريقة الدفع:")
         col_p1, col_p2 = st.columns(2)
         
         with col_p1:
-            # لو اخترنا نقداً بصير الزر أخضر، غير هيك بكون أبيض
             cash_type = "primary" if st.session_state.p_method == "نقداً" else "secondary"
             if st.button("💵 نـقـداً (كاش)", use_container_width=True, type=cash_type):
                 st.session_state.p_method = "نقداً"
@@ -91,7 +109,8 @@ else:
                 st.session_state.p_method = "تطبيق"
                 st.rerun()
         
-        # كود البيع
+        st.write("---")
+        
         bill_items = []
         for cat in st.session_state.categories:
             with st.expander(f"📂 {cat}", expanded=True):
@@ -99,7 +118,7 @@ else:
                 for item, data in items.items():
                     c1, c2, c3, c4 = st.columns([0.5, 2, 2, 2])
                     with c1: sel = st.checkbox("", key=f"s_{item}")
-                    with c2: st.write(f"**{item}** \n <small>({data['كمية']:.1f})</small>", unsafe_allow_html=True)
+                    with c2: st.write(f"**{item}** ({data['كمية']:.1f})")
                     with c3: mode = st.radio("", ["شيكل", "كمية"], key=f"m_{item}", horizontal=True, label_visibility="collapsed")
                     with c4: val = st.number_input("0.0", min_value=0.0, key=f"v_{item}", label_visibility="collapsed")
                     if sel and val > 0:
@@ -112,21 +131,12 @@ else:
                     st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
                     new_sale = pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method}])
                     st.session_state.sales_df = pd.concat([st.session_state.sales_df, new_sale], ignore_index=True)
-                auto_save(); st.success("تم تسجيل العملية!"); st.balloons(); st.rerun()
+                auto_save(); st.success("تم الحفظ!"); st.balloons(); st.rerun()
 
     # --- 2. المخزن والتعديل ---
     elif menu == "📦 المخزن والتعديل":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
-        
-        with st.expander("➕ إضافة صنف جديد"):
-            with st.form("add_form", clear_on_submit=True):
-                n = st.text_input("اسم الصنف")
-                c = st.selectbox("القسم", st.session_state.categories)
-                q, b, s = st.columns(3); qty = q.number_input("الكمية"); buy = b.number_input("شراء"); sell = s.number_input("بيع")
-                if st.form_submit_button("حفظ الصنف"):
-                    st.session_state.inventory[n] = {"كمية": qty, "شراء": buy, "بيع": sell, "قسم": c}
-                    auto_save(); st.rerun()
-
+        # ميزة التعديل كما طلبتم
         for cat in st.session_state.categories:
             st.markdown(f"### 🏷️ {cat}")
             items = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat}
@@ -141,15 +151,15 @@ else:
 
         if 'edit_it' in st.session_state:
             target = st.session_state.edit_it
-            st.markdown(f"<div style='background:#f0f2f6; padding:20px; border-radius:15px;'><h3>🛠️ تعديل {target}</h3>", unsafe_allow_html=True)
+            st.markdown(f"### 🛠️ تعديل {target}")
             u_q = st.number_input("تعديل الكمية", value=st.session_state.inventory[target]["كمية"])
             u_s = st.number_input("تعديل السعر", value=st.session_state.inventory[target]["بيع"])
-            if st.button("حفظ التعديلات الآن"):
+            if st.button("حفظ التعديلات"):
                 st.session_state.inventory[target]["كمية"] = u_q
                 st.session_state.inventory[target]["بيع"] = u_s
                 del st.session_state.edit_it; auto_save(); st.rerun()
 
-    # --- 3. التقارير الذكية (يومية وأسبوعية) ---
+    # --- 3. التقارير الذكية ---
     elif menu == "📊 التقارير الذكية":
         st.markdown("<h1 class='main-title'>📊 التقارير المالية</h1>", unsafe_allow_html=True)
         df = st.session_state.sales_df.copy()
@@ -161,13 +171,10 @@ else:
             c1, c2 = st.columns(2)
             # تقرير اليوم
             d_s = df[df['date'].dt.date == today]
-            with c1: st.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{d_s['amount'].sum():.1f} ₪</h2><p>ربح: {d_s['profit'].sum():.1f}</p></div>", unsafe_allow_html=True)
+            with c1: st.markdown(f"<div class='report-card'><h3>💰 اليوم</h3><h2>{d_s['amount'].sum():.1f} ₪</h2><p>ربح: {d_s['profit'].sum():.1f}</p></div>", unsafe_allow_html=True)
             # تقرير الأسبوع
             w_s = df[df['date'].dt.date >= last_7]
-            with c2: st.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{w_s['amount'].sum():.1f} ₪</h2><p>ربح: {w_s['profit'].sum():.1f}</p></div>", unsafe_allow_html=True)
+            with c2: st.markdown(f"<div class='report-card'><h3>📅 الأسبوع</h3><h2>{w_s['amount'].sum():.1f} ₪</h2><p>ربح: {w_s['profit'].sum():.1f}</p></div>", unsafe_allow_html=True)
             
             st.write("---")
-            st.write("### 📋 آخر مبيعاتك المحفوظة تلقائياً:")
             st.dataframe(df.sort_values(by='date', ascending=False), use_container_width=True)
-        else:
-            st.info("لا توجد مبيعات بعد يا أبو عمر.")
