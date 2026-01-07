@@ -40,31 +40,59 @@ if 'categories' not in st.session_state:
 
 if 'last_report' not in st.session_state: st.session_state.last_report = None
 if 'p_method' not in st.session_state: st.session_state.p_method = "نقداً"
-
-# 3. التصميم المطور (CSS) - نسخة إجبار اللون الأبيض والعريض للقوائم
+    
+# 3. التصميم (CSS - تباين عالي جداً للقوائم)
 st.markdown("""
     <style>
+    /* خلفية القائمة الجانبية */
     [data-testid="stSidebar"] { background-color: #2c3e50 !important; }
-    .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; }
-    
-    /* تعديل القائمة المنسدلة المخصص لطلبك */
-    div[data-baseweb="select"] span, div[data-baseweb="select"] div {
-        color: white !important; 
-        font-weight: 900 !important; 
-        font-size: 22px !important;
-    }
-    div[data-baseweb="select"] {
-        background-color: #1e8449 !important; 
-        border-radius: 10px !important;
-        border: 2px solid #27ae60 !important;
-    }
-    svg[data-testid="stSelectboxArrow"] { fill: white !important; }
-    .stSelectbox label p { color: #2c3e50 !important; font-weight: 900 !important; font-size: 20px !important; }
 
+    /* العناوين الرئيسية */
+    .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; }
+
+    /* --- تعديل ألوان القائمة المنسدلة (Selectbox) --- */
+    
+    /* 1. شكل الصندوق وهو مغلق (الواجهة) */
+    div[data-baseweb="select"] > div {
+        background-color: #2c3e50 !important; /* كحلي غامق */
+        color: white !important;              /* كتابة بيضاء */
+        border: 2px solid #27ae60 !important; /* إطار أخضر */
+        border-radius: 8px !important;
+    }
+
+    /* 2. إجبار النص داخل الصندوق أن يكون أبيض وعريض */
+    div[data-baseweb="select"] span {
+        color: white !important;
+        font-weight: 900 !important;
+        font-size: 20px !important;
+    }
+
+    /* 3. السهم الصغير في القائمة */
+    svg[data-testid="stSelectboxArrow"] {
+        fill: white !important;
+    }
+
+    /* 4. القائمة المنسدلة عند فتحها (الخيارات) */
+    ul[data-baseweb="menu"] {
+        background-color: white !important;
+    }
+    li[data-baseweb="option"] {
+        color: #2c3e50 !important; /* لون الخط في القائمة المفتوحة كحلي */
+        font-weight: bold !important;
+        font-size: 18px !important;
+    }
+
+    /* باقي التنسيقات */
     .report-card { background: #ffffff; padding: 15px; border-radius: 12px; border-right: 8px solid #2c3e50; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; margin-bottom: 10px; }
     .low-stock { background: #ffeded; border-right: 5px solid #ff4b4b; padding: 10px; border-radius: 5px; color: #ff4b4b; font-weight: bold; margin-bottom: 5px; }
-    .stButton > button { font-weight: 900 !important; font-size: 20px !important; border-radius: 10px !important; }
-    .stButton > button[kind="primary"] { background-color: #27ae60 !important; width: 100%; color: white !important; }
+    
+    .stButton > button { 
+        font-weight: 900 !important; 
+        font-size: 20px !important;
+        height: 60px !important; /* تكبير زر التأكيد */
+        border-radius: 10px !important;
+    }
+    .stButton > button[kind="primary"] { background-color: #27ae60 !important; width: 100%; color: white !important; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
