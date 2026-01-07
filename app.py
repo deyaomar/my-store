@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import uuid
 
 # 1. إعدادات الصفحة الاحترافية
-st.set_page_config(page_title="نظام أبو عمر المتكامل 2026", layout="wide", page_icon="🍏")
+st.set_page_config(page_title="نظام أبو عمر المتكامل 2026", layout="wide", page_icon="📊")
 
 def format_num(val):
     try:
@@ -56,17 +56,30 @@ def auto_save():
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. واجهة المستخدم (التنسيق الأصلي)
+# 3. واجهة المستخدم (التنسيق الأصلي مع كود CSS للتقارير الحديثة)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { background-color: #2c3e50 !important; border-left: 1px solid #27ae60; }
     [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 900; font-size: 20px; padding: 10px; border-radius: 5px; }
     .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 26px; text-align: center; margin-bottom: 25px; border-bottom: 3px solid #27ae60; padding-bottom: 15px; }
     .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; border-radius: 10px; }
+    
+    /* ستايل لوحة التقارير الحديثة */
+    .metric-box {
+        background-color: #f8f9fa;
+        border-right: 8px solid #27ae60;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+    }
+    .metric-label { font-size: 16px; color: #7f8c8d; font-weight: bold; }
+    .metric-value { font-size: 28px; color: #2c3e50; font-weight: 900; }
+    .profit-box { border-right: 8px solid #e67e22; }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. نظام الدخول
+# 4. نظام تسجيل الدخول
 if 'logged_in' not in st.session_state:
     st.markdown("<h1 class='main-title'>🔒 نظام إدارة أبو عمر</h1>", unsafe_allow_html=True)
     pwd = st.text_input("كلمة مرور الإدارة", type="password")
@@ -79,7 +92,7 @@ else:
     if st.sidebar.button("🚪 خروج آمن"):
         st.session_state.clear(); st.rerun()
 
-    # --- 1. نقطة البيع ---
+    # --- 1. نقطة البيع (دون تغيير) ---
     if menu == "🛒 نقطة البيع":
         st.markdown("<h1 class='main-title'>🛒 شاشة بيع البضاعة</h1>", unsafe_allow_html=True)
         if st.session_state.show_cust_fields:
@@ -118,7 +131,7 @@ else:
                     st.session_state.current_bill_id = b_id
                     auto_save(); st.session_state.show_cust_fields = True; st.rerun()
 
-    # --- 2. المخزن والجرد ---
+    # --- 2. المخزن والجرد (دون تغيير) ---
     elif menu == "📦 المخزن والجرد":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
         t_list, t_jard, t_waste = st.tabs(["📋 الرصيد", "⚖️ الجرد", "🗑️ التالف"])
@@ -137,11 +150,11 @@ else:
                     st.session_state.inventory[it]['كمية'] = rq
                 auto_save(); st.rerun()
 
-    # --- 3. التقارير المالية (التعديلات المطلوبة) ---
+    # --- 3. التقارير المالية (التصميم الحديث والمطور) ---
     elif menu == "📊 التقارير المالية":
-        st.markdown("<h1 class='main-title'>📊 التقارير المالية والتفصيلية</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>📊 مركز البيانات المالي</h1>", unsafe_allow_html=True)
         
-        # تجهيز البيانات والخرائط الزمانية
+        # تحويل البيانات ومعالجة التواريخ
         sales = st.session_state.sales_df.copy(); sales['date_dt'] = pd.to_datetime(sales['date'])
         exps = st.session_state.expenses_df.copy(); exps['date_dt'] = pd.to_datetime(exps['date'])
         wastes = st.session_state.waste_df.copy(); wastes['date_dt'] = pd.to_datetime(wastes['date'])
@@ -149,42 +162,53 @@ else:
 
         days_map = {'Monday': 'الإثنين', 'Tuesday': 'الثلاثاء', 'Wednesday': 'الأربعاء', 'Thursday': 'الخميس', 'Friday': 'الجمعة', 'Saturday': 'السبت', 'Sunday': 'الأحد'}
         today = datetime.now().date()
+        day_name = days_map[datetime.now().strftime('%A')]
         start_week = today - timedelta(days=(today.weekday() + 2) % 7) # بداية الأسبوع السبت
 
-        # مبيعات اليوم والأسبوع
-        c1, c2 = st.columns(2)
-        day_name = days_map[datetime.now().strftime('%A')]
+        # مبيعات اليوم والأسبوع وصافي الربح بكروت CSS
         day_total = sales[sales['date_dt'].dt.date == today]['amount'].sum()
         week_total = sales[sales['date_dt'].dt.date >= start_week]['amount'].sum()
-        c1.metric(f"💰 مبيعات اليوم ({day_name})", f"{format_num(day_total)} ₪")
-        c2.metric("📅 مبيعات الأسبوع الحالي", f"{format_num(week_total)} ₪")
-
-        # صافي ربح الأسبوع
+        
+        # حساب صافي الأسبوع (أرباح - مصاريف - تالف)
         w_profit = sales[sales['date_dt'].dt.date >= start_week]['profit'].sum()
         w_exp = exps[exps['date_dt'].dt.date >= start_week]['amount'].sum()
         w_loss = wastes[wastes['date_dt'].dt.date >= start_week]['loss_value'].sum() + adjs[adjs['date_dt'].dt.date >= start_week]['loss_value'].sum()
-        st.subheader(f"📈 صافي ربح الأسبوع الحالي: {format_num(w_profit - w_exp - w_loss)} ₪")
-        
-        st.divider()
-        st.markdown("### 🔍 جرد فترة محددة (من - إلى)")
-        col_d1, col_d2 = st.columns(2)
-        d_from = col_d1.date_input("من تاريخ:", start_week)
-        d_to = col_d2.date_input("إلى تاريخ:", today)
+        net_week = w_profit - w_exp - w_loss
 
-        if d_from <= d_to:
-            range_sales = sales[(sales['date_dt'].dt.date >= d_from) & (sales['date_dt'].dt.date <= d_to)]
-            st.info(f"المبيعات: {format_num(range_sales['amount'].sum())} ₪ | الأرباح: {format_num(range_sales['profit'].sum())} ₪")
-            st.dataframe(range_sales[['date', 'item', 'amount', 'profit', 'method']], use_container_width=True)
+        m1, m2, m3 = st.columns(3)
+        with m1: st.markdown(f"<div class='metric-box'><div class='metric-label'>دحل اليوم ({day_name})</div><div class='metric-value'>{format_num(day_total)} ₪</div></div>", unsafe_allow_html=True)
+        with m2: st.markdown(f"<div class='metric-box'><div class='metric-label'>دخل الأسبوع الحالي</div><div class='metric-value'>{format_num(week_total)} ₪</div></div>", unsafe_allow_html=True)
+        with m3: st.markdown(f"<div class='metric-box profit-box'><div class='metric-label'>صافي ربح الأسبوع</div><div class='metric-value'>{format_num(net_week)} ₪</div></div>", unsafe_allow_html=True)
 
-        st.divider()
-        st.markdown("### 📋 ملخص الأيام (الأسبوع الحالي)")
+        st.markdown("---")
+
+        # أداة الجرد المخصص بتصميم نظيف
+        with st.container():
+            st.markdown("### 🗓️ جرد فترة مخصصة")
+            col_d1, col_d2, col_d3 = st.columns([2, 2, 1])
+            d_from = col_d1.date_input("من تاريخ", start_week)
+            d_to = col_d2.date_input("إلى تاريخ", today)
+            
+            mask = (sales['date_dt'].dt.date >= d_from) & (sales['date_dt'].dt.date <= d_to)
+            range_df = sales[mask]
+            st.info(f"إجمالي المبيعات من {d_from} إلى {d_to} هو: **{format_num(range_df['amount'].sum())} ₪**")
+            if not range_df.empty:
+                st.dataframe(range_df[['date', 'item', 'amount', 'profit', 'method']].sort_values('date', ascending=False), use_container_width=True)
+
+        st.markdown("---")
+
+        # ملخص الأسبوع الحالي بأسماء الأيام
+        st.markdown("### 📊 الملخص اليومي")
         week_data = sales[sales['date_dt'].dt.date >= start_week].copy()
         if not week_data.empty:
             week_data['اليوم'] = week_data['date_dt'].dt.day_name().map(days_map)
             week_data['التاريخ'] = week_data['date_dt'].dt.date
-            st.table(week_data.groupby(['التاريخ', 'اليوم']).agg({'amount': 'sum', 'profit': 'sum'}).reset_index())
+            summary = week_data.groupby(['التاريخ', 'اليوم']).agg({'amount': 'sum', 'profit': 'sum'}).reset_index()
+            st.table(summary.rename(columns={'amount': 'إجمالي البيع', 'profit': 'الربح الخام'}))
+        else:
+            st.warning("لا توجد مبيعات مسجلة لهذا الأسبوع حتى الآن.")
 
-    # --- 4. المصروفات ---
+    # --- 4. المصروفات (دون تغيير) ---
     elif menu == "💸 المصروفات":
         st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp_f"):
@@ -192,13 +216,14 @@ else:
             if st.form_submit_button("حفظ"):
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}])], ignore_index=True)
                 auto_save(); st.rerun()
+        st.dataframe(st.session_state.expenses_df, use_container_width=True)
 
-    # --- 5. الإعدادات ---
+    # --- 5. الإعدادات (دون تغيير) ---
     elif menu == "⚙️ الإعدادات":
         st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
         with st.form("add_i"):
             n = st.text_input("الصنف"); cat = st.selectbox("القسم", st.session_state.categories)
-            b = st.text_input("شراء"); s = st.text_input("بيع"); q = st.text_input("كمية")
+            b = st.text_input("سعر الشراء"); s = st.text_input("سعر البيع"); q = st.text_input("الكمية")
             if st.form_submit_button("إضافة"):
                 st.session_state.inventory[n] = {"قسم": cat, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q)}
                 auto_save(); st.rerun()
