@@ -57,55 +57,51 @@ def auto_save():
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. واجهة المستخدم (تحسين الخطوط بناءً على طلبك)
+# 3. واجهة المستخدم (التنسيق الفخم الأصلي)
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
-    html, body, [class*="css"] { font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; }
-    
-    /* القائمة الجانبية - خلفية داكنة لإبراز الأبيض */
-    [data-testid="stSidebar"] { background-color: #1e272e !important; border-left: 2px solid #27ae60; }
-    
-    /* جعل الخط أبيض وعريض جداً وضخم في القائمة */
-    div[data-testid="stSidebar"] .stRadio div label p { 
-        color: white !important; 
-        font-weight: 900 !important; 
-        font-size: 26px !important; 
-        padding: 5px; 
-    }
-    
-    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 32px; text-align: center; margin-bottom: 25px; border-bottom: 3px solid #27ae60; padding-bottom: 15px; }
-    .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
+    [data-testid="stSidebar"] { background-color: #2c3e50 !important; border-left: 1px solid #27ae60; }
+    [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 900; font-size: 20px; padding: 10px; border-radius: 5px; }
+    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 26px; text-align: center; margin-bottom: 25px; border-bottom: 3px solid #27ae60; padding-bottom: 15px; }
+    .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; border-radius: 10px; }
+    .stButton > button { border-radius: 10px !important; }
+    .metric-card { background-color: #ffffff; border: 1px solid #e1e4e8; padding: 20px; border-radius: 15px; text-align: center; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); }
     </style>
     """, unsafe_allow_html=True)
 
 # 4. نظام تسجيل الدخول
 if 'logged_in' not in st.session_state:
     st.markdown("<h1 class='main-title'>🔒 نظام إدارة أبو عمر</h1>", unsafe_allow_html=True)
-    col_l1, col_l2, col_l3 = st.columns([1,2,1])
-    with col_l2:
-        with st.form("login_form"):
-            pwd = st.text_input("كلمة مرور الإدارة", type="password")
-            if st.form_submit_button("دخول النظام"):
-                if pwd == "123": st.session_state.logged_in = True; st.rerun()
-                else: st.error("كلمة المرور غير صحيحة")
+    with st.container():
+        col_l1, col_l2, col_l3 = st.columns([1,2,1])
+        with col_l2:
+            with st.form("login_form"):
+                pwd = st.text_input("كلمة مرور الإدارة", type="password")
+                if st.form_submit_button("دخول النظام"):
+                    if pwd == "123": st.session_state.logged_in = True; st.rerun()
+                    else: st.error("كلمة المرور غير صحيحة")
 else:
     # القائمة الجانبية
     st.sidebar.markdown("<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("التنقل", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
+    menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
     
     if st.sidebar.button("🚪 خروج آمن"):
         st.session_state.clear(); st.rerun()
 
-    # --- 1. نقطة البيع (نفس كودك الأصلي) ---
+    if st.session_state.success_msg:
+        st.toast(st.session_state.success_msg, icon='✅')
+        st.session_state.success_msg = None
+
+    # --- 1. نقطة البيع ---
     if menu == "🛒 نقطة البيع":
         st.markdown("<h1 class='main-title'>🛒 شاشة بيع البضاعة</h1>", unsafe_allow_html=True)
+        
         if st.session_state.show_cust_fields:
-            with st.status("✅ تم حفظ الفاتورة بنجاح!"):
+            with st.status("✅ تم حفظ الفاتورة بنجاح! هل تريد ربطها بزبون؟"):
                 c_n = st.text_input("اسم الزبون")
                 c_p = st.text_input("رقم الهاتف")
                 c_col1, c_col2 = st.columns(2)
-                if c_col1.button("💾 حفظ وربط"):
+                if c_col1.button("💾 حفظ وربط", type="primary"):
                     mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
                     st.session_state.sales_df.loc[mask, ['customer_name', 'customer_phone']] = [c_n, c_p]
                     auto_save(); st.session_state.show_cust_fields = False; st.rerun()
@@ -113,25 +109,32 @@ else:
                     st.session_state.show_cust_fields = False; st.rerun()
         else:
             col_h1, col_h2 = st.columns([3, 1])
-            with col_h2: st.session_state.p_method = st.radio("طريقة الدفع", ["تطبيق", "نقداً"], horizontal=True)
+            with col_h2:
+                st.session_state.p_method = st.radio("طريقة الدفع", ["تطبيق", "نقداً"], horizontal=True)
+            
             search_q = st.text_input("🔍 ابحث عن صنف...")
+            
             bill_items = []
             for cat in st.session_state.categories:
                 items = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat}
-                if search_q: items = {k: v for k, v in items.items() if search_q in k}
+                if search_q:
+                    items = {k: v for k, v in items.items() if search_q in k}
+                
                 if items:
                     with st.expander(f"📂 {cat}", expanded=True):
                         for item, data in items.items():
                             c1, c2, c3 = st.columns([2, 1, 2])
-                            c1.markdown(f"**{item}** \n<small>المتوفر: {format_num(data['كمية'])}</small>", unsafe_allow_html=True)
+                            c1.markdown(f"**{item}**")
+                            c1.caption(f"المتوفر: {format_num(data['كمية'])}")
                             mode = c2.radio("بـ", ["₪", "كجم"], key=f"m_{item}", horizontal=True)
-                            val = clean_num(c3.text_input("المقدار", key=f"v_{item}"))
+                            val = clean_num(c3.text_input("المقدار", key=f"v_{item}", label_visibility="collapsed"))
                             if val > 0:
                                 qty = val if mode == "كجم" else val / data["بيع"]
                                 bill_items.append({"item": item, "qty": qty, "amount": val if mode == "₪" else val * data["بيع"], "profit": (data["بيع"] - data["شراء"]) * qty})
+            
             if st.button("🚀 إتمام البيع", type="primary"):
                 if bill_items:
-                    b_id = str(uuid.uuid4())[:8]
+                    b_id = str(uuid.uuid4())
                     for e in bill_items:
                         st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
                         new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method, 'customer_name': 'زبون عام', 'customer_phone': '', 'bill_id': b_id}
@@ -139,61 +142,69 @@ else:
                     st.session_state.current_bill_id = b_id
                     auto_save(); st.session_state.show_cust_fields = True; st.rerun()
 
-    # --- 2. المخزن والجرد (نفس كودك الأصلي) ---
+    # --- 2. المخزن والجرد ---
     elif menu == "📦 المخزن والجرد":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزون والجودة</h1>", unsafe_allow_html=True)
-        t_list, t_jard, t_waste = st.tabs(["📋 الرصيد", "⚖️ الجرد", "🗑️ التالف"])
-        with t_list: st.dataframe(pd.DataFrame([{"الصنف": k, "القسم": v['قسم'], "الكمية": v['كمية']} for k, v in st.session_state.inventory.items()]), use_container_width=True)
+        t_list, t_jard, t_waste, t_result = st.tabs(["📋 الرصيد الحالي", "⚖️ جرد المحل", "🗑️ تسجيل تالف", "📊 نتائج الجرد"])
+        
+        with t_list:
+            df_inv = pd.DataFrame([{"الصنف": k, "القسم": v['قسم'], "الكمية": v['كمية']} for k, v in st.session_state.inventory.items()])
+            st.dataframe(df_inv, use_container_width=True)
+            
         with t_jard:
-             # كود الجرد الذي يحسب الفرق ويصحح المخزن
-             new_counts = {}
-             for item, data in st.session_state.inventory.items():
-                 c_n, c_s, c_i = st.columns([2, 1, 2])
-                 c_n.write(f"**{item}**")
-                 res = c_i.text_input("الوزن الحقيقي", key=f"j_{item}")
-                 if res != "": new_counts[item] = clean_num(res)
-             if st.button("✔️ اعتماد الجرد"):
-                 for it, rq in new_counts.items():
-                     diff = st.session_state.inventory[it]['كمية'] - rq
-                     st.session_state.adjust_df = pd.concat([st.session_state.adjust_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': it, 'diff_qty': diff, 'loss_value': diff * st.session_state.inventory[it]['شراء']}])], ignore_index=True)
-                     st.session_state.inventory[it]['كمية'] = rq
-                 auto_save(); st.rerun()
+            new_counts = {}
+            for item, data in st.session_state.inventory.items():
+                c_n, c_s, c_i = st.columns([2, 1, 2])
+                c_n.write(f"**{item}**")
+                c_s.caption(f"النظام: {format_num(data['كمية'])}")
+                res = c_i.text_input("الوزن الحقيقي", key=f"j_{item}")
+                if res != "": new_counts[item] = clean_num(res)
+            
+            if st.button("✔️ اعتماد الجرد وتصحيح الأرباح", type="primary"):
+                recs = []
+                for it, rq in new_counts.items():
+                    sq = st.session_state.inventory[it]['كمية']
+                    if rq != sq:
+                        diff = sq - rq
+                        lv = diff * st.session_state.inventory[it]['شراء']
+                        st.session_state.inventory[it]['كمية'] = rq
+                        recs.append({'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': it, 'diff_qty': diff, 'loss_value': lv})
+                if recs:
+                    st.session_state.adjust_df = pd.concat([st.session_state.adjust_df, pd.DataFrame(recs)], ignore_index=True)
+                    st.session_state.last_jard_view = recs
+                    auto_save(); st.session_state.success_msg = "تم الجرد بنجاح"; st.rerun()
 
-    # --- 3. التقارير المالية (تم إضافة تفصيل اليوم كما طلبت) ---
+        with t_waste:
+            with st.form("w_f"):
+                wi = st.selectbox("صنف تالف", list(st.session_state.inventory.keys()))
+                wq = st.number_input("الكمية التالفة", min_value=0.0)
+                if st.form_submit_button("حفظ التالف"):
+                    lv = wq * st.session_state.inventory[wi]['شراء']
+                    st.session_state.inventory[wi]['كمية'] -= wq
+                    st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': wi, 'qty': wq, 'loss_value': lv}])], ignore_index=True)
+                    auto_save(); st.rerun()
+
+    # --- 3. التقارير المالية ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 لوحة التحكم والأرباح</h1>", unsafe_allow_html=True)
-        
-        # فلترة مبيعات اليوم
-        today = datetime.now().strftime("%Y-%m-%d")
-        df_s = st.session_state.sales_df.copy()
-        df_s['day'] = pd.to_datetime(df_s['date']).dt.strftime("%Y-%m-%d")
-        today_sales = df_s[df_s['day'] == today]
-
-        # عرض إجمالي مبيعات اليوم بشكل بارز
-        st.markdown(f"""<div style="background-color:#2c3e50; color:white; padding:20px; border-radius:15px; text-align:center; border-right:10px solid #27ae60;">
-            <h2 style="margin:0;">إجمالي مبيعات اليوم</h2>
-            <h1 style="font-size:50px; color:#27ae60;">{format_num(today_sales['amount'].sum())} ₪</h1>
-        </div>""", unsafe_allow_html=True)
-
-        col1, col2 = st.columns(2)
-        col1.metric("💰 كاش (نقداً)", f"{format_num(today_sales[today_sales['method']=='نقداً']['amount'].sum())} ₪")
-        col2.metric("📱 تطبيق", f"{format_num(today_sales[today_sales['method']=='تطبيق']['amount'].sum())} ₪")
-        
-        st.divider()
-        # الأرباح الإجمالية (التراكمية)
         tp = st.session_state.sales_df['profit'].sum()
         te = st.session_state.expenses_df['amount'].sum()
         tw = st.session_state.waste_df['loss_value'].sum()
         ta = st.session_state.adjust_df['loss_value'].sum()
-        st.subheader(f"📈 صافي الربح النهائي: {format_num(tp - te - tw - ta)} ₪")
+        net = tp - te - tw - ta
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("إجمالي ربح البيع", f"{format_num(tp)} ₪")
+        c2.metric("إجمالي المصروفات", f"{format_num(te)} ₪")
+        c3.metric("خسارة عجز/تالف", f"{format_num(tw + ta)} ₪")
+        c4.metric("صافي الربح النهائي", f"{format_num(net)} ₪")
 
-    # --- المصروفات والإعدادات (نفس كودك الأصلي) ---
     elif menu == "💸 المصروفات":
         st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp"):
-            r = st.text_input("البيان")
+            r = st.text_input("بيان المصروف")
             a = st.number_input("المبلغ", min_value=0.0)
-            if st.form_submit_button("حفظ"):
+            if st.form_submit_button("حفظ المصروف"):
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}])], ignore_index=True)
                 auto_save(); st.rerun()
 
@@ -205,6 +216,6 @@ else:
             b = st.text_input("شراء")
             s = st.text_input("بيع")
             q = st.text_input("كمية")
-            if st.form_submit_button("حفظ الصنف"):
+            if st.form_submit_button("حفظ"):
                 st.session_state.inventory[n] = {"قسم": cat, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q)}
                 auto_save(); st.rerun()
