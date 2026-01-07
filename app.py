@@ -69,20 +69,23 @@ st.markdown("""
     .metric-value { font-size: 24px; color: #2c3e50; font-weight: 900; }
     </style>
     """, unsafe_allow_html=True)
-
-# 4. نظام تسجيل الدخول المحمي
+# 4. نظام تسجيل الدخول المطور (تعديل كود المحل)
 if 'logged_in' not in st.session_state:
-    st.markdown("<h1 class='main-title'>🔒 دخول نظام أبو عمر</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>🔒 نظام إدارة أبو عمر</h1>", unsafe_allow_html=True)
     u_in = st.text_input("اسم المستخدم")
     p_in = st.text_input("كلمة المرور", type="password")
-    if st.button("دخول"):
+    
+    if st.button("دخول النظام"):
+        # 1. فحص دخول المدير العام (أبو عمر)
         if u_in == "أبو عمر" and p_in == "admin":
             st.session_state.logged_in = True
             st.session_state.user_role = "admin"
             st.session_state.active_user = "أبو عمر"
             st.rerun()
-        else:
-            db = st.session_state.branches_db
+        
+        # 2. فحص دخول أصحاب المحلات من الملف (branches_config.csv)
+        elif os.path.exists('branches_config.csv'):
+            db = pd.read_csv('branches_config.csv')
             match = db[(db['user_name'] == u_in) & (db['password'] == p_in)]
             if not match.empty:
                 st.session_state.logged_in = True
@@ -90,9 +93,10 @@ if 'logged_in' not in st.session_state:
                 st.session_state.my_branch = match.iloc[0]['branch_name']
                 st.session_state.active_user = u_in
                 st.rerun()
-            else: st.error("خطأ في البيانات")
-    st.stop()
-
+            else:
+                st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
+        else:
+            st.error("❌ خطأ: لا توجد حسابات مسجلة حالياً")
 # 5. القائمة الجانبية والتحكم بالفروع
 role = st.session_state.user_role
 user_name = st.session_state.active_user
