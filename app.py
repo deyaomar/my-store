@@ -4,181 +4,145 @@ import os
 from datetime import datetime, timedelta
 import uuid
 
-# --- 1. الإعدادات العامة والتنسيق ---
+# 1. إعدادات الصفحة
 st.set_page_config(page_title="نظام أبو عمر للمحاسبة 2026", layout="wide", page_icon="🍏")
 
+def تنسيق_رقم(قيمة):
+    try:
+        if قيمة == int(قيمة): return str(int(قيمة))
+        return str(round(قيمة, 2))
+    except: return str(قيمة)
+
+def تنظيف_رقم(نص):
+    try:
+        if نص is None or نص == "": return 0.0
+        return float(str(نص).replace(',', '.').replace('،', '.'))
+    except: return 0.0
+
+# 2. ملفات البيانات
+الملفات = {
+    'المبيعات': ('sales_v3.csv', ['التاريخ', 'الصنف', 'المبلغ', 'الربح', 'الطريقة', 'اسم_الزبون', 'هاتف_الزبون', 'رقم_الفاتورة']),
+    'المصروفات': ('expenses_v3.csv', ['التاريخ', 'البيان', 'المبلغ']),
+    'التالف': ('waste_v3.csv', ['التاريخ', 'الصنف', 'الكمية', 'قيمة_الخسارة']),
+    'تسويات_الجرد': ('adjust_v3.csv', ['التاريخ', 'الصنف', 'الفارق_الوزني', 'الفارق_المالي'])
+}
+
+for key, (file, cols) in الملفات.items():
+    state_key = f"data_{key}"
+    if state_key not in st.session_state:
+        if os.path.exists(file):
+            df = pd.read_csv(file)
+            st.session_state[state_key] = df
+        else:
+            st.session_state[state_key] = pd.DataFrame(columns=cols)
+
+if 'inventory' not in st.session_state:
+    st.session_state.inventory = pd.read_csv('inventory_v3.csv', index_col=0).to_dict('index') if os.path.exists('inventory_v3.csv') else {}
+if 'categories' not in st.session_state:
+    st.session_state.categories = pd.read_csv('categories_v3.csv')['name'].tolist() if os.path.exists('categories_v3.csv') else ["خضار وفواكه", "مكسرات"]
+
+def حفظ_تلقائي():
+    pd.DataFrame(st.session_state.inventory).T.to_csv('inventory_v3.csv')
+    st.session_state.data_المبيعات.to_csv('sales_v3.csv', index=False)
+    st.session_state.data_المصروفات.to_csv('expenses_v3.csv', index=False)
+    st.session_state.data_التالف.to_csv('waste_v3.csv', index=False)
+    st.session_state.data_تسويات_الجرد.to_csv('adjust_v3.csv', index=False)
+    pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_v3.csv', index=False)
+
+# 3. الواجهة والتنسيق
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     html, body, [class*="css"] { font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 12px; border: 1px solid #27ae60; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
-    .main-header { background-color: #2c3e50; color: white; padding: 1.5rem; border-radius: 10px; text-align: center; margin-bottom: 2rem; border-bottom: 5px solid #27ae60; }
-    .card { background-color: #f8f9fa; border-right: 6px solid #27ae60; padding: 15px; border-radius: 8px; margin-bottom: 10px; box-shadow: 1px 1px 3px rgba(0,0,0,0.1); }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; font-weight: bold; background-color: #27ae60; color: white; }
+    .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; }
+    .report-card { background-color: #f1f3f4; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #ddd; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. إدارة البيانات ---
-def safe_num(v):
-    try: return float(str(v).replace(',', '.').replace('،', '.')) if v else 0.0
-    except: return 0.0
-
-def load_data(file, cols):
-    if os.path.exists(file):
-        try:
-            df = pd.read_csv(file)
-            for col in cols:
-                if col not in df.columns: df[col] = 0
-            return df
-        except: return pd.DataFrame(columns=cols)
-    return pd.DataFrame(columns=cols)
-
-FILES = {
-    'sales': ('sales_v4.csv', ['التاريخ', 'الصنف', 'المبلغ', 'الربح', 'الطريقة', 'الزبون', 'رقم_الفاتورة']),
-    'exp': ('exp_v4.csv', ['التاريخ', 'البيان', 'المبلغ']),
-    'inv': ('inv_v4.csv', ['صنف', 'قسم', 'شراء', 'بيع', 'كمية']),
-    'adj': ('adj_v4.csv', ['التاريخ', 'الصنف', 'الفارق_الوزني', 'الفارق_المالي'])
-}
-
-if 'db' not in st.session_state:
-    st.session_state.db = {k: load_data(v[0], v[1]) for k, v in FILES.items()}
-    st.session_state.cats = pd.read_csv('cats.csv')['name'].tolist() if os.path.exists('cats.csv') else ["خضار وفواكه", "مكسرات"]
-
-def save_db():
-    for k, v in FILES.items():
-        st.session_state.db[k].to_csv(v[0], index=False)
-    pd.DataFrame(st.session_state.cats, columns=['name']).to_csv('cats.csv', index=False)
-
-# --- 3. نظام الدخول ---
-if 'auth' not in st.session_state:
-    st.markdown("<div class='main-header'><h1>🔐 تسجيل دخول نظام أبو عمر</h1></div>", unsafe_allow_html=True)
-    _, col, _ = st.columns([1,1,1])
-    with col:
-        pwd = st.text_input("كلمة المرور الإدارية", type="password")
-        if st.button("دخول"):
-            if pwd == "123": st.session_state.auth = True; st.rerun()
-            else: st.error("خطأ في كلمة المرور")
+if 'logged_in' not in st.session_state:
+    st.markdown("<h1 class='main-title'>🔒 دخول نظام أبو عمر</h1>", unsafe_allow_html=True)
+    with st.container():
+        _, col_login, _ = st.columns([1,1,1])
+        with col_login:
+            pwd = st.text_input("كلمة المرور", type="password")
+            if st.button("دخول"):
+                if pwd == "123": st.session_state.logged_in = True; st.rerun()
+                else: st.error("خطأ!")
 else:
-    # --- 4. القائمة الجانبية ---
-    st.sidebar.markdown("<h2 style='text-align:center;'>أبو عمر 👋</h2>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("التنقل:", ["🛒 نقطة البيع", "📊 التقارير", "⚖️ تنفيذ جرد", "📦 المخزن", "💸 المصروفات", "⚙️ الإعدادات"])
-
+    st.sidebar.markdown("<h2 style='color:#27ae60; text-align:center;'>أهلاً أبو عمر</h2>", unsafe_allow_html=True)
+    menu = st.sidebar.radio("القائمة:", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المتقدمة", "⚙️ الإعدادات"])
+    
     if st.sidebar.button("🚪 خروج"):
         st.session_state.clear(); st.rerun()
 
-    # --- 🛒 1. نقطة البيع ---
+    # --- 1. شاشة البيع ---
     if menu == "🛒 نقطة البيع":
-        st.markdown("<div class='main-header'><h1>🛒 شاشة البيع المباشر</h1></div>", unsafe_allow_html=True)
-        c_p1, c_p2 = st.columns([3, 1])
-        with c_p2:
-            method = st.radio("طريقة الدفع", ["نقداً", "تطبيق"], horizontal=True)
-            cust = st.text_input("اسم الزبون", "زبون عام")
-        with c_p1:
-            search = st.text_input("🔍 ابحث عن صنف...")
-            
-        cart = []
-        inv_df = st.session_state.db['inv']
-        display_items = inv_df[inv_df['صنف'].str.contains(search, na=False)] if search else inv_df
+        st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
+        if 'p_method' not in st.session_state: st.session_state.p_method = "نقداً"
         
-        for idx, row in display_items.iterrows():
-            with st.container():
-                col_n, col_u, col_v = st.columns([2, 1, 1])
-                col_n.markdown(f"<div class='card'><b>{row['صنف']}</b><br><small>المخزن: {row['كمية']} | السعر: {row['بيع']}</small></div>", unsafe_allow_html=True)
-                unit = col_u.radio("بـ", ["شيكل", "وزن"], key=f"u_{idx}", horizontal=True)
-                val = safe_num(col_v.text_input("المقدار", key=f"v_{idx}", label_visibility="collapsed"))
+        col_pay1, col_pay2 = st.columns([3,1])
+        with col_pay2:
+            st.session_state.p_method = st.radio("الدفع:", ["نقداً", "تطبيق"], horizontal=True)
+        
+        search_q = st.text_input("🔍 ابحث عن صنف...")
+        cart = []
+        for name, data in st.session_state.inventory.items():
+            if search_q.lower() in name.lower():
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.write(f"**{name}**")
+                mode = c2.radio("بـ", ["₪", "كجم"], key=f"t_{name}", horizontal=True)
+                val = تنظيف_رقم(c3.text_input("المقدار", key=f"v_{name}"))
                 if val > 0:
-                    qty = val if unit == "وزن" else val / row['بيع']
-                    cart.append({'idx': idx, 'صنف': row['صنف'], 'كمية': qty, 'مبلغ': val if unit == "شيكل" else val * row['بيع'], 'ربح': (row['بيع']-row['شراء'])*qty})
-
-        if st.button("💾 إتمام العملية", type="primary"):
+                    qty = val if mode == "كجم" else val / data["بيع"]
+                    cart.append({"name": name, "qty": qty, "amt": val if mode == "₪" else val * data["بيع"], "profit": (data["بيع"]-data["شراء"])*qty})
+        
+        if st.button("✅ تأكيد البيع"):
             if cart:
-                bill_id = str(uuid.uuid4())[:8]
-                now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                bill_id = str(uuid.uuid4())
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                 for item in cart:
-                    st.session_state.db['inv'].at[item['idx'], 'كمية'] -= item['كمية']
-                    new_s = {'التاريخ': now, 'الصنف': item['صنف'], 'المبلغ': item['مبلغ'], 'الربح': item['ربح'], 'الطريقة': method, 'الزبون': cust, 'رقم_الفاتورة': bill_id}
-                    st.session_state.db['sales'] = pd.concat([st.session_state.db['sales'], pd.DataFrame([new_s])], ignore_index=True)
-                save_db(); st.success("✅ تم الحفظ!"); st.rerun()
+                    st.session_state.inventory[item["name"]]["كمية"] -= item["qty"]
+                    new_sale = {'التاريخ': now_str, 'الصنف': item['name'], 'المبلغ': item['amt'], 'الربح': item['profit'], 'الطريقة': st.session_state.p_method, 'اسم_الزبون': 'زبون عام', 'رقم_الفاتورة': bill_id}
+                    st.session_state.data_المبيعات = pd.concat([st.session_state.data_المبيعات, pd.DataFrame([new_sale])], ignore_index=True)
+                حفظ_تلقائي(); st.success("✅ تم حفظ العملية بنجاح"); st.rerun()
 
-    # --- 📊 2. التقارير ---
-    elif menu == "📊 التقارير":
-        st.markdown("<div class='main-header'><h1>📊 كشف الأرباح والمبيعات</h1></div>", unsafe_allow_html=True)
-        t_type = st.selectbox("فترة التقرير", ["اليوم", "آخر 7 أيام", "تاريخ مخصص"])
+    # --- 4. التقارير المتقدمة ---
+    elif menu == "📊 التقارير المتقدمة":
+        st.markdown("<h1 class='main-title'>📊 التقارير المالية والتحليلية</h1>", unsafe_allow_html=True)
+        
+        col_f1, col_f2 = st.columns([1, 2])
+        period = col_f1.selectbox("اختر الفترة الزمنية:", ["اليوم", "آخر 7 أيام (أسبوعي)", "تاريخ مخصص"])
+        
         start_d = datetime.now().date()
         end_d = datetime.now().date()
-        if t_type == "آخر 7 أيام": start_d -= timedelta(days=7)
-        elif t_type == "تاريخ مخصص":
-            c1, c2 = st.columns(2)
-            start_d = c1.date_input("من", start_d - timedelta(days=30))
-            end_d = c2.date_input("إلى", datetime.now().date())
-
-        def filter_date(df):
-            if df.empty: return df
-            df['date_dt'] = pd.to_datetime(df['التاريخ']).dt.date
-            return df[(df['date_dt'] >= start_d) & (df['date_dt'] <= end_d)]
-
-        s_f = filter_date(st.session_state.db['sales'])
-        e_f = filter_date(st.session_state.db['exp'])
-        a_f = filter_date(st.session_state.db['adj'])
-
-        rev, prof, exps = s_f['المبلغ'].sum(), s_f['الربح'].sum(), e_f['المبلغ'].sum()
-        adj_loss = a_f['الفارق_المالي'].sum()
-        net = prof - exps - adj_loss
-
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("المبيعات", f"{rev:,.1f} ₪")
-        m2.metric("المصروفات", f"{exps:,.1f} ₪")
-        m3.metric("خسائر الجرد", f"{adj_loss:,.1f} ₪")
-        m4.metric("صافي الربح", f"{net:,.1f} ₪")
-        st.dataframe(s_f[['التاريخ', 'الصنف', 'المبلغ', 'الطريقة', 'الزبون']], use_container_width=True)
-
-    # --- ⚖️ 3. تنفيذ جرد ---
-    elif menu == "⚖️ تنفيذ جرد":
-        st.markdown("<div class='main-header'><h1>⚖️ مطابقة الجرد الفعلي</h1></div>", unsafe_allow_html=True)
-        j_data = []
-        for idx, row in st.session_state.db['inv'].iterrows():
-            cc1, cc2, cc3 = st.columns([2,1,2])
-            cc1.write(f"**{row['صنف']}**")
-            cc2.info(f"نظام: {row['كمية']}")
-            real_v = cc3.text_input("أدخل الوزن الحقيقي", key=f"j_{idx}")
-            if real_v:
-                diff = row['كمية'] - safe_num(real_v)
-                if diff != 0: j_data.append({'idx': idx, 'صنف': row['صنف'], 'فرق': diff, 'خسارة': diff * row['شراء'], 'new': safe_num(real_v)})
         
-        if st.button("💾 اعتماد الجرد", type="primary"):
-            now = datetime.now().strftime("%Y-%m-%d")
-            for d in j_data:
-                st.session_state.db['inv'].at[d['idx'], 'كمية'] = d['new']
-                new_adj = {'التاريخ': now, 'الصنف': d['صنف'], 'الفارق_الوزني': d['فرق'], 'الفارق_المالي': d['خسارة']}
-                st.session_state.db['adj'] = pd.concat([st.session_state.db['adj'], pd.DataFrame([new_adj])], ignore_index=True)
-            save_db(); st.success("تم التحديث!"); st.rerun()
+        if period == "آخر 7 أيام (أسبوعي)":
+            start_d = datetime.now().date() - timedelta(days=7)
+        elif period == "تاريخ مخصص":
+            c_date1, c_date2 = col_f2.columns(2)
+            start_d = c_date1.date_input("من تاريخ:", datetime.now().date() - timedelta(days=30))
+            end_d = c_date2.date_input("إلى تاريخ:", datetime.now().date())
 
-    # باقي الأقسام (المخزن، المصروفات، الإعدادات) تتبع نفس النمط المستقر...
-    elif menu == "📦 المخزن":
-        st.markdown("<div class='main-header'><h1>📦 رصيد المخزن</h1></div>", unsafe_allow_html=True)
-        st.dataframe(st.session_state.db['inv'], use_container_width=True)
-    
-    elif menu == "💸 المصروفات":
-        st.markdown("<div class='main-header'><h1>💸 تسجيل مصروف</h1></div>", unsafe_allow_html=True)
-        with st.form("exp_f"):
-            reason = st.text_input("البيان")
-            amt = st.number_input("المبلغ", min_value=0.0)
-            if st.form_submit_button("حفظ"):
-                new_e = {'التاريخ': datetime.now().strftime("%Y-%m-%d"), 'البيان': reason, 'المبلغ': amt}
-                st.session_state.db['exp'] = pd.concat([st.session_state.db['exp'], pd.DataFrame([new_e])], ignore_index=True)
-                save_db(); st.rerun()
+        def filter_df(df):
+            if df.empty: return df
+            df['temp_date'] = pd.to_datetime(df['التاريخ']).dt.date
+            return df[(df['temp_date'] >= start_d) & (df['temp_date'] <= end_d)]
 
-    elif menu == "⚙️ الإعدادات":
-        st.markdown("<div class='main-header'><h1>⚙️ إدارة الأصناف</h1></div>", unsafe_allow_html=True)
-        with st.expander("➕ إضافة صنف جديد"):
-            with st.form("add_i"):
-                name = st.text_input("اسم الصنف")
-                cat = st.selectbox("القسم", st.session_state.cats)
-                c1, c2, c3 = st.columns(3)
-                b = c1.text_input("شراء")
-                s = c2.text_input("بيع")
-                q = c3.text_input("كمية")
-                if st.form_submit_button("حفظ"):
-                    new_item = {'صنف': name, 'قسم': cat, 'شراء': safe_num(b), 'بيع': safe_num(s), 'كمية': safe_num(q)}
-                    st.session_state.db['inv'] = pd.concat([st.session_state.db['inv'], pd.DataFrame([new_item])], ignore_index=True)
-                    save_db(); st.rerun()
+        sales_f = filter_df(st.session_state.data_المبيعات)
+        exp_f = filter_df(st.session_state.data_المصروفات)
+        waste_f = filter_df(st.session_state.data_التالف)
+        adj_f = filter_df(st.session_state.data_تسويات_الجرد)
+
+        net_profit = sales_f['الربح'].sum() - exp_f['المبلغ'].sum() - waste_f['قيمة_الخسارة'].sum() - adj_f['الفارق_المالي'].sum()
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(f"<div class='report-card'><h3>المبيعات</h3><h2>{تنسيق_رقم(sales_f['المبلغ'].sum())} ₪</h2></div>", unsafe_allow_html=True)
+        c2.markdown(f"<div class='report-card'><h3>المصروفات</h3><h2>{تنسيق_رقم(exp_f['المبلغ'].sum())} ₪</h2></div>", unsafe_allow_html=True)
+        c3.markdown(f"<div class='report-card'><h3>العجز والتالف</h3><h2>{تنسيق_رقم(waste_f['قيمة_الخسارة'].sum() + adj_f['الفارق_المالي'].sum())} ₪</h2></div>", unsafe_allow_html=True)
+        c4.markdown(f"<div style='background-color:#27ae60; color:white;' class='report-card'><h3>الربح الصافي</h3><h2>{تنسيق_رقم(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.subheader("📋 تفاصيل الفواتير")
+        if not sales_f.empty:
+            bills = sales_f.groupby('رقم_الفاتورة').agg({'التاريخ':'first','اسم_الزبون':'first','الطريقة':'first','المبلغ':'sum','الربح':'sum'}).sort_values('التاريخ', ascending=False)
+            st.table(bills.rename(columns={'التاريخ':'التاريخ والوقت','اسم_الزبون':'الزبون','الطريقة':'طريقة الدفع','المبلغ':'القيمة','الربح':'الربح'}))
