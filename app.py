@@ -41,54 +41,36 @@ if 'categories' not in st.session_state:
 if 'last_report' not in st.session_state: st.session_state.last_report = None
 if 'p_method' not in st.session_state: st.session_state.p_method = "نقداً"
 
-# 3. التعديل "الجذري" للألوان (CSS Force)
+# 3. التعديل المطلوب: تلوين القائمة الجانبية بالأحمر الداكن
 st.markdown("""
     <style>
-    /* 1. خلفية القائمة الجانبية */
-    [data-testid="stSidebar"] { background-color: #2c3e50 !important; }
+    /* تلوين خلفية القائمة الجانبية كاملة بالأحمر الداكن */
+    [data-testid="stSidebar"] {
+        background-color: #8b0000 !important;
+    }
+    
+    /* تلوين النصوص داخل القائمة الجانبية باللون الأبيض العريض */
+    [data-testid="stSidebar"] .st-expander, [data-testid="stSidebar"] .stRadio div {
+        color: white !important;
+        font-weight: 900 !important;
+        font-size: 20px !important;
+    }
 
-    /* 2. العنوان الرئيسي */
+    /* تعديل شكل الراديو (الخيارات) في القائمة اليسرى */
+    [data-testid="stSidebar"] label {
+        color: white !important;
+        font-weight: 900 !important;
+        font-size: 110% !important;
+    }
+
     .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; }
-
-    /* 3. إجبار القائمة المنسدلة (Selectbox) على ألوانك المطلوبة */
-    /* استهداف المربع نفسه */
-    div[data-baseweb="select"] {
-        background-color: #1e8449 !important; /* أخضر غامق */
-        border: 3px solid #000000 !important; /* إطار أسود واضح */
-        border-radius: 10px !important;
-    }
     
-    /* استهداف النص داخل المربع وهو مغلق */
-    div[data-baseweb="select"] div {
-        color: white !important;
-        font-weight: 900 !important;
-        font-size: 24px !important; /* خط كبير جداً للابتوب */
-    }
-
-    /* استهداف النص عند اختيار صنف */
-    .stSelectbox div[data-testid="stMarkdownContainer"] p {
-        color: white !important;
-        font-weight: 900 !important;
-    }
-
-    /* 4. السهم الجانبي */
-    svg[data-testid="stSelectboxArrow"] {
-        fill: white !important;
-        transform: scale(1.5);
-    }
-
-    /* 5. بطاقات التقارير */
-    .report-card { background: #ffffff; padding: 15px; border-radius: 12px; border-right: 8px solid #2c3e50; box-shadow: 0 4px 6px rgba(0,0,0,0.2); text-align: center; margin-bottom: 10px; }
+    /* بطاقات التقارير */
+    .report-card { background: #ffffff; padding: 15px; border-radius: 12px; border-right: 8px solid #8b0000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; margin-bottom: 10px; }
     
-    /* 6. الأزرار */
-    .stButton > button { 
-        font-weight: 900 !important; 
-        font-size: 22px !important;
-        height: 60px !important;
-        border-radius: 12px !important;
-        box-shadow: 0 4px #145a32;
-    }
-    .stButton > button[kind="primary"] { background-color: #27ae60 !important; color: white !important; }
+    /* الأزرار */
+    .stButton > button { font-weight: 900 !important; font-size: 20px !important; border-radius: 10px !important; }
+    .stButton > button[kind="primary"] { background-color: #27ae60 !important; width: 100%; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -103,16 +85,18 @@ if 'logged_in' not in st.session_state:
                 st.rerun()
             else: st.error("كلمة المرور غير صحيحة")
 else:
-    st.sidebar.markdown(f"### مرحباً يا أبو عمر")
-    menu = st.sidebar.radio("القائمة الرئيسية", ["🛒 شاشة البيع", "📦 المخزن والتالف", "💸 المصروفات", "📊 التقارير والإحصائيات"])
+    # القائمة الجانبية
+    st.sidebar.markdown("<h2 style='color: white; text-align: center;'>نظام أبو عمر</h2>", unsafe_allow_html=True)
+    menu = st.sidebar.radio("اختار من القائمة:", ["🛒 شاشة البيع", "📦 المخزن والتالف", "💸 المصروفات", "📊 التقارير والإحصائيات"])
     
+    st.sidebar.write("---")
     if st.sidebar.button("🚪 خروج"):
         st.session_state.clear()
         st.rerun()
 
+    # --- محتوى القوائم ---
     if menu == "🛒 شاشة البيع":
         st.markdown("<h1 class='main-title'>🛒 فاتورة البيع</h1>", unsafe_allow_html=True)
-        # (بقية الكود الخاص بالبيع...)
         if st.session_state.last_report:
             st.markdown(st.session_state.last_report, unsafe_allow_html=True)
             if st.button("➕ فاتورة جديدة", type="primary"):
@@ -145,7 +129,7 @@ else:
                 if bill_items:
                     total_amt = sum(i['amount'] for i in bill_items)
                     bill_id = datetime.now().strftime("%Y%m%d%H%M%S")
-                    res_html = '<div style="border:2px solid #27ae60; padding:15px; border-radius:10px; direction:rtl; background:#f9f9f9;"><h3>🧾 فاتورة أبو عمر</h3>'
+                    res_html = f'<div style="border:2px solid #8b0000; padding:15px; border-radius:10px; direction:rtl; background:#f9f9f9;"><h3>🧾 فاتورة أبو عمر</h3>'
                     for e in bill_items:
                         st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
                         new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method, 'bill_id': bill_id}
@@ -156,7 +140,7 @@ else:
                     auto_save(); st.rerun()
 
     elif menu == "📦 المخزن والتالف":
-        st.markdown("<h1 class='main-title'>📦 إدارة المخزن والتالف</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
         t1, t2 = st.tabs(["📊 جرد المخزن", "🗑️ تسجيل التالف"])
         with t1:
             if st.session_state.inventory:
@@ -178,7 +162,7 @@ else:
         with st.form("exp_form"):
             reason = st.text_input("البيان")
             amt_e = st.number_input("المبلغ", min_value=0.0)
-            if st.form_submit_button("حفظ المصروف"):
+            if st.form_submit_button("حفظ"):
                 new_e = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'reason': reason, 'amount': amt_e}
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_e])], ignore_index=True)
                 auto_save(); st.success("تم الحفظ"); st.rerun()
@@ -201,4 +185,4 @@ else:
         col3.markdown(f"<div class='report-card'><h3>التالف</h3><h2>{f_w['loss_value'].sum():.1f}</h2></div>", unsafe_allow_html=True)
         col4.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>صافي الربح</h3><h2>{net_p:.1f}</h2></div>", unsafe_allow_html=True)
         if not f_s.empty:
-            st.plotly_chart(px.bar(f_s.groupby('item')['amount'].sum().reset_index(), x='item', y='amount', color='amount', color_continuous_scale='Greens'), use_container_width=True)
+            st.plotly_chart(px.bar(f_s.groupby('item')['amount'].sum().reset_index(), x='item', y='amount', color='amount', color_continuous_scale='Reds'), use_container_width=True)
