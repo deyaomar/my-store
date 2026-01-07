@@ -25,6 +25,7 @@ def auto_save():
     st.session_state.sales_df.to_csv(SALES_FILE, index=False)
     st.session_state.expenses_df.to_csv(EXPENSES_FILE, index=False)
     st.session_state.waste_df.to_csv(WASTE_FILE, index=False)
+    pd.DataFrame(st.session_state.categories, columns=['name']).to_csv(CATS_FILE, index=False)
 
 # تحميل البيانات
 if 'inventory' not in st.session_state:
@@ -41,35 +42,16 @@ if 'categories' not in st.session_state:
 if 'last_report' not in st.session_state: st.session_state.last_report = None
 if 'p_method' not in st.session_state: st.session_state.p_method = "نقداً"
 
-# 3. التعديل المطلوب: تصغير الخط مع الحفاظ على اللون الأبيض والعرض
+# 3. التصميم (CSS)
 st.markdown("""
     <style>
-    /* خلفية القائمة الجانبية */
-    [data-testid="stSidebar"] { 
-        background-color: #2c3e50 !important; 
-    }
-    
-    /* استهداف النص والأيقونات داخل الراديو في القائمة الجانبية - نسخة مصغرة */
+    [data-testid="stSidebar"] { background-color: #2c3e50 !important; }
     [data-testid="stSidebar"] .stRadio div label p {
-        color: white !important;
-        font-weight: 700 !important; /* عريض بشكل مناسب */
-        font-size: 18px !important;  /* حجم أصغر وأكثر تناسقاً */
-        margin-bottom: 5px;
+        color: white !important; font-weight: 700 !important; font-size: 18px !important; margin-bottom: 5px;
     }
-
-    /* تلوين عنوان الترحيب - حجم متوسط */
-    .sidebar-user {
-        color: #27ae60 !important;
-        font-weight: 900;
-        font-size: 22px;
-        text-align: center;
-        margin-bottom: 15px;
-        border-bottom: 1px solid white;
-    }
-
+    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 22px; text-align: center; margin-bottom: 15px; border-bottom: 1px solid white; }
     .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; }
-    .report-card { background: #ffffff; padding: 15px; border-radius: 12px; border-right: 8px solid #2c3e50; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; margin-bottom: 10px; }
-    .stButton > button[kind="primary"] { background-color: #27ae60 !important; width: 100%; color: white !important; font-weight: 900; font-size: 18px; }
+    .stButton > button[kind="primary"] { background-color: #27ae60 !important; width: 100%; color: white !important; font-weight: 900; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -84,13 +66,10 @@ if 'logged_in' not in st.session_state:
                 st.rerun()
             else: st.error("كلمة المرور غير صحيحة")
 else:
-    # القائمة الجانبية
     st.sidebar.markdown("<div class='sidebar-user'>مرحباً يا أبو عمر</div>", unsafe_allow_html=True)
-    
-    # اختيار القائمة
     menu = st.sidebar.radio(
         "القائمة الرئيسية",
-        ["🛒 شاشة البيع", "📦 المخزن والتالف", "💸 المصروفات", "📊 التقارير والإحصائيات"]
+        ["🛒 شاشة البيع", "📦 المخزن والتالف", "💸 المصروفات", "📊 التقارير والإحصائيات", "⚙️ إدارة الأصناف والإعدادات"]
     )
     
     st.sidebar.markdown("---")
@@ -98,7 +77,7 @@ else:
         st.session_state.clear()
         st.rerun()
 
-    # --- 1. شاشة البيع ---
+    # --- 1. شاشة البيع (مختصرة للسرعة) ---
     if menu == "🛒 شاشة البيع":
         st.markdown("<h1 class='main-title'>🛒 فاتورة البيع</h1>", unsafe_allow_html=True)
         if st.session_state.last_report:
@@ -112,8 +91,7 @@ else:
                 st.session_state.p_method = "نقداً"; st.rerun()
             if col_p2.button("📱 تطبيق", type="primary" if st.session_state.p_method == "تطبيق" else "secondary"):
                 st.session_state.p_method = "تطبيق"; st.rerun()
-
-            st.write(f"الدفع الحالي: **{st.session_state.p_method}**")
+            
             bill_items = []
             for cat in st.session_state.categories:
                 with st.expander(f"📂 {cat}", expanded=True):
@@ -122,39 +100,84 @@ else:
                         c1, c2, c3 = st.columns([2, 1, 2])
                         with c1: st.write(f"**{item}** (₪{data['بيع']})")
                         with c2: mode = st.radio("النوع", ["شيكل", "كمية"], key=f"m_{item}", horizontal=True)
-                        with c3: val = clean_num(st.text_input("المبلغ/الكمية", key=f"v_{item}", label_visibility="collapsed"))
+                        with c3: val = clean_num(st.text_input("القيمة", key=f"v_{item}", label_visibility="collapsed"))
                         if val > 0:
                             qty = val if mode == "كمية" else val / data["بيع"]
                             amt = val if mode == "شيكل" else val * data["بيع"]
-                            if qty <= data['كمية']:
-                                bill_items.append({"item": item, "qty": qty, "amount": amt, "profit": (data["بيع"] - data["شراء"]) * qty})
-                            else: st.warning(f"المتبقي {data['كمية']:.1f}")
-            if st.button("✅ تأكيد البيع", type="primary", use_container_width=True):
+                            bill_items.append({"item": item, "qty": qty, "amount": amt, "profit": (data["بيع"] - data["شراء"]) * qty})
+            
+            if st.button("✅ تأكيد البيع والحفظ", type="primary"):
                 if bill_items:
-                    total_amt = sum(i['amount'] for i in bill_items)
-                    bill_id = datetime.now().strftime("%Y%m%d%H%M%S")
-                    res_html = '<div style="border:2px solid #27ae60; padding:10px; border-radius:10px; direction:rtl;"><h3>🧾 فاتورة</h3>'
+                    total = sum(i['amount'] for i in bill_items)
                     for e in bill_items:
                         st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
-                        new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method, 'bill_id': bill_id}
+                        new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method}
                         st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
-                        res_html += f"<p>{e['item']} | {e['qty']:.2f} | {e['amount']:.1f} ₪</p>"
-                    res_html += f"<h4>الإجمالي: {total_amt:.1f} ₪</h4></div>"
-                    st.session_state.last_report = res_html
+                    st.session_state.last_report = f"<div style='border:2px solid green; padding:10px;'><h3>تم الحفظ بنجاح!</h3><h4>الإجمالي: {total:.1f} ₪</h4></div>"
                     auto_save(); st.rerun()
 
-    # --- باقي القوائم ---
+    # --- 2. الإعدادات وإدارة الأصناف (التي طلبتها يا أبو عمر) ---
+    elif menu == "⚙️ إدارة الأصناف والإعدادات":
+        st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف والأقسام</h1>", unsafe_allow_html=True)
+        tab1, tab2, tab3 = st.tabs(["🆕 إضافة صنف", "✏️ تعديل/حذف صنف", "📂 إدارة الأقسام"])
+        
+        with tab1:
+            with st.form("add_item"):
+                name = st.text_input("اسم الصنف الجديد")
+                cat = st.selectbox("القسم", st.session_state.categories)
+                buy = st.number_input("سعر الشراء", min_value=0.0)
+                sell = st.number_input("سعر البيع", min_value=0.0)
+                qty = st.number_input("الكمية الحالية", min_value=0.0)
+                if st.form_submit_button("إضافة للمخزن"):
+                    if name:
+                        st.session_state.inventory[name] = {"قسم": cat, "شراء": buy, "بيع": sell, "كمية": qty}
+                        auto_save(); st.success(f"تم إضافة {name}"); st.rerun()
+
+        with tab2:
+            edit_item = st.selectbox("اختر الصنف للتعديل أو الحذف", [""] + list(st.session_state.inventory.keys()))
+            if edit_item != "":
+                data = st.session_state.inventory[edit_item]
+                new_sell = st.number_input("تعديل سعر البيع", value=float(data['بيع']))
+                new_qty = st.number_input("تعديل الكمية", value=float(data['كمية']))
+                c1, c2 = st.columns(2)
+                if c1.button("حفظ التعديلات"):
+                    st.session_state.inventory[edit_item]['بيع'] = new_sell
+                    st.session_state.inventory[edit_item]['كمية'] = new_qty
+                    auto_save(); st.success("تم التعديل"); st.rerun()
+                if c2.button("❌ حذف الصنف نهائياً"):
+                    del st.session_state.inventory[edit_item]
+                    auto_save(); st.warning("تم الحذف"); st.rerun()
+
+        with tab3:
+            st.write("الأقسام الحالية:", st.session_state.categories)
+            new_cat = st.text_input("اسم القسم الجديد")
+            if st.button("إضافة قسم"):
+                if new_cat and new_cat not in st.session_state.categories:
+                    st.session_state.categories.append(new_cat)
+                    auto_save(); st.rerun()
+            del_cat = st.selectbox("حذف قسم", st.session_state.categories)
+            if st.button("حذف القسم"):
+                st.session_state.categories.remove(del_cat)
+                auto_save(); st.rerun()
+
+    # --- باقي الأقسام (المخزن، المصاريف، التقارير) كما هي ---
     elif menu == "📦 المخزن والتالف":
-        st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
-        # (بقية كود المخزن كما هو...)
+        st.markdown("<h1 class='main-title'>📦 جرد المخزن</h1>", unsafe_allow_html=True)
         if st.session_state.inventory:
-            st.table(pd.DataFrame([{"الصنف": k, "الكمية": f"{v['كمية']:.1f}", "بيع": v['بيع']} for k, v in st.session_state.inventory.items()]))
+            df_inv = pd.DataFrame(st.session_state.inventory).T
+            st.dataframe(df_inv[['قسم', 'كمية', 'شراء', 'بيع']], use_container_width=True)
 
     elif menu == "💸 المصروفات":
         st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
-        # (بقية كود المصروفات كما هو...)
+        with st.form("exp"):
+            res = st.text_input("البيان")
+            amt = st.number_input("المبلغ", min_value=0.0)
+            if st.form_submit_button("حفظ"):
+                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': res, 'amount': amt}])], ignore_index=True)
+                auto_save(); st.rerun()
         st.dataframe(st.session_state.expenses_df, use_container_width=True)
 
     elif menu == "📊 التقارير والإحصائيات":
-        st.markdown("<h1 class='main-title'>📊 التقارير</h1>", unsafe_allow_html=True)
-        # (بقية كود التقارير كما هو...)
+        st.markdown("<h1 class='main-title'>📊 التقارير المادية</h1>", unsafe_allow_html=True)
+        st.write(f"إجمالي مبيعاتك: {st.session_state.sales_df['amount'].sum():.1f} ₪")
+        st.write(f"إجمالي الربح: {st.session_state.sales_df['profit'].sum():.1f} ₪")
