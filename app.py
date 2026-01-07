@@ -67,7 +67,7 @@ st.markdown("""
     .sidebar-user {
         color: #27ae60 !important;
         font-weight: 900;
-        font-size: 28px;
+        font-size: 22px;
         text-align: center;
         margin-bottom: 20px;
         border-bottom: 2px solid white;
