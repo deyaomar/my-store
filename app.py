@@ -26,7 +26,7 @@ def auto_save():
     st.session_state.expenses_df.to_csv(EXPENSES_FILE, index=False)
     st.session_state.waste_df.to_csv(WASTE_FILE, index=False)
 
-# تحميل البيانات في الـ Session State
+# تحميل البيانات
 if 'inventory' not in st.session_state:
     st.session_state.inventory = pd.read_csv(DB_FILE, index_col=0).to_dict('index') if os.path.exists(DB_FILE) else {}
 if 'sales_df' not in st.session_state:
@@ -38,57 +38,37 @@ if 'waste_df' not in st.session_state:
 if 'categories' not in st.session_state:
     st.session_state.categories = pd.read_csv(CATS_FILE)['name'].tolist() if os.path.exists(CATS_FILE) else ["خضار وفواكه", "مكسرات"]
 
-# تهيئة متغيرات الجلسة الإضافية
 if 'last_report' not in st.session_state: st.session_state.last_report = None
 if 'p_method' not in st.session_state: st.session_state.p_method = "نقداً"
 
-# 3. التصميم المطور (CSS) - التعديل الجديد لطلبك هنا
+# 3. التصميم المطور (CSS) - نسخة إجبار اللون الأبيض والعريض للقوائم
 st.markdown("""
     <style>
-    /* القائمة الجانبية */
     [data-testid="stSidebar"] { background-color: #2c3e50 !important; }
-    
-    /* العنوان الرئيسي */
     .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; }
     
-    /* تعديل القائمة المنسدلة: خط أبيض وعريض */
-    div[data-baseweb="select"] > div {
-        background-color: #27ae60 !important; 
+    /* تعديل القائمة المنسدلة المخصص لطلبك */
+    div[data-baseweb="select"] span, div[data-baseweb="select"] div {
         color: white !important; 
         font-weight: 900 !important; 
         font-size: 22px !important;
-        border-radius: 8px !important;
     }
-    
-    /* لون الخيارات عند فتح القائمة المنسدلة */
-    ul[data-baseweb="menu"] li {
-        color: #2c3e50 !important;
-        font-weight: bold !important;
-        font-size: 18px !important;
-    }
-
-    /* بطاقات التقارير */
-    .report-card { background: #ffffff; padding: 15px; border-radius: 12px; border-right: 8px solid #2c3e50; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; margin-bottom: 10px; }
-    
-    /* تنبيه النواقص */
-    .low-stock { background: #ffeded; border-right: 5px solid #ff4b4b; padding: 10px; border-radius: 5px; color: #ff4b4b; font-weight: bold; margin-bottom: 5px; }
-    
-    /* الأزرار الأساسية */
-    .stButton > button { 
-        font-weight: 900 !important; 
-        font-size: 20px !important;
+    div[data-baseweb="select"] {
+        background-color: #1e8449 !important; 
         border-radius: 10px !important;
+        border: 2px solid #27ae60 !important;
     }
+    svg[data-testid="stSelectboxArrow"] { fill: white !important; }
+    .stSelectbox label p { color: #2c3e50 !important; font-weight: 900 !important; font-size: 20px !important; }
+
+    .report-card { background: #ffffff; padding: 15px; border-radius: 12px; border-right: 8px solid #2c3e50; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; margin-bottom: 10px; }
+    .low-stock { background: #ffeded; border-right: 5px solid #ff4b4b; padding: 10px; border-radius: 5px; color: #ff4b4b; font-weight: bold; margin-bottom: 5px; }
+    .stButton > button { font-weight: 900 !important; font-size: 20px !important; border-radius: 10px !important; }
     .stButton > button[kind="primary"] { background-color: #27ae60 !important; width: 100%; color: white !important; }
-    
-    /* تحسين العرض على الجوال */
-    @media (max-width: 600px) {
-        .report-card h2 { font-size: 1.5rem; }
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. نظام الدخول والتحكم في القائمة
+# 4. نظام الدخول والتحكم
 if 'logged_in' not in st.session_state:
     st.markdown("<h1 class='main-title'>🔐 دخول نظام أبو عمر</h1>", unsafe_allow_html=True)
     with st.form("login"):
@@ -110,7 +90,6 @@ else:
     if menu == "🛒 شاشة البيع":
         st.markdown("<h1 class='main-title'>🛒 فاتورة البيع</h1>", unsafe_allow_html=True)
         
-        # تنبيه النواقص
         low_stock = [k for k, v in st.session_state.inventory.items() if v['كمية'] <= 5]
         for item in low_stock:
             st.markdown(f"<div class='low-stock'>⚠️ {item} قارب على الانتهاء ({st.session_state.inventory[item]['كمية']:.1f} متبقي)</div>", unsafe_allow_html=True)
@@ -136,7 +115,7 @@ else:
                         c1, c2, c3 = st.columns([2, 1, 2])
                         with c1: st.write(f"**{item}** (₪{data['بيع']})")
                         with c2: mode = st.radio("النوع", ["شيكل", "كمية"], key=f"m_{item}", label_visibility="collapsed", horizontal=True)
-                        with c3: val = clean_num(st.text_input("ادخل المبلغ أو الكمية", key=f"v_{item}", label_visibility="collapsed", placeholder="0"))
+                        with c3: val = clean_num(st.text_input("0", key=f"v_{item}", label_visibility="collapsed", placeholder="0"))
                         
                         if val > 0:
                             qty = val if mode == "كمية" else val / data["بيع"]
@@ -154,51 +133,48 @@ else:
                         st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
                         new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': st.session_state.p_method, 'bill_id': bill_id}
                         st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
-                        res_html += f"<p><b>{e['item']}</b>: {e['qty']:.2f} وحدة | {e['amount']:.1f} ₪</p>"
-                    res_html += f"<hr><h4>الإجمالي الصافي: {total_amt:.1f} ₪</h4></div>"
+                        res_html += f"<p><b>{e['item']}</b>: {e['qty']:.2f} | {e['amount']:.1f} ₪</p>"
+                    res_html += f"<hr><h4>الإجمالي: {total_amt:.1f} ₪</h4></div>"
                     st.session_state.last_report = res_html
                     auto_save(); st.rerun()
 
     # --- 2. المخزن والتالف ---
     elif menu == "📦 المخزن والتالف":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن والتالف</h1>", unsafe_allow_html=True)
-        t1, t2 = st.tabs(["📊 جرد المخزن", "🗑️ تسجيل التالف (الهالك)"])
+        t1, t2 = st.tabs(["📊 جرد المخزن", "🗑️ تسجيل التالف"])
         with t1:
             if st.session_state.inventory:
-                df_inv = pd.DataFrame([{"الصنف": k, "الكمية المتبقية": f"{v['كمية']:.1f}", "سعر الشراء": v['شراء'], "سعر البيع": v['بيع']} for k, v in st.session_state.inventory.items()])
-                st.table(df_inv)
+                st.table(pd.DataFrame([{"الصنف": k, "الكمية": f"{v['كمية']:.1f}", "شراء": v['شراء'], "بيع": v['بيع']} for k, v in st.session_state.inventory.items()]))
         with t2:
             with st.form("waste_form"):
                 item_w = st.selectbox("اختر الصنف التالف", list(st.session_state.inventory.keys()))
-                qty_w = st.number_input("الكمية التي خربت", min_value=0.0, step=0.1)
-                if st.form_submit_button("تسجيل الخسارة وخصمها"):
+                qty_w = st.number_input("الكمية", min_value=0.0, step=0.1)
+                if st.form_submit_button("تسجيل الخسارة"):
                     if qty_w > 0 and qty_w <= st.session_state.inventory[item_w]['كمية']:
                         loss = qty_w * st.session_state.inventory[item_w]['شراء']
                         st.session_state.inventory[item_w]['كمية'] -= qty_w
                         new_w = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': item_w, 'qty': qty_w, 'loss_value': loss}
                         st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([new_w])], ignore_index=True)
-                        auto_save(); st.success(f"تم خصم {qty_w} من {item_w}"); st.rerun()
-                    else: st.error("تأكد من الكمية!")
+                        auto_save(); st.success("تم الخصم"); st.rerun()
 
     # --- 3. المصروفات ---
     elif menu == "💸 المصروفات":
-        st.markdown("<h1 class='main-title'>💸 سجل المصروفات النثرية</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp_form"):
-            reason = st.text_input("بيان المصروف (أكياس، كهرباء، عامل..)")
-            amt_e = st.number_input("المبلغ المدفوع", min_value=0.0, step=1.0)
+            reason = st.text_input("البيان")
+            amt_e = st.number_input("المبلغ", min_value=0.0)
             if st.form_submit_button("حفظ المصروف"):
-                if reason and amt_e > 0:
-                    new_e = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'reason': reason, 'amount': amt_e}
-                    st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_e])], ignore_index=True)
-                    auto_save(); st.success("تم تسجيل المصروف بنجاح"); st.rerun()
-        st.dataframe(st.session_state.expenses_df.sort_values(by='date', ascending=False), use_container_width=True)
+                new_e = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'reason': reason, 'amount': amt_e}
+                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_e])], ignore_index=True)
+                auto_save(); st.success("تم الحفظ"); st.rerun()
+        st.dataframe(st.session_state.expenses_df.sort_values(by='date', ascending=False))
 
     # --- 4. التقارير ---
     elif menu == "📊 التقارير والإحصائيات":
         st.markdown("<h1 class='main-title'>📊 تقرير الأداء المالي</h1>", unsafe_allow_html=True)
         c_d1, c_d2 = st.columns(2)
-        start = c_d1.date_input("من تاريخ", datetime.now().date())
-        end = c_d2.date_input("إلى تاريخ", datetime.now().date())
+        start = c_d1.date_input("من", datetime.now().date())
+        end = c_d2.date_input("إلى", datetime.now().date())
 
         for df_n in ['sales_df', 'expenses_df', 'waste_df']:
             st.session_state[df_n]['date_only'] = pd.to_datetime(st.session_state[df_n]['date']).dt.date
@@ -207,16 +183,13 @@ else:
         f_e = st.session_state.expenses_df[(st.session_state.expenses_df['date_only'] >= start) & (st.session_state.expenses_df['date_only'] <= end)]
         f_w = st.session_state.waste_df[(st.session_state.waste_df['date_only'] >= start) & (st.session_state.waste_df['date_only'] <= end)]
 
-        net_profit = f_s['profit'].sum() - f_e['amount'].sum() - f_w['loss_value'].sum()
+        net_p = f_s['profit'].sum() - f_e['amount'].sum() - f_w['loss_value'].sum()
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.markdown(f"<div class='report-card'><h3>المبيعات</h3><h2>{f_s['amount'].sum():,.1f} ₪</h2></div>", unsafe_allow_html=True)
-        col2.markdown(f"<div class='report-card'><h3>المصاريف</h3><h2>{f_e['amount'].sum():,.1f} ₪</h2></div>", unsafe_allow_html=True)
-        col3.markdown(f"<div class='report-card'><h3>التالف</h3><h2>{f_w['loss_value'].sum():,.1f} ₪</h2></div>", unsafe_allow_html=True)
-        col4.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>صافي الربح</h3><h2>{net_profit:,.1f} ₪</h2></div>", unsafe_allow_html=True)
+        col1.markdown(f"<div class='report-card'><h3>المبيعات</h3><h2>{f_s['amount'].sum():.1f}</h2></div>", unsafe_allow_html=True)
+        col2.markdown(f"<div class='report-card'><h3>المصاريف</h3><h2>{f_e['amount'].sum():.1f}</h2></div>", unsafe_allow_html=True)
+        col3.markdown(f"<div class='report-card'><h3>التالف</h3><h2>{f_w['loss_value'].sum():.1f}</h2></div>", unsafe_allow_html=True)
+        col4.markdown(f"<div class='report-card' style='border-right-color:#27ae60;'><h3>صافي الربح</h3><h2>{net_p:.1f}</h2></div>", unsafe_allow_html=True)
 
         if not f_s.empty:
-            st.write("---")
-            st.subheader("🔝 الأصناف الأكثر مبيعاً (قيمة)")
-            fig = px.bar(f_s.groupby('item')['amount'].sum().reset_index(), x='item', y='amount', color='amount', color_continuous_scale='Greens')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(px.bar(f_s.groupby('item')['amount'].sum().reset_index(), x='item', y='amount', color='amount', color_continuous_scale='Greens'), use_container_width=True)
