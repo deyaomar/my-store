@@ -26,12 +26,12 @@ EXPENSES_FILE = 'expenses_final.csv'
 WASTE_FILE = 'waste_final.csv'
 CATS_FILE = 'categories_final.csv'
 
-# معالجة تحميل الملفات
+# تحميل ومعالجة الملفات
 if 'sales_df' not in st.session_state:
     if os.path.exists(SALES_FILE):
         df = pd.read_csv(SALES_FILE)
-        for col in ['customer_name', 'customer_phone', 'bill_id']:
-            if col not in df.columns: df[col] = ""
+        for col in ['customer_name', 'customer_phone', 'bill_id', 'profit']:
+            if col not in df.columns: df[col] = 0.0 if col == 'profit' else ""
         st.session_state.sales_df = df
     else:
         st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id'])
@@ -65,7 +65,7 @@ st.markdown("""
     [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 900; font-size: 18px; }
     .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 22px; text-align: center; margin-bottom: 15px; border-bottom: 1px solid white; }
     .main-title { color: #2c3e50; text-align: center; border-bottom: 4px solid #27ae60; padding-bottom: 10px; font-weight: 900; }
-    .stButton > button[kind="primary"] { background-color: #27ae60 !important; width: 100%; color: white !important; font-weight: 900; }
+    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #dee2e6; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -77,7 +77,6 @@ if 'logged_in' not in st.session_state:
         if st.form_submit_button("دخول"):
             if pwd == "123": st.session_state.logged_in = True; st.rerun()
 else:
-    # --- رسالة النجاح في رأس الصفحة ---
     if st.session_state.success_msg:
         st.success(st.session_state.success_msg)
         st.session_state.success_msg = None
@@ -91,24 +90,18 @@ else:
     # --- 1. شاشة البيع ---
     if menu == "🛒 شاشة البيع":
         st.markdown("<h1 class='main-title'>🛒 فاتورة البيع</h1>", unsafe_allow_html=True)
-        
         if st.session_state.show_cust_fields:
-            st.success("✅ تم تأكيد البيع! يمكنك الآن إضافة بيانات الزبون للتحويل:")
-            with st.container():
-                c_n = st.text_input("اسم الزبون (صاحب الحساب)")
-                c_p = st.text_input("رقم الجوال")
-                col1, col2 = st.columns(2)
-                if col1.button("💾 حفظ البيانات", type="primary"):
-                    mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
-                    st.session_state.sales_df.loc[mask, 'customer_name'] = c_n
-                    st.session_state.sales_df.loc[mask, 'customer_phone'] = c_p
-                    auto_save()
-                    st.session_state.show_cust_fields = False
-                    st.session_state.success_msg = "✅ تم ربط بيانات الزبون بالفاتورة بنجاح"
-                    st.rerun()
-                if col2.button("➕ تجاوز وفاتورة جديدة"):
-                    st.session_state.show_cust_fields = False
-                    st.rerun()
+            st.success("✅ تم تأكيد البيع! أدخل بيانات الزبون:")
+            c_n = st.text_input("اسم الزبون")
+            c_p = st.text_input("رقم الجوال")
+            col1, col2 = st.columns(2)
+            if col1.button("💾 حفظ البيانات", type="primary"):
+                mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
+                st.session_state.sales_df.loc[mask, 'customer_name'] = c_n
+                st.session_state.sales_df.loc[mask, 'customer_phone'] = c_p
+                auto_save(); st.session_state.show_cust_fields = False; st.session_state.success_msg="✅ تم الحفظ"; st.rerun()
+            if col2.button("➕ فاتورة جديدة"):
+                st.session_state.show_cust_fields = False; st.rerun()
         else:
             c_p1, c_p2 = st.columns(2)
             if c_p2.button("📱 تطبيق", type="primary" if st.session_state.p_method == "تطبيق" else "secondary"):
@@ -122,7 +115,7 @@ else:
                     items = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat}
                     for item, data in items.items():
                         c1, c2, c3 = st.columns([2, 1, 2])
-                        with c1: st.write(f"**{item}** (₪{format_num(data['بيع'])})")
+                        with c1: st.write(f"**{item}**")
                         with c2: mode = st.radio("النوع", ["شيكل", "كمية"], key=f"m_{item}", horizontal=True)
                         with c3: val = clean_num(st.text_input("القيمة", key=f"v_{item}", label_visibility="collapsed"))
                         if val > 0:
@@ -139,10 +132,8 @@ else:
                         st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
                     st.session_state.current_bill_id = b_id
                     auto_save()
-                    if st.session_state.p_method == "تطبيق":
-                        st.session_state.show_cust_fields = True
-                    else:
-                        st.session_state.success_msg = "✅ تم حفظ البيعة النقدية بنجاح"
+                    if st.session_state.p_method == "تطبيق": st.session_state.show_cust_fields = True
+                    else: st.session_state.success_msg = "✅ تم حفظ البيعة"; 
                     st.rerun()
 
         st.markdown("---")
@@ -151,30 +142,53 @@ else:
             view_df = st.session_state.sales_df.tail(15).copy().sort_index(ascending=False)
             st.dataframe(view_df[['date', 'item', 'amount', 'method', 'customer_name', 'customer_phone']], use_container_width=True)
 
-    # --- 2. المخزن والتالف ---
+    # --- 2. المخزن ---
     elif menu == "📦 المخزن والتالف":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
         if st.session_state.inventory:
             disp_df = pd.DataFrame([{"الصنف": k, "القسم": v['قسم'], "الكمية": format_num(v['كمية']), "البيع": format_num(v['بيع'])} for k, v in st.session_state.inventory.items()])
             st.table(disp_df)
-            
-    # --- 5. إدارة الأصناف (رسالة النجاح فوق) ---
+
+    # --- 4. التقارير (تم الإصلاح هنا) ---
+    elif menu == "📊 التقارير والإحصائيات":
+        st.markdown("<h1 class='main-title'>📊 التقارير المادية</h1>", unsafe_allow_html=True)
+        
+        # حساب البيانات
+        total_sales = st.session_state.sales_df['amount'].sum()
+        total_profit = st.session_state.sales_df['profit'].sum()
+        total_expenses = st.session_state.expenses_df['amount'].sum()
+        net_profit = total_profit - total_expenses
+        
+        # حساب رأس المال الموجود في المخزن حالياً
+        stock_value = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("إجمالي المبيعات", f"{format_num(total_sales)} ₪")
+        col_m2.metric("إجمالي المصروفات", f"{format_num(total_expenses)} ₪")
+        col_m3.metric("صافي الربح", f"{format_num(net_profit)} ₪", delta=format_num(net_profit), delta_color="normal")
+        
+        st.markdown("---")
+        st.subheader("📦 وضع المخزن الحالي")
+        st.metric("قيمة البضاعة الحالية (بسعر الشراء)", f"{format_num(stock_value)} ₪")
+        
+        if st.checkbox("إظهار تفاصيل المبيعات الكاملة"):
+            st.dataframe(st.session_state.sales_df, use_container_width=True)
+
+    # --- 5. إدارة الأصناف ---
     elif menu == "⚙️ إدارة الأصناف":
         st.markdown("<h1 class='main-title'>⚙️ الإعدادات</h1>", unsafe_allow_html=True)
         tab1, tab2, tab3 = st.tabs(["🆕 إضافة صنف", "✏️ تعديل صنف", "📂 الأقسام"])
         with tab1:
             with st.form("add_form", clear_on_submit=True):
-                name = st.text_input("اسم الصنف الجديد")
+                name = st.text_input("اسم الصنف")
                 cat = st.selectbox("القسم", st.session_state.categories)
                 c1, c2, c3 = st.columns(3)
-                buy, sell, qty = c1.text_input("سعر الشراء"), c2.text_input("سعر البيع"), c3.text_input("الكمية")
-                if st.form_submit_button("إضافة للمخزن"):
+                buy, sell, qty = c1.text_input("شراء"), c2.text_input("بيع"), c3.text_input("كمية")
+                if st.form_submit_button("إضافة"):
                     if name:
                         st.session_state.inventory[name] = {"قسم": cat, "شراء": clean_num(buy), "بيع": clean_num(sell), "كمية": clean_num(qty)}
-                        auto_save()
-                        st.session_state.success_msg = f"✅ تم إضافة صنف ({name}) بنجاح!" # ستظهر في رأس الصفحة
-                        st.rerun()
+                        auto_save(); st.session_state.success_msg = f"✅ تم إضافة صنف ({name}) بنجاح!"; st.rerun()
         with tab3:
             nc = st.text_input("اسم القسم")
-            if st.button("➕ إضافة قسم"):
+            if st.button("➕ إضافة"):
                 st.session_state.categories.append(nc); auto_save(); st.rerun()
