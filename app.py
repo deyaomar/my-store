@@ -6,7 +6,7 @@ from datetime import datetime
 # 1. إعدادات الصفحة
 st.set_page_config(page_title="نظام أبو عمر 2026", layout="wide", page_icon="🍏")
 
-# 2. التنسيق البصري (تعديل الخطوط لتكون بيضاء وعريضة جداً)
+# 2. التنسيق البصري (تركيز كامل على ضخامة ووضوح الخط الأبيض)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
@@ -17,56 +17,62 @@ st.markdown("""
         direction: rtl;
     }
 
-    /* خلفية القائمة الجانبية */
+    /* خلفية القائمة الجانبية داكنة لإبراز الأبيض */
     [data-testid="stSidebar"] {
-        background-color: #1e272e !important;
+        background-color: #121212 !important;
+        min-width: 350px !important;
     }
 
-    /* اسم أبو عمر */
+    /* اسم أبو عمر - كبير جداً */
     .sidebar-user-header {
         color: #27ae60 !important;
-        font-size: 32px !important;
+        font-size: 38px !important;
         font-weight: 900 !important;
         text-align: center;
-        padding: 20px 0px;
-        border-bottom: 2px solid #27ae60;
-        margin-bottom: 20px;
+        padding: 25px 0px;
+        border-bottom: 3px solid #27ae60;
+        margin-bottom: 30px;
     }
 
-    /* تنسيق خيارات القائمة الجانبية */
+    /* تصميم خيارات القائمة الجانبية كأزرار ضخمة */
     div[data-testid="stSidebar"] .stRadio div label {
-        background-color: #2f3640;
-        margin-bottom: 10px;
-        border-radius: 12px;
-        padding: 15px 20px !important;
-        border: 1px solid #3d4652;
+        background-color: #1e1e1e;
+        margin-bottom: 15px;
+        border-radius: 15px;
+        padding: 20px 25px !important;
+        border: 2px solid #333;
+        transition: 0.3s ease;
     }
 
-    /* جعل النص أبيض وعريض جداً */
+    /* النص: أبيض ناصع، ضخم، وعريض جداً */
     div[data-testid="stSidebar"] .stRadio div label p {
-        color: #FFFFFF !important; /* لون أبيض ناصع */
-        font-size: 22px !important; /* حجم كبير */
-        font-weight: 900 !important; /* عريض جداً */
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* لزيادة الوضوح */
+        color: #FFFFFF !important; /* أبيض ناصع */
+        font-size: 30px !important; /* حجم ضخم وواضح */
+        font-weight: 900 !important; /* أقصى عرض للخط */
+        line-height: 1.5;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.8); /* ظل لزيادة البروز */
     }
 
-    /* عند اختيار القسم */
+    /* عند مرور الماوس أو الاختيار */
+    div[data-testid="stSidebar"] .stRadio div label:hover {
+        border-color: #27ae60;
+        background-color: #262626;
+    }
+
     div[data-testid="stSidebar"] .stRadio div label[data-checked="true"] {
         background-color: #27ae60 !important;
         border: 2px solid #ffffff !important;
-    }
-    
-    div[data-testid="stSidebar"] .stRadio div label[data-checked="true"] p {
-        color: #FFFFFF !important;
+        box-shadow: 0px 4px 15px rgba(39, 174, 96, 0.4);
     }
 
+    /* العناوين في الصفحة الرئيسية */
     .main-title {
         color: #2c3e50;
         text-align: center;
         border-bottom: 5px solid #27ae60;
         padding-bottom: 10px;
         font-weight: 900;
-        font-size: 35px;
+        font-size: 40px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -75,7 +81,7 @@ st.markdown("""
 st.sidebar.markdown("<div class='sidebar-user-header'>أبو عمر 👋</div>", unsafe_allow_html=True)
 
 menu = st.sidebar.radio(
-    label="القائمة الأساسية",
+    label="قائمة التحكم",
     options=[
         "📊 التقارير المالية", 
         "🛒 نقطة البيع", 
@@ -86,12 +92,15 @@ menu = st.sidebar.radio(
     label_visibility="collapsed"
 )
 
-st.sidebar.divider()
+st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
+if st.sidebar.button("🚪 تسجيل خروج آمن", use_container_width=True):
+    st.session_state.clear()
+    st.rerun()
 
-# --- عرض المحتوى بناءً على اختيارك ---
+# --- الصفحات ---
 if menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقارير المالية</h1>", unsafe_allow_html=True)
-    st.write("مرحباً بك يا أبو عمر في قسم التقارير.")
+    st.success("أهلاً بك يا أبو عمر، تم تحديث الخطوط بناءً على طلبك.")
 
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 نقطة البيع</h1>", unsafe_allow_html=True)
