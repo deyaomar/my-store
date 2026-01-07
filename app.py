@@ -78,32 +78,41 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. نظام تسجيل الدخول المطور
+# 4. نظام تسجيل الدخول المطور (نسخة الحل النهائي)
 if 'logged_in' not in st.session_state:
     st.markdown("<h1 class='main-title'>🔒 نظام إدارة أبو عمر</h1>", unsafe_allow_html=True)
-    col_log, _ = st.columns([1, 1])
-    with col_log:
-        u_in = st.text_input("اسم المستخدم")
-        p_in = st.text_input("كلمة المرور", type="password")
-        if st.button("دخول النظام"):
-            # دخول المدير
-            if u_in == "أبو عمر" and p_in == "admin":
+    
+    u_in = st.text_input("اسم المستخدم").strip()  # حذف المسافات الزائدة تلقائياً
+    p_in = st.text_input("كلمة المرور", type="password").strip()
+    
+    if st.button("دخول النظام"):
+        # 1. دخول المدير العام
+        if u_in == "أبو عمر" and p_in == "admin":
+            st.session_state.logged_in = True
+            st.session_state.user_role = "admin"
+            st.session_state.active_user = "أبو عمر"
+            st.rerun()
+            
+        # 2. دخول أصحاب المحلات
+        else:
+            db = st.session_state.branches_db.copy()
+            # التأكد من مطابقة البيانات بدون مسافات
+            db['user_name'] = db['user_name'].astype(str).str.strip()
+            db['password'] = db['password'].astype(str).str.strip()
+            
+            match = db[(db['user_name'] == u_in) & (db['password'] == p_in)]
+            
+            if not match.empty:
                 st.session_state.logged_in = True
-                st.session_state.user_role = "admin"
-                st.session_state.active_user = "أبو عمر"
+                st.session_state.user_role = "shop"
+                st.session_state.my_branch = match.iloc[0]['branch_name']
+                st.session_state.active_user = u_in
                 st.rerun()
-            # دخول أصحاب المحلات
             else:
-                db = st.session_state.branches_db
-                match = db[(db['user_name'] == u_in) & (db['password'] == p_in)]
-                if not match.empty:
-                    st.session_state.logged_in = True
-                    st.session_state.user_role = "shop"
-                    st.session_state.my_branch = match.iloc[0]['branch_name']
-                    st.session_state.active_user = u_in
-                    st.rerun()
-                else:
-                    st.error("❌ بيانات الدخول غير صحيحة")
+                st.error("❌ بيانات الدخول غير صحيحة")
+                with st.expander("هل نسيت البيانات؟ (للمدير فقط)"):
+                    st.write("الحسابات المسجلة في النظام حالياً:")
+                    st.dataframe(st.session_state.branches_db)
     st.stop()
 
 # 5. القائمة الجانبية (بعد الدخول)
