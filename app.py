@@ -379,10 +379,96 @@ elif menu in ["📊 التقارير المالية العامة", "📊 الت�
         st.dataframe(e_df.sort_values(by='date', ascending=False), use_container_width=True)
 
 elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 المخزن</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>📦 إدارة وجرد المخزن</h1>", unsafe_allow_html=True)
+    
+    # تصفية بضاعة الفرع الحالي
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-    st.table(pd.DataFrame(my_inv))
+    
+    if not my_inv:
+        st.warning("⚠️ لا توجد أصناف في مخزن هذا الفرع حالياً.")
+    else:
+        # 1. إحصائيات سريعة للمخزن
+        df_inv = pd.DataFrame(my_inv)
+        total_items = len(df_inv)
+        total_qty = df_inv['كمية'].sum()
+        stock_value = (df_inv['كمية'] * df_inv['شراء']).sum()
 
+        cols_stat = st.columns(3)
+        cols_stat[0].metric("عدد الأصناف", f"{total_items} صنف")
+        cols_stat[1].metric("إجمالي الكميات", f"{format_num(total_qty)} قطعة")
+        cols_stat[2].metric("قيمة المخزن (شراء)", f"{format_num(stock_value)} ₪")
+
+        st.divider()
+
+        # 2. واجهة الجرد الاحترافية
+        st.subheader("🛠️ عملية الجرد اليدوي")
+        st.info("قم بإدخال الكمية الفعلية الموجودة على الرف في الخانة المخصصة، وسيقوم النظام بحساب الفرق تلقائياً.")
+
+        # تجهيز جدول الجرد
+        jard_data = []
+        
+        # عرض الأصناف بتصميم مرتب
+        for idx, it in enumerate(my_inv):
+            with st.container(border=True):
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1.2])
+                
+                c1.markdown(f"**{it['item']}** \n<small style='color:gray;'>القسم: {it['قسم']}</small>", unsafe_allow_html=True)
+                c2.markdown(f"الكمية بالنظام:  \n**{format_num(it['كمية'])}**")
+                
+                # إدخال الكمية الفعلية (تبدأ فارغة أو بصفر)
+                actual_qty = c3.number_input("الكمية الفعلية", min_value=0.0, step=1.0, key=f"jard_{it['item']}_{idx}")
+                
+                # حساب الفرق واللون
+                diff = actual_qty - it['كمية']
+                if actual_qty == 0 and f"jard_{it['item']}_{idx}" not in st.session_state:
+                    diff_text = "بانتظار الجرد"
+                    color = "#94a3b8"
+                elif diff == 0:
+                    diff_text = "✅ مطابق"
+                    color = "#16a34a"
+                elif diff < 0:
+                    diff_text = f"⚠️ عجز: {format_num(abs(diff))}"
+                    color = "#dc2626"
+                else:
+                    diff_text = f"➕ زيادة: {format_num(diff)}"
+                    color = "#2563eb"
+                
+                c4.markdown(f"<div style='background:{color}; color:white; padding:10px; border-radius:8px; text-align:center; font-weight:bold; margin-top:10px;'>{diff_text}</div>", unsafe_allow_html=True)
+                
+                # إذا تم إدخال كمية فعلية، نضيفها لقائمة التحديث
+                if actual_qty != it['كمية'] and actual_qty > 0:
+                    jard_data.append({
+                        'item': it['item'],
+                        'old_qty': it['كمية'],
+                        'new_qty': actual_qty,
+                        'diff': diff,
+                        'loss_value': abs(diff) * it['شراء'] if diff < 0 else 0
+                    })
+
+        # 3. زر حفظ الجرد
+        if jard_data:
+            st.markdown("---")
+            st.warning(f"ملاحظة: سيتم تعديل كميات ({len(jard_data)}) صنف في النظام لتطابق الكمية الفعلية.")
+            if st.button("💾 اعتماد الجرد وتحديث المخزن", use_container_width=True, type="primary"):
+                # تحديث المصفوفة الرئيسية وحفظ السجلات
+                for change in jard_data:
+                    for idx, inv_item in enumerate(st.session_state.inventory):
+                        if inv_item['item'] == change['item'] and inv_item['branch'] == st.session_state.my_branch:
+                            st.session_state.inventory[idx]['كمية'] = change['new_qty']
+                            
+                            # تسجيل حركة التعديل في جدول التعديلات للرجوع إليها لاحقاً
+                            new_adj = {
+                                'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                                'item': change['item'],
+                                'diff_qty': change['diff'],
+                                'loss_value': change['loss_value'],
+                                'branch': st.session_state.my_branch
+                            }
+                            st.session_state.adjust_df = pd.concat([st.session_state.adjust_df, pd.DataFrame([new_adj])], ignore_index=True)
+                
+                auto_save()
+                st.success("✅ تم تحديث المخزن وتسجيل فروقات الجرد بنجاح!")
+                st.rerun()
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 المصروفات</h1>", unsafe_allow_html=True)
     with st.form("exp"):
