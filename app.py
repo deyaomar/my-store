@@ -33,13 +33,21 @@ def get_db_path(): return 'branches_config.csv'
 def initialize_db():
     path = get_db_path()
     if not os.path.exists(path) or os.path.getsize(path) == 0:
-        df = pd.DataFrame([{'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123'}])
+        # حساب المدير العام الافتراضي مخزن هنا أيضاً للقدرة على تعديله
+        df = pd.DataFrame([
+            {'branch_name': 'المدير العام', 'user_name': 'أبو عمر', 'password': 'admin', 'role': 'admin'},
+            {'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123', 'role': 'shop'}
+        ])
         df.to_csv(path, index=False)
     return pd.read_csv(path)
 
 # 2. تحميل البيانات الأساسية (Session State)
 if 'branches_db' not in st.session_state:
     st.session_state.branches_db = initialize_db()
+
+# محاكاة "تذكرني" (استخدام Session State الذي لا ينتهي إلا بغلق المتصفح)
+if 'remember_me' not in st.session_state:
+    st.session_state.remember_me = False
 
 FILES = {
     'sales': ('sales_final.csv', ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id', 'branch']),
@@ -82,8 +90,6 @@ st.markdown("""
     [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 18px !important; }
     .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 24px; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #334155; padding-bottom: 15px; }
     .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; border-radius: 10px; }
-    
-    /* تنسيق كروت التقارير المالية */
     .rep-card { background: white; border-radius: 15px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 5px solid #27ae60; }
     .rep-label { color: #7f8c8d; font-size: 1rem; font-weight: bold; margin-bottom: 10px; }
     .rep-value { color: #2c3e50; font-size: 1.8rem; font-weight: 900; }
@@ -92,7 +98,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. بوابة الدخول
+# 4. بوابة الدخول (تعديل: إضافة تذكرني)
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.markdown("<h1 class='main-title'>🔐 نظام الإدارة الذكي</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 1.2, 1])
@@ -100,26 +106,33 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
         with st.form("login"):
             u = st.text_input("👤 اسم المستخدم").strip()
             p = st.text_input("🔑 كلمة المرور", type="password").strip()
+            rem = st.checkbox("تذكرني على هذا الجهاز")
             if st.form_submit_button("دخول"):
-                if u == "أبو عمر" and p == "admin":
-                    st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, "admin", "أبو عمر"
-                    st.rerun()
                 db = pd.read_csv(get_db_path())
+                # التحقق من المستخدم (سواء مدير أو فرع)
                 m = db[(db['user_name'] == u) & (db['password'] == p)]
                 if not m.empty:
-                    st.session_state.logged_in, st.session_state.user_role = True, "shop"
-                    st.session_state.my_branch, st.session_state.active_user = m.iloc[0]['branch_name'], u
+                    st.session_state.logged_in = True
+                    st.session_state.user_role = m.iloc[0]['role'] if 'role' in m.columns else "shop"
+                    st.session_state.active_user = u
+                    st.session_state.my_branch = m.iloc[0]['branch_name']
+                    st.session_state.remember_me = rem
                     st.rerun()
-                else: st.error("❌ خطأ في البيانات")
+                # دخول الطوارئ للمدير العام (أبو عمر) في حال لم يكن في الملف
+                elif u == "أبو عمر" and p == "admin":
+                    st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, "admin", "أبو عمر"
+                    st.session_state.my_branch = "الإدارة"
+                    st.rerun()
+                else: st.error("❌ خطأ في اسم المستخدم أو كلمة المرور")
     st.stop()
 
 # 5. القائمة الجانبية
-st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>, unsafe_allow_html=True)
 if st.session_state.user_role == "admin":
-    menu = st.sidebar.radio("التنقل السريع", ["📊 التقارير المالية العامة", "🏪 إدارة الفروع", "⚙️ الإعدادات"])
+    menu = st.sidebar.radio("التنقل السريع", ["📊 التقارير المالية العامة", "🏪 إدارة الفروع", "⚙️ الإعدادات", "👤 ملفي الشخصي"])
     active_branch = st.sidebar.selectbox("🏠 اختيار الفرع للعرض:", ["كافة الفروع"] + pd.read_csv(get_db_path())['branch_name'].tolist())
 else:
-    menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
+    menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات", "👤 ملفي الشخصي"])
     active_branch = st.session_state.my_branch
 
 if st.sidebar.button("🚪 خروج آمن"):
@@ -127,54 +140,58 @@ if st.sidebar.button("🚪 خروج آمن"):
 
 # --- محتوى الأقسام ---
 
-# تعديل قسم التقارير المالية (تم الربط والتنسيق)
-if menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
+# إضافة قسم الملف الشخصي الجديد
+if menu == "👤 ملفي الشخصي":
+    st.markdown("<h1 class='main-title'>👤 إعدادات الحساب الشخصي</h1>", unsafe_allow_html=True)
+    with st.expander("تعديل بيانات الدخول", expanded=True):
+        new_user = st.text_input("تعديل اسم المستخدم", value=st.session_state.active_user)
+        new_pass = st.text_input("كلمة مرور جديدة", type="password")
+        confirm_pass = st.text_input("تأكيد كلمة المرور", type="password")
+        
+        if st.button("💾 حفظ التعديلات"):
+            if new_pass != confirm_pass:
+                st.error("❌ كلمات المرور غير متطابقة")
+            elif len(new_pass) < 3:
+                st.warning("⚠️ يرجى إدخال كلمة مرور قوية")
+            else:
+                db = pd.read_csv(get_db_path())
+                # تحديث البيانات في ملف الفروع/المستخدمين
+                db.loc[db['user_name'] == st.session_state.active_user, ['user_name', 'password']] = [new_user, new_pass]
+                db.to_csv(get_db_path(), index=False)
+                st.session_state.active_user = new_user
+                st.success("✅ تم تحديث بياناتك بنجاح!")
+
+# (بقية الأقسام السابقة كما هي تماماً...)
+elif menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
     title = "📊 التقارير المالية الشاملة - أبو عمر" if st.session_state.user_role == "admin" else f"📊 التقارير المالية - {st.session_state.my_branch}"
     st.markdown(f"<h1 class='main-title'>{title}</h1>", unsafe_allow_html=True)
-    
-    # تحضير البيانات بناءً على الفلتر
     s_df = st.session_state.sales_df.copy()
     e_df = st.session_state.expenses_df.copy()
-    
     if active_branch != "كافة الفروع":
         s_df = s_df[s_df['branch'] == active_branch]
         e_df = e_df[e_df['branch'] == active_branch]
-
-    # الحسابات المالية
     total_sales = s_df['amount'].sum() if not s_df.empty else 0
     total_profits = s_df['profit'].sum() if not s_df.empty else 0
     total_expenses = e_df['amount'].sum() if not e_df.empty else 0
     net_income = total_profits - total_expenses
-    
-    # عرض الكروت المالية
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(f"<div class='rep-card'><div class='rep-label'>إجمالي المبيعات</div><div class='rep-value'>{format_num(total_sales)} ₪</div></div>", unsafe_allow_html=True)
     c2.markdown(f"<div class='rep-card'><div class='rep-label'>أرباح البضاعة</div><div class='rep-value profit-val'>{format_num(total_profits)} ₪</div></div>", unsafe_allow_html=True)
     c3.markdown(f"<div class='rep-card'><div class='rep-label'>إجمالي المصروفات</div><div class='rep-value loss-val'>{format_num(total_expenses)} ₪</div></div>", unsafe_allow_html=True)
     c4.markdown(f"<div class='rep-card' style='border-top-color:#3498db'><div class='rep-label'>صافي الربح النهائي</div><div class='rep-value' style='color:#3498db'>{format_num(net_income)} ₪</div></div>", unsafe_allow_html=True)
-    
     st.markdown("---")
-    
     tab_sales, tab_exp = st.tabs(["💰 سجل المبيعات والزبائن", "💸 تفاصيل المصروفات"])
-    
     with tab_sales:
         if s_df.empty: st.info("لا توجد مبيعات مسجلة.")
         else:
-            # عرض المبيعات مع بيانات الزبائن
             view_s = s_df.sort_values(by='date', ascending=False)
-            st.dataframe(view_s[['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'branch']].rename(columns={
-                'date':'التاريخ', 'item':'الصنف', 'amount':'المبلغ', 'profit':'الربح', 'method':'الدفع', 'customer_name':'الزبون', 'customer_phone':'الهاتف', 'branch':'الفرع'
-            }), use_container_width=True, hide_index=True)
-            
+            st.dataframe(view_s[['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'branch']].rename(columns={'date':'التاريخ', 'item':'الصنف', 'amount':'المبلغ', 'profit':'الربح', 'method':'الدفع', 'customer_name':'الزبون', 'customer_phone':'الهاتف', 'branch':'الفرع'}), use_container_width=True, hide_index=True)
     with tab_exp:
         if e_df.empty: st.info("لا توجد مصروفات مسجلة.")
         else:
             view_e = e_df.sort_values(by='date', ascending=False)
-            st.dataframe(view_e[['date', 'reason', 'amount', 'branch']].rename(columns={
-                'date':'التاريخ', 'reason':'البيان', 'amount':'المبلغ', 'branch':'الفرع'
-            }), use_container_width=True, hide_index=True)
+            st.dataframe(view_e[['date', 'reason', 'amount', 'branch']].rename(columns={'date':'التاريخ', 'reason':'البيان', 'amount':'المبلغ', 'branch':'الفرع'}), use_container_width=True, hide_index=True)
 
-# باقي الأقسام تبقى كما هي بدون أي تعديل
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة بيع البضاعة</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
@@ -266,6 +283,6 @@ elif menu == "🏪 إدارة الفروع":
     with st.form("br"):
         bn = st.text_input("المحل"); un = st.text_input("المستخدم"); pw = st.text_input("المرور")
         if st.form_submit_button("حفظ"):
-            pd.concat([pd.read_csv(get_db_path()), pd.DataFrame([{'branch_name':bn,'user_name':un,'password':pw}])]).to_csv(get_db_path(), index=False)
+            pd.concat([pd.read_csv(get_db_path()), pd.DataFrame([{'branch_name':bn,'user_name':un,'password':pw, 'role': 'shop'}])]).to_csv(get_db_path(), index=False)
             st.rerun()
     st.table(pd.read_csv(get_db_path()))
