@@ -45,10 +45,6 @@ def force_init_db():
 if 'branches_db' not in st.session_state:
     st.session_state.branches_db = force_init_db()
 
-# تهيئة سلة المشتريات إذا لم تكن موجودة
-if 'pos_cart' not in st.session_state:
-    st.session_state.pos_cart = []
-
 FILES = {
     'sales': ('sales_final.csv', ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id', 'branch']),
     'expenses': ('expenses_final.csv', ['date', 'reason', 'amount', 'branch']),
@@ -74,20 +70,39 @@ def auto_save():
     st.session_state.expenses_df.to_csv('expenses_final.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. التصميم
+# 3. التصميم (نفس التصميم اللي طلبته يا أبو عمر)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; direction: rtl; }
+    
     [data-testid="stSidebar"] { background-color: #0f172a !important; border-left: 3px solid #10b981; }
-    .sidebar-user { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white !important; font-weight: 900; font-size: 22px; text-align: center; padding: 20px; border-radius: 15px; margin: 10px; }
+    .sidebar-user { 
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+        color: white !important; 
+        font-weight: 900; 
+        font-size: 22px; 
+        text-align: center; 
+        padding: 20px; 
+        border-radius: 15px;
+        margin: 10px;
+    }
     .nav-label { color: #94a3b8; font-size: 14px; margin: 20px 10px 10px 0; font-weight: bold; }
-    [data-testid="stSidebar"] .stRadio div label { background-color: #1e293b; border-radius: 12px; padding: 10px 15px !important; margin-bottom: 8px; border: 1px solid #334155; }
-    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { background-color: #10b981 !important; }
+    
+    [data-testid="stSidebar"] .stRadio div label { 
+        background-color: #1e293b; 
+        border-radius: 12px; 
+        padding: 10px 15px !important; 
+        margin-bottom: 8px; 
+        border: 1px solid #334155;
+    }
+    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { 
+        background-color: #10b981 !important; 
+    }
     [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 16px !important; }
+
     .main-title { color: #1e293b; text-align: center; border-bottom: 4px solid #10b981; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
     .metric-container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #10b981; text-align: center; margin-bottom: 20px; }
-    .cart-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 10px; border-right: 5px solid #10b981; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -106,7 +121,7 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
             else: st.error("❌ بيانات الدخول خاطئة")
     st.stop()
 
-# 5. القائمة الجانبية
+# 5. القائمة الجانبية (نفس التنسيق اللي طلبته)
 st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
 st.sidebar.markdown("<div class='nav-label'>🧭 التنقل السريع</div>", unsafe_allow_html=True)
 
@@ -122,86 +137,7 @@ if st.sidebar.button("🚪 تسجيل الخروج"):
     st.session_state.clear(); st.rerun()
 
 # --- الصفحات البرمجية ---
-
-# تعديل قسم نقطة البيع حصراً
-if menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 نقطة البيع</h1>", unsafe_allow_html=True)
-    
-    col_products, col_cart = st.columns([1.8, 1.2])
-    
-    with col_products:
-        st.subheader("🛍️ المنتجات")
-        search = st.text_input("🔍 ابحث عن صنف...")
-        my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-        
-        for idx, it in enumerate(my_inv):
-            if not search or search.lower() in it['item'].lower():
-                with st.container():
-                    c1, c2, c3, c4 = st.columns([1.5, 1, 1, 0.7])
-                    c1.write(f"**{it['item']}**\n<small>متوفر: {format_num(it['كمية'])}</small>", unsafe_allow_html=True)
-                    opts = ["علبة/قطعة", "فرط/تجزئة"] if it.get('سعر_القطعة', 0) > 0 else ["علبة/قطعة"]
-                    m = c2.selectbox("النوع", opts, key=f"m_{idx}")
-                    v = c3.text_input("المبلغ ₪", key=f"v_{idx}", placeholder="0.0")
-                    
-                    if c4.button("➕", key=f"add_{idx}"):
-                        val = clean_num(v)
-                        if val > 0:
-                            p = it['بيع'] if m == "علبة/قطعة" else it.get('سعر_القطعة', it['بيع'])
-                            q = (val/p)/20 if (m=="فرط/تجزئة" and it.get('قسم')=="سجائر") else (val/p)
-                            st.session_state.pos_cart.append({
-                                "item": it['item'], "qty": q, "amount": val, 
-                                "profit": val - (it['شراء']*q), "type": m
-                            })
-                            st.rerun()
-
-    with col_cart:
-        st.subheader("🧺 سلة المشتريات")
-        if not st.session_state.pos_cart:
-            st.info("السلة فارغة حالياً")
-        else:
-            total_amount = 0
-            for i, item in enumerate(st.session_state.pos_cart):
-                total_amount += item['amount']
-                st.markdown(f"""
-                <div class="cart-box">
-                    <b>{item['item']}</b> ({item['type']})<br>
-                    المبلغ: {format_num(item['amount'])} ₪
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button("🗑️", key=f"del_{i}"):
-                    st.session_state.pos_cart.pop(i)
-                    st.rerun()
-            
-            st.divider()
-            st.success(f"### الإجمالي: {format_num(total_amount)} ₪")
-            
-            with st.expander("💳 إتمام الدفع"):
-                c_name = st.text_input("اسم الزبون (اختياري)")
-                method = st.selectbox("طريقة الدفع", ["نقدي", "دين/آجل"])
-                if st.button("✅ تأكيد البيع"):
-                    dt = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    b_id = str(uuid.uuid4())[:8]
-                    for entry in st.session_state.pos_cart:
-                        # تحديث الكمية في المخزن
-                        for i, inv_item in enumerate(st.session_state.inventory):
-                            if inv_item['item'] == entry['item'] and inv_item['branch'] == st.session_state.my_branch:
-                                st.session_state.inventory[i]['كمية'] -= entry['qty']
-                        
-                        # إضافة سجل المبيعات
-                        new_s = {
-                            'date': dt, 'item': entry['item'], 'amount': entry['amount'], 
-                            'profit': entry['profit'], 'branch': st.session_state.my_branch,
-                            'customer_name': c_name, 'method': method, 'bill_id': b_id
-                        }
-                        st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
-                    
-                    auto_save()
-                    st.session_state.pos_cart = []
-                    st.success("تم تسجيل الفاتورة بنجاح")
-                    st.rerun()
-
-# باقي الأقسام تبقى كما هي بدون أي تعديل
-elif menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
+if menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
     st.markdown(f"<h1 class='main-title'>📊 التقارير المالية - {active_branch}</h1>", unsafe_allow_html=True)
     s_df = st.session_state.sales_df.copy()
     e_df = st.session_state.expenses_df.copy()
@@ -216,6 +152,31 @@ elif menu in ["📊 التقارير المالية العامة", "📊 الت�
         net = s_df['profit'].sum() - e_df['amount'].sum()
         st.markdown(f"<div class='metric-container'><div>⚖️ الصافي</div><div style='font-size:24px; font-weight:900; color:{'#10b981' if net >= 0 else '#ef4444'}'>{format_num(net)} ₪</div></div>", unsafe_allow_html=True)
     st.tabs(["📑 المبيعات", "💸 المصروفات"])[0].dataframe(s_df, use_container_width=True)
+
+elif menu == "🛒 نقطة البيع":
+    st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
+    my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
+    search = st.text_input("🔍 بحث...")
+    bill = []
+    for it in my_inv:
+        if not search or search.lower() in it['item'].lower():
+            c1, c2, c3 = st.columns([2, 1, 1])
+            c1.write(f"**{it['item']}**")
+            opts = ["علبة/قطعة", "فرط/تجزئة"] if it.get('سعر_القطعة', 0) > 0 else ["علبة/قطعة"]
+            m = c2.selectbox("النوع", opts, key=f"m_{it['item']}_{it.get('branch')}")
+            v = clean_num(c3.text_input("₪", key=f"v_{it['item']}_{it.get('branch')}"))
+            if v > 0:
+                # حل مشكلة KeyError عبر استخدام .get()
+                p = it['بيع'] if m == "علبة/قطعة" else it.get('سعر_القطعة', it['بيع'])
+                q = (v/p)/20 if (m=="فرط/تجزئة" and it.get('قسم')=="سجائر") else (v/p)
+                bill.append({"item": it['item'], "qty": q, "amount": v, "profit": v - (it['شراء']*q)})
+    if st.button("🚀 إتمام") and bill:
+        for e in bill:
+            for i, item in enumerate(st.session_state.inventory):
+                if item['item'] == e['item'] and item['branch'] == st.session_state.my_branch: st.session_state.inventory[i]['كمية'] -= e['qty']
+            new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'branch': st.session_state.my_branch}
+            st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
+        auto_save(); st.success("✅ تم بنجاح"); st.rerun()
 
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
