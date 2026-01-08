@@ -3,53 +3,30 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# 1. إعدادات الصفحة الأساسية
+# 1. إعدادات الصفحة
 st.set_page_config(page_title="نظام أبو عمر المتكامل 2026", layout="wide", page_icon="👑")
 
-def format_num(val):
-    try:
-        if val == int(val): return str(int(val))
-        return str(round(val, 2))
-    except: return str(val)
-
+# دالة قراءة الملفات لضمان جلب أحدث البيانات
 def safe_read_csv(file_path, default_cols):
     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
         try: return pd.read_csv(file_path)
         except: return pd.DataFrame(columns=default_cols)
     return pd.DataFrame(columns=default_cols)
 
-# 2. تحميل البيانات
-if 'branches_db' not in st.session_state:
-    st.session_state.branches_db = safe_read_csv('branches_config.csv', ['branch_name', 'user_name', 'password'])
-    if st.session_state.branches_db.empty:
-        st.session_state.branches_db = pd.DataFrame([{'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123'}])
+# تحميل الفروع بشكل مباشر من الملف لضمان عمل المستخدمين الجدد فوراً
+def get_latest_branches():
+    df = safe_read_csv('branches_config.csv', ['branch_name', 'user_name', 'password'])
+    if df.empty:
+        df = pd.DataFrame([{'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123'}])
+    return df
 
-FILES = {
-    'sales': ('sales_final.csv', ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id', 'branch', 'cat']),
-    'expenses': ('expenses_final.csv', ['date', 'reason', 'amount', 'branch']),
-}
+# تحديث بيانات الفروع في الـ session_state
+st.session_state.branches_db = get_latest_branches()
 
-for key, (file, cols) in FILES.items():
-    state_key = f"{key}_df"
-    if state_key not in st.session_state:
-        st.session_state[state_key] = safe_read_csv(file, cols)
-
-if 'inventory' not in st.session_state:
-    inv_df = safe_read_csv('inventory_final.csv', ['item', 'branch', 'قسم', 'شراء', 'بيع', 'كمية'])
-    st.session_state.inventory = inv_df.to_dict('records')
-
-if 'categories' not in st.session_state:
-    cat_df = safe_read_csv('categories_final.csv', ['name'])
-    st.session_state.categories = cat_df['name'].tolist() if not cat_df.empty else ["خضار وفواكه", "مكسرات", "ألبان", "منظفات"]
-
-def auto_save():
-    pd.DataFrame(st.session_state.inventory).to_csv('inventory_final.csv', index=False)
-    st.session_state.sales_df.to_csv('sales_final.csv', index=False)
-    st.session_state.expenses_df.to_csv('expenses_final.csv', index=False)
+def auto_save_branches():
     st.session_state.branches_db.to_csv('branches_config.csv', index=False)
-    pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. التنسيق (نفس التصميم المطلوب)
+# 2. التنسيق (نفس التصميم المطلوب)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
@@ -58,15 +35,13 @@ st.markdown("""
     .main-title { 
         background: linear-gradient(90deg, #1e3a8a, #10b981);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        text-align: center; font-weight: 900; font-size: 40px; padding: 20px; margin-bottom: 20px;
+        text-align: center; font-weight: 900; font-size: 40px; padding: 20px;
     }
-    .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-right: 10px solid #10b981; margin-bottom: 20px; }
-    [data-testid="stSidebar"] { background-color: #1e293b !important; }
-    .stSidebar [data-testid="stMarkdownContainer"] { color: white; }
+    .card { background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-right: 10px solid #10b981; }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. بوابة الدخول
+# 3. بوابة الدخول (تم إصلاحها لتقرأ المستخدمين الجدد)
 if 'logged_in' not in st.session_state:
     st.markdown("<h1 class='main-title'>🔐 نظام الإدارة الذكي</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 1.2, 1])
@@ -75,126 +50,88 @@ if 'logged_in' not in st.session_state:
             u = st.text_input("👤 اسم المستخدم").strip()
             p = st.text_input("🔑 كلمة المرور", type="password").strip()
             if st.form_submit_button("دخول النظام"):
+                # التأكد من أدمن النظام (أبو عمر)
                 if u == "أبو عمر" and p == "admin":
                     st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, "admin", "أبو عمر"
                     st.rerun()
                 else:
-                    match = st.session_state.branches_db[(st.session_state.branches_db['user_name'] == u) & (st.session_state.branches_db['password'] == p)]
+                    # البحث في الفروع المضافة حديثاً
+                    branches = get_latest_branches()
+                    match = branches[(branches['user_name'] == u) & (branches['password'] == p)]
                     if not match.empty:
-                        st.session_state.logged_in, st.session_state.user_role, st.session_state.my_branch, st.session_state.active_user = True, "shop", match.iloc[0]['branch_name'], u
+                        st.session_state.logged_in = True
+                        st.session_state.user_role = "shop"
+                        st.session_state.my_branch = match.iloc[0]['branch_name']
+                        st.session_state.active_user = u
                         st.rerun()
-                    else: st.error("❌ البيانات غير صحيحة")
+                    else: st.error("❌ بيانات الدخول غير مسجلة أو خاطئة")
     st.stop()
 
-# 5. القائمة الجانبية
+# 4. القائمة الجانبية
 if st.session_state.user_role == "admin":
-    st.sidebar.markdown(f"<div style='background:#10b981; padding:20px; border-radius:15px; text-align:center; margin-bottom:20px;'>👑 <b>المدير العام</b><br>{st.session_state.active_user}</div>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("📋 المهام الرئيسية", ["📊 التقارير المالية", "🏪 إدارة الفروع", "📦 توريد بضاعة", "⚙️ الإعدادات"])
-    active_branch = st.sidebar.selectbox("🏠 عرض فرع محدد:", ["كافة الفروع"] + st.session_state.branches_db['branch_name'].tolist())
+    menu = st.sidebar.radio("📋 المهام", ["🏪 إدارة الفروع", "📊 التقارير المالية"])
 else:
-    st.sidebar.markdown(f"<div style='background:#3b82f6; padding:20px; border-radius:15px; text-align:center; margin-bottom:20px;'>🏪 <b>فرع: {st.session_state.my_branch}</b></div>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("📋 القائمة", ["🛒 نقطة البيع", "📦 المخزن"])
-    active_branch = st.session_state.my_branch
+    st.write(f"مرحباً بك في فرع: {st.session_state.my_branch}")
+    if st.button("خروج"): st.session_state.clear(); st.rerun()
+    st.stop()
 
-if st.sidebar.button("🚨 تسجيل الخروج"): st.session_state.clear(); st.rerun()
-
-# --- قسم 1: التقارير المالية (تم تعريب الجداول) ---
-if menu == "📊 التقارير المالية":
-    st.markdown(f"<h1 class='main-title'>📊 التقارير المالية التفصيلية: {active_branch}</h1>", unsafe_allow_html=True)
-    
-    sales_df = st.session_state.sales_df.copy()
-    exp_df = st.session_state.expenses_df.copy()
-    inv_df = pd.DataFrame(st.session_state.inventory)
-    
-    if active_branch != "كافة الفروع":
-        sales_df = sales_df[sales_df['branch'] == active_branch]
-        exp_df = exp_df[exp_df['branch'] == active_branch]
-        if not inv_df.empty: inv_df = inv_df[inv_df['branch'] == active_branch]
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f"<div class='card'><p style='color:grey'>إجمالي المبيعات</p><h2>{format_num(sales_df['amount'].sum())} ₪</h2></div>", unsafe_allow_html=True)
-    with c2: st.markdown(f"<div class='card' style='border-right-color:#3b82f6'><p style='color:grey'>صافي الأرباح</p><h2 style='color:#3b82f6'>{format_num(sales_df['profit'].sum() - exp_df['amount'].sum())} ₪</h2></div>", unsafe_allow_html=True)
-    with c3: st.markdown(f"<div class='card' style='border-right-color:#f59e0b'><p style='color:grey'>قيمة المخزون</p><h2 style='color:#f59e0b'>{format_num((inv_df['شراء']*inv_df['كمية']).sum() if not inv_df.empty else 0)} ₪</h2></div>", unsafe_allow_html=True)
-    with c4: st.markdown(f"<div class='card' style='border-right-color:#ef4444'><p style='color:grey'>إجمالي المصاريف</p><h2 style='color:#ef4444'>{format_num(exp_df['amount'].sum())} ₪</h2></div>", unsafe_allow_html=True)
-
-    tab_sales, tab_exp, tab_inv = st.tabs(["🛒 سجل المبيعات", "💸 سجل المصاريف", "📦 جرد بضاعة المحل"])
-    
-    with tab_sales:
-        # تعريب أعمدة المبيعات
-        sales_renamed = sales_df.rename(columns={
-            'date': 'التاريخ', 'item': 'الصنف', 'amount': 'المبلغ', 'profit': 'الربح',
-            'method': 'طريقة الدفع', 'customer_name': 'الزبون', 'customer_phone': 'جواله',
-            'bill_id': 'رقم الفاتورة', 'branch': 'المحل', 'cat': 'القسم'
-        })
-        st.dataframe(sales_renamed.sort_values(by='التاريخ', ascending=False), use_container_width=True)
-    
-    with tab_exp:
-        # تعريب أعمدة المصاريف
-        exp_renamed = exp_df.rename(columns={'date': 'التاريخ', 'reason': 'السبب', 'amount': 'المبلغ', 'branch': 'المحل'})
-        st.dataframe(exp_renamed.sort_values(by='التاريخ', ascending=False), use_container_width=True)
-    
-    with tab_inv:
-        # تعريب أعمدة المخزن
-        if not inv_df.empty:
-            inv_renamed = inv_df.rename(columns={'item': 'الصنف', 'branch': 'المحل', 'قسم': 'القسم', 'شراء': 'سعر الشراء', 'بيع': 'سعر البيع', 'كمية': 'الكمية المتوفرة'})
-            st.dataframe(inv_renamed, use_container_width=True)
-        else: st.info("لا توجد بضاعة مسجلة.")
-
-# --- بقية الأقسام (إدارة الفروع، التوريد، الإعدادات) ---
-elif menu == "🏪 إدارة الفروع":
+# --- التركيز بالكامل على إدارة الفروع ---
+if menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة وتعديل الفروع</h1>", unsafe_allow_html=True)
+    
     col_edit, col_list = st.columns([1, 1.5])
+    
     with col_edit:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        t_add, t_edit, t_del = st.tabs(["➕ إضافة", "📝 تعديل", "❌ حذف"])
+        t_add, t_edit, t_del = st.tabs(["➕ إضافة فرع", "📝 تعديل", "❌ حذف"])
+        
         with t_add:
-            with st.form("add_f"):
-                n = st.text_input("اسم المحل")
-                u = st.text_input("اسم المستخدم")
-                p = st.text_input("كلمة المرور")
-                if st.form_submit_button("اعتماد"):
-                    st.session_state.branches_db = pd.concat([st.session_state.branches_db, pd.DataFrame([{'branch_name':n, 'user_name':u, 'password':p}])], ignore_index=True)
-                    auto_save(); st.rerun()
+            with st.form("add_branch_final"):
+                new_bn = st.text_input("اسم المحل الجديد")
+                new_un = st.text_input("اسم المستخدم للفرع")
+                new_pn = st.text_input("كلمة المرور")
+                if st.form_submit_button("اعتماد وحفظ"):
+                    if new_bn and new_un and new_pn:
+                        new_row = pd.DataFrame([{'branch_name': new_bn, 'user_name': new_un, 'password': new_pn}])
+                        st.session_state.branches_db = pd.concat([st.session_state.branches_db, new_row], ignore_index=True)
+                        auto_save_branches()
+                        st.success(f"✅ تم إنشاء فرع {new_bn} بنجاح. يمكنه الدخول الآن.")
+                        st.rerun()
+                    else: st.warning("الرجاء تعبئة كافة الحقول")
+
         with t_edit:
             if not st.session_state.branches_db.empty:
-                sel = st.selectbox("فرع للتعديل", st.session_state.branches_db['branch_name'].tolist())
-                curr = st.session_state.branches_db[st.session_state.branches_db['branch_name'] == sel].iloc[0]
-                with st.form("edit_f"):
-                    en = st.text_input("الاسم", value=curr['branch_name']); eu = st.text_input("المستخدم", value=curr['user_name']); ep = st.text_input("الكلمة", value=curr['password'])
-                    if st.form_submit_button("تحديث"):
-                        idx = st.session_state.branches_db[st.session_state.branches_db['branch_name'] == sel].index
-                        st.session_state.branches_db.loc[idx, ['branch_name', 'user_name', 'password']] = [en, eu, ep]
-                        auto_save(); st.rerun()
+                branch_list = st.session_state.branches_db['branch_name'].tolist()
+                target = st.selectbox("اختر الفرع لتعديله", branch_list)
+                current_data = st.session_state.branches_db[st.session_state.branches_db['branch_name'] == target].iloc[0]
+                
+                with st.form("edit_branch_form"):
+                    edit_bn = st.text_input("الاسم", value=current_data['branch_name'])
+                    edit_un = st.text_input("المستخدم", value=current_data['user_name'])
+                    edit_pn = st.text_input("الكلمة", value=current_data['password'])
+                    if st.form_submit_button("تحديث البيانات"):
+                        idx = st.session_state.branches_db[st.session_state.branches_db['branch_name'] == target].index
+                        st.session_state.branches_db.loc[idx, ['branch_name', 'user_name', 'password']] = [edit_bn, edit_un, edit_pn]
+                        auto_save_branches()
+                        st.success("تم التحديث!")
+                        st.rerun()
+
         with t_del:
-            sel_d = st.selectbox("فرع للحذف", st.session_state.branches_db['branch_name'].tolist())
-            if st.button("حذف نهائي"):
-                st.session_state.branches_db = st.session_state.branches_db[st.session_state.branches_db['branch_name'] != sel_d]
-                auto_save(); st.rerun()
+            target_del = st.selectbox("اختر الفرع لحذفه نهائياً", st.session_state.branches_db['branch_name'].tolist(), key="del_box")
+            if st.button("تأكيد الحذف"):
+                st.session_state.branches_db = st.session_state.branches_db[st.session_state.branches_db['branch_name'] != target_del]
+                auto_save_branches()
+                st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
+
     with col_list:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.table(st.session_state.branches_db.rename(columns={'branch_name':'المحل','user_name':'المستخدم','password':'الكلمة'}))
+        st.subheader("📋 كشف المستخدمين والفروع")
+        # عرض الجدول بأسماء عربية
+        display_df = st.session_state.branches_db.rename(columns={
+            'branch_name': 'اسم الفرع',
+            'user_name': 'اسم المستخدم',
+            'password': 'كلمة المرور'
+        })
+        st.table(display_df)
         st.markdown("</div>", unsafe_allow_html=True)
-
-elif menu == "📦 توريد بضاعة":
-    st.markdown("<h1 class='main-title'>📦 توريد أصناف للمحلات</h1>", unsafe_allow_html=True)
-    with st.container():
-        st.markdown("<div class='card'>", unsafe_allow_html=True)
-        with st.form("supply"):
-            c1, c2, c3 = st.columns(3)
-            item = c1.text_input("اسم الصنف")
-            br = c2.selectbox("المحل المستلم", st.session_state.branches_db['branch_name'].tolist())
-            ct = c3.selectbox("القسم", st.session_state.categories)
-            buy = c1.number_input("تكلفة الشراء", 0.0); sell = c2.number_input("سعر البيع", 0.0); qty = c3.number_input("الكمية", 0.0)
-            if st.form_submit_button("تأكيد التوريد"):
-                st.session_state.inventory.append({'item':item, 'branch':br, 'قسم':ct, 'شراء':buy, 'بيع':sell, 'كمية':qty})
-                auto_save(); st.success("تم التوريد")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-elif menu == "⚙️ الإعدادات":
-    st.markdown("<h1 class='main-title'>⚙️ الإعدادات</h1>", unsafe_allow_html=True)
-    with st.markdown("<div class='card'>", unsafe_allow_html=True):
-        new_c = st.text_input("إضافة قسم")
-        if st.button("حفظ"):
-            st.session_state.categories.append(new_c); auto_save(); st.rerun()
-        st.write("الأقسام:", st.session_state.categories)
