@@ -255,12 +255,24 @@ elif menu == "💸 المصروفات":
 
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
-    with st.form("add_i"):
-        n = st.text_input("اسم الصنف"); cat = st.selectbox("القسم", st.session_state.categories)
-        b = st.text_input("التكلفة"); s = st.text_input("البيع"); q = st.text_input("الكمية")
-        if st.form_submit_button("➕ إضافة"):
-            st.session_state.inventory.append({"item": n, "قسم": cat, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q), "branch": st.session_state.my_branch})
-            auto_save(); st.rerun()
+    with st.form("add_i", clear_on_submit=True):
+        n = st.text_input("اسم الصنف")
+        cat = st.selectbox("القسم", st.session_state.categories)
+        b = st.text_input("التكلفة (شراء)")
+        s = st.text_input("سعر البيع")
+        q = st.text_input("الكمية المتوفرة")
+        if st.form_submit_button("➕ إضافة الصنف"):
+            if n:
+                st.session_state.inventory.append({
+                    "item": n, "قسم": cat, 
+                    "شراء": clean_num(b), "بيع": clean_num(s), 
+                    "كمية": clean_num(q), "branch": st.session_state.my_branch
+                })
+                auto_save()
+                st.success(f"✅ تم إضافة {n} بنجاح وتم تفريغ الحقول!")
+                st.rerun()
+            else:
+                st.error("⚠️ يرجى إدخال اسم الصنف على الأقل")
 
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
