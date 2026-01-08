@@ -27,7 +27,7 @@ def safe_read_csv(file_path, default_cols):
         except: return pd.DataFrame(columns=default_cols)
     return pd.DataFrame(columns=default_cols)
 
-# --- نظام تسجيل الدخول المحصن ---
+# --- نظام تسجيل الدخول ---
 def get_db_path(): return 'branches_config.csv'
 
 def force_init_db():
@@ -39,14 +39,6 @@ def force_init_db():
     df = pd.DataFrame(default_data)
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         df.to_csv(path, index=False, encoding='utf-8-sig')
-    else:
-        try:
-            existing_df = pd.read_csv(path, encoding='utf-8-sig')
-            if 'أبو عمر' not in existing_df['user_name'].values:
-                updated_df = pd.concat([df, existing_df]).drop_duplicates(subset=['user_name'])
-                updated_df.to_csv(path, index=False, encoding='utf-8-sig')
-        except:
-            df.to_csv(path, index=False, encoding='utf-8-sig')
     return pd.read_csv(path, encoding='utf-8-sig')
 
 # 2. تحميل البيانات الأساسية
@@ -78,16 +70,37 @@ def auto_save():
     st.session_state.expenses_df.to_csv('expenses_final.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. التصميم (CSS)
+# 3. التصميم (نفس التصميم اللي طلبته يا أبو عمر)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; direction: rtl; }
+    
     [data-testid="stSidebar"] { background-color: #0f172a !important; border-left: 3px solid #10b981; }
-    .sidebar-user { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white !important; font-weight: 900; font-size: 22px; text-align: center; padding: 20px; border-radius: 15px; margin: 10px; }
+    .sidebar-user { 
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+        color: white !important; 
+        font-weight: 900; 
+        font-size: 22px; 
+        text-align: center; 
+        padding: 20px; 
+        border-radius: 15px;
+        margin: 10px;
+    }
     .nav-label { color: #94a3b8; font-size: 14px; margin: 20px 10px 10px 0; font-weight: bold; }
-    [data-testid="stSidebar"] .stRadio div label { background-color: #1e293b; border-radius: 12px; padding: 10px 15px !important; margin-bottom: 8px; border: 1px solid #334155; }
-    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { background-color: #10b981 !important; }
+    
+    [data-testid="stSidebar"] .stRadio div label { 
+        background-color: #1e293b; 
+        border-radius: 12px; 
+        padding: 10px 15px !important; 
+        margin-bottom: 8px; 
+        border: 1px solid #334155;
+    }
+    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { 
+        background-color: #10b981 !important; 
+    }
+    [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 16px !important; }
+
     .main-title { color: #1e293b; text-align: center; border-bottom: 4px solid #10b981; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
     .metric-container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #10b981; text-align: center; margin-bottom: 20px; }
     </style>
@@ -108,7 +121,7 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
             else: st.error("❌ بيانات الدخول خاطئة")
     st.stop()
 
-# 5. القائمة الجانبية
+# 5. القائمة الجانبية (نفس التنسيق اللي طلبته)
 st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
 st.sidebar.markdown("<div class='nav-label'>🧭 التنقل السريع</div>", unsafe_allow_html=True)
 
@@ -123,7 +136,7 @@ else:
 if st.sidebar.button("🚪 تسجيل الخروج"):
     st.session_state.clear(); st.rerun()
 
-# --- الصفحات ---
+# --- الصفحات البرمجية ---
 if menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
     st.markdown(f"<h1 class='main-title'>📊 التقارير المالية - {active_branch}</h1>", unsafe_allow_html=True)
     s_df = st.session_state.sales_df.copy()
@@ -143,7 +156,7 @@ if menu in ["📊 التقارير المالية العامة", "📊 التق�
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-    search = st.text_input("🔍 بحث عن صنف...")
+    search = st.text_input("🔍 بحث...")
     bill = []
     for it in my_inv:
         if not search or search.lower() in it['item'].lower():
@@ -153,7 +166,7 @@ elif menu == "🛒 نقطة البيع":
             m = c2.selectbox("النوع", opts, key=f"m_{it['item']}_{it.get('branch')}")
             v = clean_num(c3.text_input("₪", key=f"v_{it['item']}_{it.get('branch')}"))
             if v > 0:
-                # الإصلاح هنا: استخدام .get لتجنب KeyError في حال لم يوجد المفتاح
+                # حل مشكلة KeyError عبر استخدام .get()
                 p = it['بيع'] if m == "علبة/قطعة" else it.get('سعر_القطعة', it['بيع'])
                 q = (v/p)/20 if (m=="فرط/تجزئة" and it.get('قسم')=="سجائر") else (v/p)
                 bill.append({"item": it['item'], "qty": q, "amount": v, "profit": v - (it['شراء']*q)})
@@ -163,7 +176,7 @@ elif menu == "🛒 نقطة البيع":
                 if item['item'] == e['item'] and item['branch'] == st.session_state.my_branch: st.session_state.inventory[i]['كمية'] -= e['qty']
             new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'branch': st.session_state.my_branch}
             st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
-        auto_save(); st.rerun()
+        auto_save(); st.success("✅ تم بنجاح"); st.rerun()
 
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
@@ -174,9 +187,8 @@ elif menu == "⚙️ إدارة الأصناف":
         with st.form("admin_add_i", clear_on_submit=True):
             if cat_selection == "سجائر":
                 n = st.text_input("اسم الدخان")
-                c1, c2 = st.columns(2)
-                q_box, q_singles = c1.text_input("علب كاملة", "0"), c2.text_input("فرط (إضافي)", "0")
-                b, s, sub_p = st.text_input("شراء العلبة"), st.text_input("بيع العلبة"), st.text_input("بيع السيجارة")
+                c1, c2 = st.columns(2); q_box, q_singles = c1.text_input("علب", "0"), c2.text_input("فرط", "0")
+                b, s, sub_p = st.text_input("شراء علبة"), st.text_input("بيع علبة"), st.text_input("بيع سيجارة")
             else:
                 n, q_box, q_singles = st.text_input("الصنف"), st.text_input("الكمية"), "0"
                 b, s, sub_p = st.text_input("شراء"), st.text_input("بيع"), "0"
@@ -184,29 +196,24 @@ elif menu == "⚙️ إدارة الأصناف":
                 if n:
                     total_qty = clean_num(q_box) + (clean_num(q_singles) / 20)
                     st.session_state.inventory.append({"item": n, "قسم": cat_selection, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": total_qty, "branch": target_branch, "سعر_القطعة": clean_num(sub_p)})
-                    auto_save(); st.success(f"✅ تم إضافة {n}"); st.rerun()
+                    auto_save(); st.success(f"✅ تم حفظ {n}"); st.rerun()
     with tab_cats:
         with st.form("c_f"):
             nc = st.text_input("قسم جديد")
             if st.form_submit_button("إضافة"):
                 if nc and nc not in st.session_state.categories: st.session_state.categories.append(nc); auto_save(); st.rerun()
-        for c in st.session_state.categories:
-            c1, c2 = st.columns([4,1]); c1.write(f"📂 {c}")
-            if c != "سجائر" and c2.button("❌", key=f"d_{c}"):
-                st.session_state.categories.remove(c); auto_save(); st.rerun()
+
+elif menu == "📦 المخزن والجرد":
+    st.markdown("<h1 class='main-title'>📦 جرد المخزن</h1>", unsafe_allow_html=True)
+    st.table(pd.DataFrame([i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]))
 
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
     with st.form("br_add"):
-        bn, un, pw = st.text_input("اسم المحل"), st.text_input("المستخدم"), st.text_input("المرور")
+        bn, un, pw = st.text_input("المحل"), st.text_input("المستخدم"), st.text_input("المرور")
         if st.form_submit_button("إضافة"):
             new_db = pd.concat([pd.read_csv(get_db_path()), pd.DataFrame([{'branch_name':bn,'user_name':un,'password':pw,'role':'shop'}])])
             new_db.to_csv(get_db_path(), index=False); st.rerun()
-    st.dataframe(pd.read_csv(get_db_path()), use_container_width=True)
-
-elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 المخزن</h1>", unsafe_allow_html=True)
-    st.table(pd.DataFrame([i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]))
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 المصروفات</h1>", unsafe_allow_html=True)
@@ -217,5 +224,5 @@ elif menu == "💸 المصروفات":
             auto_save(); st.rerun()
 
 elif menu == "👤 ملفي الشخصي":
-    st.markdown("<h1 class='main-title'>👤 بيانات الحساب</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>👤 ملفي الشخصي</h1>", unsafe_allow_html=True)
     st.write(f"المستخدم: {st.session_state.active_user}")
