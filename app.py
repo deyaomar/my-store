@@ -256,7 +256,14 @@ elif menu == "💸 المصروفات":
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف والأقسام</h1>", unsafe_allow_html=True)
     
-    t_items, t_cats = st.tabs(["📦 إضافة أصناف", "📂 إدارة الأقسام"])
+    # تحديد الفرع المستهدف للإدارة
+    if st.session_state.user_role == "admin":
+        branch_list = pd.read_csv(get_db_path())['branch_name'].tolist()
+        target_branch = st.selectbox("🎯 إدراة أصناف الفرع:", branch_list)
+    else:
+        target_branch = st.session_state.my_branch
+
+    t_items, t_edit, t_cats = st.tabs(["➕ إضافة أصناف", "📝 تعديل الأصناف الحالية", "📂 إدارة الأقسام"])
     
     with t_items:
         with st.form("add_i", clear_on_submit=True):
@@ -270,12 +277,35 @@ elif menu == "⚙️ إدارة الأصناف":
                     st.session_state.inventory.append({
                         "item": n, "قسم": cat, 
                         "شراء": clean_num(b), "بيع": clean_num(s), 
-                        "كمية": clean_num(q), "branch": st.session_state.my_branch
+                        "كمية": clean_num(q), "branch": target_branch
                     })
                     auto_save()
-                    st.success(f"✅ تم إضافة {n} بنجاح!")
+                    st.success(f"✅ تم إضافة {n} لفرع {target_branch} بنجاح!")
                     st.rerun()
                 else: st.error("⚠️ يرجى إدخال اسم الصنف")
+
+    with t_edit:
+        st.subheader(f"تعديل أصناف: {target_branch}")
+        branch_inv = [i for i in st.session_state.inventory if i.get('branch') == target_branch]
+        if not branch_inv:
+            st.info("لا توجد أصناف في هذا الفرع حالياً.")
+        else:
+            for i, item in enumerate(st.session_state.inventory):
+                if item.get('branch') == target_branch:
+                    with st.expander(f"📦 {item['item']} ({item['قسم']})"):
+                        c1, c2, c3 = st.columns(3)
+                        new_buy = c1.text_input("شراء", value=format_num(item['شراء']), key=f"eb_{i}")
+                        new_sell = c2.text_input("بيع", value=format_num(item['بيع']), key=f"es_{i}")
+                        new_qty = c3.text_input("الكمية", value=format_num(item['كمية']), key=f"eq_{i}")
+                        if st.button("💾 حفظ التعديل", key=f"btn_{i}"):
+                            st.session_state.inventory[i].update({
+                                "شراء": clean_num(new_buy),
+                                "بيع": clean_num(new_sell),
+                                "كمية": clean_num(new_qty)
+                            })
+                            auto_save()
+                            st.success("✅ تم التعديل")
+                            st.rerun()
 
     with t_cats:
         st.subheader("إضافة قسم جديد")
