@@ -60,11 +60,10 @@ if 'inventory' not in st.session_state:
     inv_df = safe_read_csv('inventory_final.csv', ['item', 'branch', 'قسم', 'شراء', 'بيع', 'كمية', 'سعر_القطعة'])
     st.session_state.inventory = inv_df.to_dict('records')
 
-# --- تعديل لضمان ظهور قسم السجائر دائماً ---
+# --- ضمان ظهور قسم سجائر دائماً ---
 if 'categories' not in st.session_state:
     cat_df = safe_read_csv('categories_final.csv', ['name'])
     existing_cats = cat_df['name'].tolist() if not cat_df.empty else []
-    # ندمج "سجائر" مع الأقسام الموجودة ونحذف التكرار
     all_cats = list(dict.fromkeys(["سجائر"] + existing_cats))
     st.session_state.categories = all_cats
 
@@ -78,7 +77,7 @@ def auto_save():
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. التصميم (CSS)
+# 3. التصميم (CSS الأصلي)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
@@ -126,7 +125,7 @@ else:
 if st.sidebar.button("🚪 خروج آمن"):
     st.session_state.clear(); st.rerun()
 
-# --- قسم إدارة الأصناف ---
+# --- قسم إدارة الأصناف (هنا التعديل الأساسي) ---
 if menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ إدارة التحكم الشامل بالأصناف</h1>", unsafe_allow_html=True)
     if st.session_state.user_role == "admin":
@@ -138,27 +137,29 @@ if menu == "⚙️ إدارة الأصناف":
 
     with t_add:
         st.info(f"إضافة بضاعة لفرع: {target_branch}")
-        cat = st.selectbox("اختر القسم لفتح التعليمات:", st.session_state.categories)
+        
+        # التأكد من اختيار القسم لتحديث شكل الحقول بالأسفل
+        cat_selection = st.selectbox("اختر القسم لفتح تعليمات التسجيل:", st.session_state.categories)
         
         with st.form("admin_add_i", clear_on_submit=True):
-            if cat == "سجائر":
+            if cat_selection == "سجائر":
                 st.warning("🚬 تعليمات السجائر: أدخل البيانات بالعلبة، وحدد سعر السيجارة الفردي")
                 n = st.text_input("اسم نوع الدخان")
                 q = st.text_input("الكمية (عدد العلب)")
-                b = st.text_input("سعر التكلفة للعلبة")
-                s = st.text_input("سعر بيع العلبة")
-                sub_p = st.text_input("سعر بيع السيجارة الواحدة")
+                b = st.text_input("سعر التكلفة للعلبة الواحدة")
+                s = st.text_input("سعر بيع العلبة كاملة")
+                sub_p = st.text_input("سعر بيع السيجارة الواحدة (تجزئة)")
             else:
                 n = st.text_input("اسم الصنف")
                 q = st.text_input("الكمية")
-                b = st.text_input("سعر الشراء")
+                b = st.text_input("سعر شراء الوحدة")
                 s = st.text_input("سعر البيع")
                 sub_p = "0"
 
             if st.form_submit_button("➕ تنفيذ الإضافة"):
                 if n:
                     st.session_state.inventory.append({
-                        "item": n, "قسم": cat, "شراء": clean_num(b), 
+                        "item": n, "قسم": cat_selection, "شراء": clean_num(b), 
                         "بيع": clean_num(s), "كمية": clean_num(q), 
                         "branch": target_branch, "سعر_القطعة": clean_num(sub_p)
                     })
@@ -185,10 +186,10 @@ if menu == "⚙️ إدارة الأصناف":
                     st.session_state.categories.append(nc); auto_save(); st.rerun()
         for c in st.session_state.categories:
             c1, c2 = st.columns([4,1]); c1.write(f"📂 {c}")
-            if c2.button("❌", key=f"del_{c}"):
+            if c != "سجائر" and c2.button("❌", key=f"del_{c}"):
                 st.session_state.categories.remove(c); auto_save(); st.rerun()
 
-# --- بقية الأقسام (بدون أي تعديل) ---
+# --- بقية الأقسام ---
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
@@ -219,12 +220,6 @@ elif menu == "🛒 نقطة البيع":
 
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
-    with st.form("br"):
-        bn, un, pw = st.text_input("المحل"), st.text_input("المستخدم"), st.text_input("المرور")
-        if st.form_submit_button("حفظ"):
-            db = pd.read_csv(get_db_path())
-            pd.concat([db, pd.DataFrame([{'branch_name':bn,'user_name':un,'password':pw, 'role': 'shop'}])]).to_csv(get_db_path(), index=False)
-            st.rerun()
     st.table(pd.read_csv(get_db_path()))
 
 elif menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
@@ -241,11 +236,6 @@ elif menu == "📦 المخزن والجرد":
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 المصروفات</h1>", unsafe_allow_html=True)
-    with st.form("exp"):
-        r, a = st.text_input("البيان"), st.number_input("المبلغ")
-        if st.form_submit_button("حفظ"):
-            st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a, 'branch': st.session_state.my_branch}])], ignore_index=True)
-            auto_save(); st.rerun()
     st.dataframe(st.session_state.expenses_df[st.session_state.expenses_df['branch'] == st.session_state.my_branch], use_container_width=True)
 
 elif menu == "👤 ملفي الشخصي":
