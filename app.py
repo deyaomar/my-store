@@ -20,13 +20,14 @@ def clean_num(text):
         return float(str(text).replace(',', '.').replace('،', '.'))
     except: return 0.0
 
+# دالة القراءة الآمنة
 def safe_read_csv(file_path, default_cols):
     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
         try: return pd.read_csv(file_path, encoding='utf-8-sig')
         except: return pd.DataFrame(columns=default_cols)
     return pd.DataFrame(columns=default_cols)
 
-# --- نظام تسجيل الدخول (تم تعديله للقراءة الحية المباشرة) ---
+# --- نظام تسجيل الدخول وإدارة الفروع ---
 def get_db_path(): return 'branches_config.csv'
 
 def force_init_db():
@@ -38,14 +39,16 @@ def force_init_db():
         ]
         pd.DataFrame(default_data).to_csv(path, index=False, encoding='utf-8-sig')
     
-    # القراءة المباشرة بدون أي وسيط لتجنب مشاكل الذاكرة
     df = pd.read_csv(path, encoding='utf-8-sig')
     if 'role' not in df.columns:
         df['role'] = 'shop'
-        df.loc[df['user_name'].str.contains("عمر"), 'role'] = 'admin'
+        df.loc[df['user_name'] == 'أبو عمر', 'role'] = 'admin'
     return df
 
 # 2. تحميل البيانات الأساسية
+if 'branches_db' not in st.session_state:
+    st.session_state.branches_db = force_init_db()
+
 FILES = {
     'sales': ('sales_final.csv', ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id', 'branch']),
     'expenses': ('expenses_final.csv', ['date', 'reason', 'amount', 'branch']),
@@ -87,33 +90,29 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. بوابة تسجيل الدخول (الحل الجذري)
+# 4. بوابة تسجيل الدخول (تم الإصلاح لتقرأ مباشرة من الملف)
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.markdown("<h1 class='main-title'>🔐 نظام أبو عمر للإدارة</h1>", unsafe_allow_html=True)
     with st.form("login_form"):
         u_in = st.text_input("👤 اسم المستخدم").strip()
         p_in = st.text_input("🔑 كلمة المرور", type="password").strip()
         if st.form_submit_button("دخول"):
-            # قراءة حية ومباشرة من الملف لتجاهل الـ Cache
-            df_login = pd.read_csv(get_db_path(), encoding='utf-8-sig')
+            # الخطوة الأهم: قراءة الملف فورياً عند الضغط على زر دخول
+            fresh_db = force_init_db()
+            st.session_state.branches_db = fresh_db
+            
             u_clean = u_in.replace("أ", "ا")
+            # البحث في البيانات الطازجة
+            match = fresh_db[(fresh_db['user_name'].str.replace("أ", "ا") == u_clean) & (fresh_db['password'] == p_in)]
             
-            # فحص المطابقة
-            valid_user = False
-            for _, row in df_login.iterrows():
-                db_u = str(row['user_name']).replace("أ", "ا").strip()
-                db_p = str(row['password']).strip()
-                if u_clean == db_u and str(p_in) == db_p:
-                    st.session_state.logged_in = True
-                    st.session_state.user_role = row['role']
-                    st.session_state.active_user = row['user_name']
-                    st.session_state.my_branch = row['branch_name']
-                    st.session_state.branches_db = df_login # تحديث الذاكرة بالبيانات الجديدة
-                    valid_user = True
-                    break
-            
-            if valid_user: st.rerun()
-            else: st.error("❌ بيانات الدخول غير صحيحة")
+            if not match.empty:
+                st.session_state.logged_in = True
+                st.session_state.user_role = match.iloc[0]['role']
+                st.session_state.active_user = u_in
+                st.session_state.my_branch = match.iloc[0]['branch_name']
+                st.rerun()
+            else:
+                st.error("❌ بيانات الدخول غير صحيحة")
     st.stop()
 
 # 5. القائمة الجانبية
@@ -144,39 +143,50 @@ if menu == "🏪 إدارة الفروع":
             new_pw = st.text_input("كلمة المرور")
             if st.form_submit_button("حفظ الفرع الجديد"):
                 if new_bn and new_un and new_pw:
-                    # القراءة والحفظ المباشر
-                    current_df = pd.read_csv(get_db_path(), encoding='utf-8-sig')
                     new_row = {'branch_name': new_bn, 'user_name': new_un, 'password': new_pw, 'role': 'shop'}
-                    updated_df = pd.concat([current_df, pd.DataFrame([new_row])], ignore_index=True)
-                    updated_df.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
-                    st.session_state.branches_db = updated_df
-                    st.success(f"تم إضافة {new_bn} بنجاح."); st.rerun()
+                    # تحديث مباشر للملف
+                    current_db = force_init_db()
+                    updated_db = pd.concat([current_db, pd.DataFrame([new_row])], ignore_index=True)
+                    updated_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
+                    # تحديث الذاكرة فوراً
+                    st.session_state.branches_db = updated_db
+                    st.success(f"تم إضافة {new_bn} بنجاح. يمكنك الآن الخروج وتسجيل الدخول بهذا الحساب."); st.rerun()
 
     st.write("### قائمة الفروع الحالية")
-    for index, row in st.session_state.branches_db.iterrows():
+    db_display = st.session_state.branches_db.copy()
+    
+    for index, row in db_display.iterrows():
         with st.container():
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
             col1.write(f"**الفرع:** {row['branch_name']}")
             col2.write(f"**المستخدم:** {row['user_name']}")
-            is_admin = True if (row['role'] == 'admin') else False
+            
+            is_admin = True if ('role' in row and row['role'] == 'admin') else False
+            
             if not is_admin:
-                if col3.button("📝 تعديل", key=f"edit_{index}"): st.session_state.edit_index = index
+                if col3.button("📝 تعديل", key=f"edit_{index}"):
+                    st.session_state.edit_index = index
                 if col4.button("🗑️ حذف", key=f"del_{index}"):
                     st.session_state.branches_db = st.session_state.branches_db.drop(index)
                     st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
-                    st.rerun()
+                    st.warning("تم حذف الفرع"); st.rerun()
             st.divider()
 
     if 'edit_index' in st.session_state:
         idx = st.session_state.edit_index
-        with st.form("edit_f"):
-            e_bn = st.text_input("الاسم", value=st.session_state.branches_db.loc[idx, 'branch_name'])
-            e_un = st.text_input("المستخدم", value=st.session_state.branches_db.loc[idx, 'user_name'])
-            e_pw = st.text_input("كلمة السر", value=st.session_state.branches_db.loc[idx, 'password'])
-            if st.form_submit_button("تحديث"):
+        st.markdown("---")
+        st.subheader(f"تعديل بيانات: {st.session_state.branches_db.loc[idx, 'branch_name']}")
+        with st.form("edit_form"):
+            e_bn = st.text_input("الاسم الجديد", value=st.session_state.branches_db.loc[idx, 'branch_name'])
+            e_un = st.text_input("المستخدم الجديد", value=st.session_state.branches_db.loc[idx, 'user_name'])
+            e_pw = st.text_input("كلمة المرور الجديدة", value=st.session_state.branches_db.loc[idx, 'password'])
+            if st.form_submit_button("تحديث البيانات"):
                 st.session_state.branches_db.loc[idx, ['branch_name', 'user_name', 'password']] = [e_bn, e_un, e_pw]
                 st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
-                del st.session_state.edit_index; st.rerun()
+                del st.session_state.edit_index
+                st.success("تم التحديث"); st.rerun()
+        if st.button("إلغاء التعديل"):
+            del st.session_state.edit_index; st.rerun()
 
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع الاحترافية</h1>", unsafe_allow_html=True)
