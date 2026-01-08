@@ -211,73 +211,75 @@ if menu == "⚙️ إدارة الأصناف":
 
 # --- بقية الأقسام (نفس الكود السابق للحفاظ على الوظائف) 
 elif menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 نظام المبيعات المتطور</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>🛒 شاشة البيع الاحترافية</h1>", unsafe_allow_html=True)
     
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
     
-    # حالة إتمام الفاتورة (تظهر فقط للتطبيق)
+    # --- شاشة بيانات الزبون (تظهر بعد الاعتماد في حالة التطبيق فقط) ---
     if st.session_state.get('show_cust_fields', False):
-        st.markdown("""<div style='background-color: #e0f2fe; padding: 20px; border-radius: 15px; border-right: 5px solid #0369a1; margin-bottom: 20px;'>
-            <h3 style='color: #0369a1; margin: 0;'>📱 اعتماد دفع التطبيق</h3>
-            <p style='color: #1e293b;'>يرجى تسجيل بيانات الزبون لإتمام عملية التطبيق.</p>
+        st.markdown("""<div style='background: #f0f9ff; padding: 25px; border-radius: 15px; border: 1px solid #7dd3fc; text-align: center;'>
+            <h2 style='color: #0369a1;'>📱 بيانات دفع التطبيق</h2>
+            <p style='color: #0c4a6e;'>يرجى إدخال بيانات الزبون لتوثيق التحويل</p>
         </div>""", unsafe_allow_html=True)
         
         with st.container(border=True):
             c_n = st.text_input("👤 اسم الزبون المستفيد")
-            c_p = st.text_input("📞 رقم هاتف الزبون")
-            if st.button("✅ تأكيد وحفظ بيانات التطبيق", use_container_width=True, type="primary"):
+            c_p = st.text_input("📞 رقم الهاتف")
+            if st.button("✅ حفظ وإتمام العملية", use_container_width=True, type="primary"):
                 mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
                 st.session_state.sales_df.loc[mask, ['customer_name', 'customer_phone']] = [c_n, c_p]
                 auto_save()
                 st.session_state.show_cust_fields = False
-                st.success("تم الحفظ بنجاح!"); st.rerun()
+                st.success("تم التوثيق بنجاح!"); st.rerun()
     else:
-        # --- اختيار طريقة الدفع (الأولوية للتطبيق) ---
+        # --- اختيار طريقة الدفع (الأولوية للتطبيق أولاً) ---
         if 'p_method' not in st.session_state: st.session_state.p_method = "تطبيق"
         
-        st.write("💳 **طريقة الدفع الحالية:**")
-        p_cols = st.columns([1, 1, 1])
+        st.write("💳 **اختر وسيلة الدفع:**")
+        p_cols = st.columns(3)
         
-        # ترتيب الأزرار (تطبيق أولاً)
-        if p_cols[0].button("📱 تطبيق / بنكي", use_container_width=True, type="primary" if st.session_state.p_method == "تطبيق" else "secondary"):
+        # التطبيق هو الأول والافتراضي
+        if p_cols[0].button("📱 تطبيق", use_container_width=True, type="primary" if st.session_state.p_method == "تطبيق" else "secondary"):
             st.session_state.p_method = "تطبيق"
         if p_cols[1].button("💵 نقداً", use_container_width=True, type="primary" if st.session_state.p_method == "نقداً" else "secondary"):
             st.session_state.p_method = "نقداً"
         if p_cols[2].button("📝 دين", use_container_width=True, type="primary" if st.session_state.p_method == "دين / آجل" else "secondary"):
             st.session_state.p_method = "دين / آجل"
 
-        st.markdown(f"<div style='text-align: center; background: #f8fafc; padding: 10px; border-radius: 10px; border: 1px dashed #cbd5e1;'>النمط المختار: <b>{st.session_state.p_method}</b></div>", unsafe_allow_html=True)
-        
-        search_q = st.text_input("🔍 ابحث عن صنف...", placeholder="اكتب هنا للبحث السريع...")
+        st.divider()
 
         bill_items = []
+        # --- عرض المنتجات بتصميم عصري وخانات فارغة ---
         for cat in st.session_state.categories:
             items = [i for i in my_inv if i.get('قسم') == cat]
-            if search_q: items = [i for i in items if search_q.lower() in i['item'].lower()]
-            
             if items:
-                with st.expander(f"📂 {cat}", expanded=True):
-                    grid = st.columns(3)
-                    for idx, it in enumerate(items):
-                        with grid[idx % 3]:
-                            with st.container(border=True):
-                                st.markdown(f"<div style='text-align:center;'><b>{it['item']}</b><br><b style='color:#16a34a;'>{it['بيع']} ₪</b></div>", unsafe_allow_html=True)
-                                val = st.number_input("المبلغ", min_value=0.0, step=1.0, key=f"sale_{it['item']}_{idx}", label_visibility="collapsed")
-                                if val > 0:
-                                    qty = val / it['بيع']
-                                    if qty <= it['كمية']:
-                                        bill_items.append({"item": it['item'], "qty": qty, "amount": val, "profit": (it['بيع'] - it['شراء']) * qty})
-                                    else: st.error("الكمية نافذة!")
-                                st.markdown(f"<center><small style='color:#94a3b8;'>متوفر: {format_num(it['كمية'])}</small></center>", unsafe_allow_html=True)
+                st.markdown(f"#### 📂 {cat}")
+                grid = st.columns(3)
+                for idx, it in enumerate(items):
+                    with grid[idx % 3]:
+                        with st.container(border=True):
+                            # اسم المنتج وسعره المرجعي
+                            st.markdown(f"<div style='text-align:center; margin-bottom:10px;'><b style='font-size:1.1em;'>{it['item']}</b><br><span style='color:#64748b;'>السعر: {it['بيع']} ₪</span></div>", unsafe_allow_html=True)
+                            
+                            # خانة السعر فارغة (None افتراضياً) لتدخل الرقم يدوياً
+                            val = st.number_input(f"المبلغ - {it['item']}", min_value=0.0, value=0.0, step=1.0, key=f"inp_{it['item']}_{idx}", label_visibility="collapsed")
+                            
+                            if val > 0:
+                                qty = val / it['بيع']
+                                if qty <= it['كمية']:
+                                    bill_items.append({"item": it['item'], "qty": qty, "amount": val, "profit": (it['بيع'] - it['شراء']) * qty})
+                                else: st.error("المخزن لا يكفي")
+                            
+                            st.markdown(f"<center><small style='color:#94a3b8;'>المتوفر: {format_num(it['كمية'])}</small></center>", unsafe_allow_html=True)
 
-        # --- منطقة التنفيذ ---
+        # --- ملخص الفاتورة السفلي ---
         if bill_items:
             total_sum = sum(item['amount'] for item in bill_items)
             st.markdown("<br>", unsafe_allow_html=True)
             with st.container():
-                st.markdown(f"""<div style='background: #1e293b; color: white; padding: 20px; border-radius: 15px; text-align: center;'>
-                    <div style='font-size: 1.2em;'>إجمالي المطلوب</div>
-                    <div style='font-size: 2.2em; font-weight: 900; color: #4ade80;'>{format_num(total_sum)} ₪</div>
+                st.markdown(f"""<div style='background: #0f172a; color: white; padding: 20px; border-radius: 15px; text-align: center;'>
+                    <div style='font-size: 1.1em; opacity: 0.8;'>إجمالي الفاتورة ({st.session_state.p_method})</div>
+                    <div style='font-size: 2.2em; font-weight: 900; color: #10b981;'>{format_num(total_sum)} ₪</div>
                 </div>""", unsafe_allow_html=True)
                 
                 if st.button("🚀 إتمام العملية الآن", use_container_width=True, type="primary"):
@@ -299,12 +301,10 @@ elif menu == "🛒 نقطة البيع":
                     st.session_state.current_bill_id = b_id
                     auto_save()
                     
-                    # المنطق المطلوب: إذا كان تطبيق تظهر شاشة البيانات، إذا نقدي يصفر ويخلص
                     if st.session_state.p_method == "تطبيق":
                         st.session_state.show_cust_fields = True
                     else:
-                        st.success("تمت عملية البيع النقدي بنجاح!")
-                        st.session_state.show_cust_fields = False
+                        st.success("تم البيع النقدي بنجاح!")
                     st.rerun()
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
