@@ -67,6 +67,7 @@ if 'inventory' not in st.session_state:
 if 'categories' not in st.session_state:
     cat_df = safe_read_csv('categories_final.csv', ['name'])
     existing_cats = cat_df['name'].tolist() if not cat_df.empty else []
+    # تثبيت "سجائر" في البداية
     st.session_state.categories = list(dict.fromkeys(["سجائر"] + existing_cats))
 
 def auto_save():
@@ -118,11 +119,12 @@ if menu == "⚙️ إدارة الأصناف":
 
     tab_add, tab_manage, tab_cats = st.tabs(["➕ إضافة أصناف", "🛠️ تعديل المخزن", "📂 إدارة الأقسام"])
 
+    # --- إضافة الأصناف ---
     with tab_add:
         cat_selection = st.selectbox("اختر القسم لفتح التعليمات:", st.session_state.categories, key="add_cat_sel")
         with st.form("admin_add_i", clear_on_submit=True):
             if cat_selection == "سجائر":
-                st.warning("🚬 توريد السجائر: أدخل عدد العلب وعدد السجائر المنفردة")
+                st.warning("🚬 توريد السجائر: أدخل عدد العلب وعدد السجائر الفرط")
                 n = st.text_input("اسم نوع الدخان")
                 c1, c2 = st.columns(2)
                 q_box = c1.text_input("كمية العلب الكاملة", value="0")
@@ -148,6 +150,7 @@ if menu == "⚙️ إدارة الأصناف":
                     })
                     auto_save(); st.success(f"✅ تم إضافة {n}"); st.rerun()
 
+    # --- تعديل المخزن ---
     with tab_manage:
         branch_data = [i for i in st.session_state.inventory if i.get('branch') == target_branch]
         if branch_data:
@@ -159,6 +162,7 @@ if menu == "⚙️ إدارة الأصناف":
                 st.session_state.inventory = new_inv
                 auto_save(); st.success("تم التحديث"); st.rerun()
 
+    # --- إدارة الأقسام ---
     with tab_cats:
         with st.form("cat_form", clear_on_submit=True):
             nc = st.text_input("اسم القسم الجديد")
@@ -167,5 +171,6 @@ if menu == "⚙️ إدارة الأصناف":
                     st.session_state.categories.append(nc); auto_save(); st.rerun()
         for c in st.session_state.categories:
             c1, c2 = st.columns([4,1]); c1.write(f"📂 {c}")
+            # حماية قسم "سجائر" من الحذف
             if c != "سجائر" and c2.button("❌", key=f"d_{c}"):
                 st.session_state.categories.remove(c); auto_save(); st.rerun()
