@@ -210,109 +210,100 @@ if menu == "⚙️ إدارة الأصناف":
                 st.session_state.categories.remove(c); auto_save(); st.rerun()
 
 # --- بقية الأقسام (نفس الكود السابق للحفاظ على الوظائف) 
-    ---elif menu == "🛒 نقطة البيع":
+    elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع الاحترافية</h1>", unsafe_allow_html=True)
     
-    # جلب بضاعة الفرع الحالي فقط
+    # جلب بضاعة الفرع الحالي
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
     
     if st.session_state.show_cust_fields:
         with st.container():
-            st.markdown("""<div style='background-color: #dcfce7; padding: 20px; border-radius: 15px; border-right: 5px solid #16a34a; margin-bottom: 20px;'>
-                <h3 style='color: #16a34a; margin: 0;'>✅ تم اعتماد الفاتورة بنجاح!</h3>
-                <p style='color: #1f2937;'>يمكنك إضافة بيانات الزبون أدناه أو الضغط على إنهاء.</p>
-            </div>""", unsafe_allow_html=True)
-            
-            c1, c2 = st.columns(2)
-            c_n = c1.text_input("👤 اسم الزبون")
-            c_p = c2.text_input("📞 رقم الهاتف")
-            
-            if st.button("💾 حفظ وإتمام الفاتورة", use_container_width=True):
-                mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
-                st.session_state.sales_df.loc[mask, ['customer_name', 'customer_phone']] = [c_n, c_p]
-                auto_save()
-                st.session_state.show_cust_fields = False
-                st.rerun()
+            st.success("✅ تم اعتماد الفاتورة بنجاح!")
+            with st.expander("👤 إضافة بيانات الزبون (اختياري)", expanded=True):
+                c1, c2 = st.columns(2)
+                c_n = c1.text_input("اسم الزبون")
+                c_p = c2.text_input("رقم الهاتف")
+                if st.button("💾 حفظ وإتمام نهائي", use_container_width=True):
+                    mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
+                    st.session_state.sales_df.loc[mask, ['customer_name', 'customer_phone']] = [c_n, c_p]
+                    auto_save(); st.session_state.show_cust_fields = False; st.rerun()
+            if st.button("➕ فاتورة جديدة"):
+                st.session_state.show_cust_fields = False; st.rerun()
     else:
-        # شريط علوي احترافي للبحث وطريقة الدفع
-        top_col1, top_col2 = st.columns([2, 1])
-        with top_col1:
-            search_q = st.text_input("🔍 ابحث عن صنف أو كود...", placeholder="اكتب اسم المنتج هنا...")
-        with top_col2:
-            st.session_state.p_method = st.selectbox("💳 طريقة الدفع", ["نقداً", "تطبيق", "دين / آجل"])
+        # شريط علوي أنيق للتحكم
+        with st.container():
+            col_search, col_pay = st.columns([2, 1])
+            search_q = col_search.text_input("🔍 ابحث عن منتج...", placeholder="ادخل اسم الصنف هنا...")
+            st.session_state.p_method = col_pay.selectbox("💳 طريقة الدفع", ["نقداً", "تطبيق", "دين / آجل"])
 
         bill_items = []
         
-        # عرض المنتجات بنظام الأقسام والبطاقات
+        # عرض المنتجات بنظام الأقسام والبطاقات العصرية
         for cat in st.session_state.categories:
             items = [i for i in my_inv if i.get('قسم') == cat]
             if search_q: 
                 items = [i for i in items if search_q.lower() in i['item'].lower()]
             
             if items:
-                st.markdown(f"### 📂 {cat}")
-                # عرض المنتجات في شبكة (Grid)
-                cols = st.columns(3)
+                st.markdown(f"#### 📂 {cat}")
+                # شبكة عرض احترافية
+                grid_cols = st.columns(3)
                 for idx, it in enumerate(items):
-                    with cols[idx % 3]:
-                        # تصميم بطاقة المنتج
-                        stock_color = "#16a34a" if it['كمية'] > 5 else "#dc2626"
-                        st.markdown(f"""
-                            <div style='background: white; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px;'>
-                                <div style='font-weight: 900; font-size: 18px; color: #1e293b; margin-bottom: 5px;'>{it['item']}</div>
-                                <div style='display: flex; justify-content: space-between; margin-bottom: 10px;'>
-                                    <span style='color: #27ae60; font-weight: bold;'>{it['بيع']} ₪</span>
-                                    <span style='color: {stock_color}; font-size: 12px;'>المتوفر: {format_num(it['كمية'])}</span>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # مدخل المبلغ (المبلغ المدفوع للصنف)
-                        val = st.number_input(f"المبلغ (₪) - {it['item']}", min_value=0.0, step=1.0, key=f"v_{it['item']}", label_visibility="collapsed")
-                        
-                        if val > 0:
-                            qty_to_sell = val / it['بيع']
-                            if qty_to_sell > it['كمية']:
-                                st.error("الكمية لا تكفي!")
-                            else:
-                                bill_items.append({
-                                    "item": it['item'], 
-                                    "qty": qty_to_sell, 
-                                    "amount": val, 
-                                    "profit": (it['بيع'] - it['شراء']) * qty_to_sell
-                                })
+                    with grid_cols[idx % 3]:
+                        # حاوية المنتج (البطاقة)
+                        with st.container(border=True):
+                            # اسم الصنف وسعره بشكل بارز
+                            st.markdown(f"**{it['item']}**")
+                            
+                            # تفاصيل السعر والكمية بلون مختلف
+                            c_a, c_b = st.columns(2)
+                            c_a.markdown(f"<span style='color:#27ae60; font-weight:bold;'>{it['بيع']} ₪</span>", unsafe_allow_html=True)
+                            
+                            stock_status = "🔴" if it['كمية'] < 5 else "🟢"
+                            c_b.markdown(f"<small>{stock_status} {format_num(it['كمية'])}</small>", unsafe_allow_html=True)
+                            
+                            # مدخل المبلغ
+                            val = st.number_input("المبلغ", min_value=0.0, step=1.0, key=f"pos_{it['item']}_{idx}", label_visibility="collapsed")
+                            
+                            if val > 0:
+                                qty_needed = val / it['بيع']
+                                if qty_needed > it['كمية']:
+                                    st.error("الكمية غير كافية!")
+                                else:
+                                    bill_items.append({
+                                        "item": it['item'], "qty": qty_needed, 
+                                        "amount": val, "profit": (it['بيع'] - it['شراء']) * qty_needed
+                                    })
                 st.markdown("---")
 
-        # ملخص الفاتورة العائم في الأسفل
+        # ملخص الفاتورة السفلي (بدون Fixed لتجنب الشاشة البيضاء)
         if bill_items:
-            total_bill = sum(item['amount'] for item in bill_items)
+            total_sum = sum(item['amount'] for item in bill_items)
+            
             st.markdown(f"""
-                <div style='position: fixed; bottom: 20px; left: 20px; right: 20px; background: #1e293b; color: white; padding: 20px; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; z-index: 999; box-shadow: 0 -5px 15px rgba(0,0,0,0.2);'>
-                    <div style='font-size: 20px; font-weight: 900;'>إجمالي الفاتورة: {format_num(total_bill)} ₪</div>
+                <div style='background-color: #1e293b; padding: 15px; border-radius: 10px; color: white; text-align: center;'>
+                    <span style='font-size: 18px;'>إجمالي الفاتورة الحالية: </span>
+                    <span style='font-size: 24px; font-weight: 900; color: #2ecc71;'>{format_num(total_sum)} ₪</span>
                 </div>
             """, unsafe_allow_html=True)
             
-            if st.button("🚀 تأكيد البيع وطباعة الفاتورة", use_container_width=True):
+            st.write("") # مسافة
+            if st.button("🚀 اعتماد البيع وطباعة الفاتورة", use_container_width=True, type="primary"):
                 b_id = str(uuid.uuid4())[:8]
                 for e in bill_items:
-                    # تحديث الكمية في المخزن
+                    # خصم من المخزن
                     for idx, inv_item in enumerate(st.session_state.inventory):
                         if inv_item['item'] == e['item'] and inv_item['branch'] == st.session_state.my_branch:
                             st.session_state.inventory[idx]['كمية'] -= e['qty']
                     
-                    # تسجيل حركة البيع
-                    new_s = {
+                    # إضافة لسجل المبيعات
+                    new_sale = {
                         'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        'item': e['item'], 
-                        'amount': e['amount'], 
-                        'profit': e['profit'], 
-                        'method': st.session_state.p_method, 
-                        'customer_name': 'زبون عام', 
-                        'customer_phone': '', 
-                        'bill_id': b_id, 
-                        'branch': st.session_state.my_branch
+                        'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 
+                        'method': st.session_state.p_method, 'customer_name': 'زبون عام', 
+                        'customer_phone': '', 'bill_id': b_id, 'branch': st.session_state.my_branch
                     }
-                    st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
+                    st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_sale])], ignore_index=True)
                 
                 st.session_state.current_bill_id = b_id
                 auto_save()
