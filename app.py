@@ -32,13 +32,20 @@ def get_db_path(): return 'branches_config.csv'
 
 def force_init_db():
     path = get_db_path()
+    default_cols = ['branch_name', 'user_name', 'password', 'role']
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         default_data = [
             {'branch_name': 'المدير العام', 'user_name': 'أبو عمر', 'password': 'admin', 'role': 'admin'},
             {'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123', 'role': 'shop'}
         ]
         pd.DataFrame(default_data).to_csv(path, index=False, encoding='utf-8-sig')
-    return pd.read_csv(path, encoding='utf-8-sig')
+    
+    df = pd.read_csv(path, encoding='utf-8-sig')
+    # التأكد من وجود عمود role لحل مشكلة KeyError
+    if 'role' not in df.columns:
+        df['role'] = 'shop'
+        df.loc[df['user_name'] == 'أبو عمر', 'role'] = 'admin'
+    return df
 
 # 2. تحميل البيانات الأساسية
 if 'branches_db' not in st.session_state:
@@ -94,7 +101,6 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
         if st.form_submit_button("دخول"):
             u_clean = u_in.replace("أ", "ا")
             db = force_init_db()
-            # فحص مرن للاسم
             match = db[(db['user_name'].str.replace("أ", "ا") == u_clean) & (db['password'] == p_in)]
             if not match.empty:
                 st.session_state.logged_in = True
@@ -126,7 +132,6 @@ if st.sidebar.button("🚪 تسجيل الخروج"):
 if menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع والمستخدمين</h1>", unsafe_allow_html=True)
     
-    # 1. إضافة فرع جديد
     with st.expander("➕ إضافة فرع جديد", expanded=False):
         with st.form("add_branch_form"):
             new_bn = st.text_input("اسم المحل / الفرع")
@@ -139,7 +144,6 @@ if menu == "🏪 إدارة الفروع":
                     st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
                     st.success(f"تم إضافة {new_bn} بنجاح"); st.rerun()
 
-    # 2. عرض وتعديل وحذف
     st.write("### قائمة الفروع الحالية")
     db_display = st.session_state.branches_db.copy()
     
@@ -149,8 +153,12 @@ if menu == "🏪 إدارة الفروع":
             col1.write(f"**الفرع:** {row['branch_name']}")
             col2.write(f"**المستخدم:** {row['user_name']}")
             
-            # منع حذف المدير العام
-            if row['role'] != 'admin':
+            # الحل الجذري للخطأ: التأكد من وجود المفتاح role
+            is_admin = False
+            if 'role' in row and row['role'] == 'admin':
+                is_admin = True
+            
+            if not is_admin:
                 if col3.button("📝 تعديل", key=f"edit_{index}"):
                     st.session_state.edit_index = index
                 if col4.button("🗑️ حذف", key=f"del_{index}"):
@@ -159,7 +167,6 @@ if menu == "🏪 إدارة الفروع":
                     st.warning("تم حذف الفرع"); st.rerun()
             st.divider()
 
-    # نافذة التعديل المنبثقة (عند الضغط على تعديل)
     if 'edit_index' in st.session_state:
         idx = st.session_state.edit_index
         st.markdown("---")
@@ -180,7 +187,6 @@ elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع الاحترافية</h1>", unsafe_allow_html=True)
     search = st.text_input("🔍 بحث سريع عن صنف...")
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-    
     current_bill = []
     bill_id = str(uuid.uuid4())[:8]
 
@@ -263,4 +269,3 @@ elif menu == "💸 المصروفات":
 elif menu == "👤 ملفي الشخصي":
     st.markdown("<h1 class='main-title'>👤 بيانات الحساب</h1>", unsafe_allow_html=True)
     st.write(f"المستخدم الحالي: {st.session_state.active_user}")
-    st.write(f"الصلاحية: {st.session_state.user_role}")
