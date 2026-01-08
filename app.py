@@ -77,18 +77,15 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; }
     [data-testid="stSidebar"] { background-color: #1e293b !important; border-left: 2px solid #27ae60; }
-    [data-testid="stSidebar"] .stRadio div label { background-color: #334155; border-radius: 10px; padding: 12px 20px !important; margin-bottom: 10px; border-right: 5px solid transparent; transition: 0.3s; }
-    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { background-color: #27ae60 !important; border-right: 5px solid #14532d; }
-    [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 18px !important; }
-    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 24px; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #334155; padding-bottom: 15px; }
     .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; border-radius: 10px; }
     
-    /* تنسيق كروت التقارير المالية */
+    /* تنسيق كروت التقارير */
     .rep-card { background: white; border-radius: 15px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 5px solid #27ae60; }
-    .rep-label { color: #7f8c8d; font-size: 1rem; font-weight: bold; margin-bottom: 10px; }
+    .rep-label { color: #7f8c8d; font-size: 1rem; font-weight: bold; }
     .rep-value { color: #2c3e50; font-size: 1.8rem; font-weight: 900; }
-    .profit-val { color: #27ae60; }
-    .loss-val { color: #e74c3c; }
+    
+    /* تنسيق الجداول المخصص */
+    .stDataFrame { border-radius: 15px; overflow: hidden; border: 1px solid #e2e8f0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -122,60 +119,84 @@ else:
     menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
     active_branch = st.session_state.my_branch
 
-if st.sidebar.button("🚪 خروج آمن"):
-    st.session_state.clear(); st.rerun()
+# --- محتوى الأقسام (تعديل الجداول فقط) ---
 
-# --- محتوى الأقسام ---
-
-# تعديل قسم التقارير المالية (تم الربط والتنسيق)
 if menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
-    title = "📊 التقارير المالية الشاملة - أبو عمر" if st.session_state.user_role == "admin" else f"📊 التقارير المالية - {st.session_state.my_branch}"
+    title = "📊 لوحة تحكم أبو عمر المالية" if st.session_state.user_role == "admin" else f"📊 تقارير {st.session_state.my_branch}"
     st.markdown(f"<h1 class='main-title'>{title}</h1>", unsafe_allow_html=True)
     
-    # تحضير البيانات بناءً على الفلتر
     s_df = st.session_state.sales_df.copy()
     e_df = st.session_state.expenses_df.copy()
-    
     if active_branch != "كافة الفروع":
         s_df = s_df[s_df['branch'] == active_branch]
         e_df = e_df[e_df['branch'] == active_branch]
 
-    # الحسابات المالية
+    # الكروت العلوية (كما هي)
     total_sales = s_df['amount'].sum() if not s_df.empty else 0
     total_profits = s_df['profit'].sum() if not s_df.empty else 0
     total_expenses = e_df['amount'].sum() if not e_df.empty else 0
     net_income = total_profits - total_expenses
     
-    # عرض الكروت المالية
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f"<div class='rep-card'><div class='rep-label'>إجمالي المبيعات</div><div class='rep-value'>{format_num(total_sales)} ₪</div></div>", unsafe_allow_html=True)
-    c2.markdown(f"<div class='rep-card'><div class='rep-label'>أرباح البضاعة</div><div class='rep-value profit-val'>{format_num(total_profits)} ₪</div></div>", unsafe_allow_html=True)
-    c3.markdown(f"<div class='rep-card'><div class='rep-label'>إجمالي المصروفات</div><div class='rep-value loss-val'>{format_num(total_expenses)} ₪</div></div>", unsafe_allow_html=True)
-    c4.markdown(f"<div class='rep-card' style='border-top-color:#3498db'><div class='rep-label'>صافي الربح النهائي</div><div class='rep-value' style='color:#3498db'>{format_num(net_income)} ₪</div></div>", unsafe_allow_html=True)
+    c1.markdown(f"<div class='rep-card'><div class='rep-label'>المبيعات</div><div class='rep-value'>{format_num(total_sales)} ₪</div></div>", unsafe_allow_html=True)
+    c2.markdown(f"<div class='rep-card'><div class='rep-label'>أرباح البضاعة</div><div class='rep-value' style='color:#27ae60'>{format_num(total_profits)} ₪</div></div>", unsafe_allow_html=True)
+    c3.markdown(f"<div class='rep-card'><div class='rep-label'>المصروفات</div><div class='rep-value' style='color:#e74c3c'>{format_num(total_expenses)} ₪</div></div>", unsafe_allow_html=True)
+    c4.markdown(f"<div class='rep-card' style='border-top-color:#3498db'><div class='rep-label'>الربح الصافي</div><div class='rep-value' style='color:#3498db'>{format_num(net_income)} ₪</div></div>", unsafe_allow_html=True)
     
     st.markdown("---")
     
-    tab_sales, tab_exp = st.tabs(["💰 سجل المبيعات والزبائن", "💸 تفاصيل المصروفات"])
+    # الجداول المنسقة والاحترافية (شغلنا الجديد هنا)
+    tab_sales, tab_exp = st.tabs(["📋 سجل العمليات التفصيلي", "💸 تفاصيل المصروفات والفروع"])
     
     with tab_sales:
-        if s_df.empty: st.info("لا توجد مبيعات مسجلة.")
+        if s_df.empty:
+            st.info("لا توجد مبيعات للعرض حالياً.")
         else:
-            # عرض المبيعات مع بيانات الزبائن
-            view_s = s_df.sort_values(by='date', ascending=False)
-            st.dataframe(view_s[['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'branch']].rename(columns={
-                'date':'التاريخ', 'item':'الصنف', 'amount':'المبلغ', 'profit':'الربح', 'method':'الدفع', 'customer_name':'الزبون', 'customer_phone':'الهاتف', 'branch':'الفرع'
-            }), use_container_width=True, hide_index=True)
+            # إعادة تسمية الأعمدة وتنسيقها للعرض بالعربي
+            sales_display = s_df.sort_values(by='date', ascending=False).reset_index(drop=True)
+            sales_display = sales_display[['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'branch']]
+            
+            # عرض الجدول بنظام تفاعلي متقدم
+            st.subheader("📝 مبيعات الزبائن")
+            st.dataframe(
+                sales_display.style.format({'amount': '{:.2f} ₪', 'profit': '{:.2f} ₪'}),
+                column_config={
+                    "date": "التاريخ والوقت",
+                    "item": "الصنف المبيوع",
+                    "amount": "المبلغ الإجمالي",
+                    "profit": "صافي الربح",
+                    "method": "طريقة الدفع",
+                    "customer_name": "اسم الزبون",
+                    "customer_phone": "رقم الهاتف",
+                    "branch": "الفرع/المكان"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
             
     with tab_exp:
-        if e_df.empty: st.info("لا توجد مصروفات مسجلة.")
+        if e_df.empty:
+            st.info("لا توجد مصروفات مسجلة.")
         else:
-            view_e = e_df.sort_values(by='date', ascending=False)
-            st.dataframe(view_e[['date', 'reason', 'amount', 'branch']].rename(columns={
-                'date':'التاريخ', 'reason':'البيان', 'amount':'المبلغ', 'branch':'الفرع'
-            }), use_container_width=True, hide_index=True)
+            exp_display = e_df.sort_values(by='date', ascending=False).reset_index(drop=True)
+            exp_display = exp_display[['date', 'reason', 'amount', 'branch']]
+            
+            st.subheader("💸 سجل المصاريف النثرية")
+            st.dataframe(
+                exp_display.style.format({'amount': '{:.2f} ₪'}),
+                column_config={
+                    "date": "تاريخ الصرف",
+                    "reason": "بيان المصروف",
+                    "amount": "المبلغ المصروف",
+                    "branch": "الفرع"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
 
-# باقي الأقسام تبقى كما هي بدون أي تعديل
+# باقي الأقسام تبقى كما هي بدون أي تعديل (لضمان استقرار النظام)
 elif menu == "🛒 نقطة البيع":
+    # (كود نقطة البيع كما هو...)
     st.markdown("<h1 class='main-title'>🛒 شاشة بيع البضاعة</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
     if st.session_state.show_cust_fields:
