@@ -32,7 +32,6 @@ def get_db_path(): return 'branches_config.csv'
 
 def force_init_db():
     path = get_db_path()
-    default_cols = ['branch_name', 'user_name', 'password', 'role']
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         default_data = [
             {'branch_name': 'المدير العام', 'user_name': 'أبو عمر', 'password': 'admin', 'role': 'admin'},
@@ -41,7 +40,6 @@ def force_init_db():
         pd.DataFrame(default_data).to_csv(path, index=False, encoding='utf-8-sig')
     
     df = pd.read_csv(path, encoding='utf-8-sig')
-    # التأكد من وجود عمود role لحل مشكلة KeyError
     if 'role' not in df.columns:
         df['role'] = 'shop'
         df.loc[df['user_name'] == 'أبو عمر', 'role'] = 'admin'
@@ -100,7 +98,9 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
         p_in = st.text_input("🔑 كلمة المرور", type="password").strip()
         if st.form_submit_button("دخول"):
             u_clean = u_in.replace("أ", "ا")
+            # تحديث قاعدة البيانات قبل الفحص لضمان رؤية الفروع الجديدة
             db = force_init_db()
+            st.session_state.branches_db = db
             match = db[(db['user_name'].str.replace("أ", "ا") == u_clean) & (db['password'] == p_in)]
             if not match.empty:
                 st.session_state.logged_in = True
@@ -140,8 +140,11 @@ if menu == "🏪 إدارة الفروع":
             if st.form_submit_button("حفظ الفرع الجديد"):
                 if new_bn and new_un and new_pw:
                     new_row = {'branch_name': new_bn, 'user_name': new_un, 'password': new_pw, 'role': 'shop'}
-                    st.session_state.branches_db = pd.concat([st.session_state.branches_db, pd.DataFrame([new_row])], ignore_index=True)
-                    st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
+                    # تحديث مباشر للملف وللذاكرة
+                    current_db = pd.read_csv(get_db_path(), encoding='utf-8-sig')
+                    new_db = pd.concat([current_db, pd.DataFrame([new_row])], ignore_index=True)
+                    new_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
+                    st.session_state.branches_db = new_db
                     st.success(f"تم إضافة {new_bn} بنجاح"); st.rerun()
 
     st.write("### قائمة الفروع الحالية")
@@ -153,10 +156,7 @@ if menu == "🏪 إدارة الفروع":
             col1.write(f"**الفرع:** {row['branch_name']}")
             col2.write(f"**المستخدم:** {row['user_name']}")
             
-            # الحل الجذري للخطأ: التأكد من وجود المفتاح role
-            is_admin = False
-            if 'role' in row and row['role'] == 'admin':
-                is_admin = True
+            is_admin = True if ('role' in row and row['role'] == 'admin') else False
             
             if not is_admin:
                 if col3.button("📝 تعديل", key=f"edit_{index}"):
