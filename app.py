@@ -90,25 +90,29 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. بوابة تسجيل الدخول
+# 4. بوابة تسجيل الدخول (تم الإصلاح لتقرأ مباشرة من الملف)
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.markdown("<h1 class='main-title'>🔐 نظام أبو عمر للإدارة</h1>", unsafe_allow_html=True)
     with st.form("login_form"):
         u_in = st.text_input("👤 اسم المستخدم").strip()
         p_in = st.text_input("🔑 كلمة المرور", type="password").strip()
         if st.form_submit_button("دخول"):
+            # الخطوة الأهم: قراءة الملف فورياً عند الضغط على زر دخول
+            fresh_db = force_init_db()
+            st.session_state.branches_db = fresh_db
+            
             u_clean = u_in.replace("أ", "ا")
-            # تحديث قاعدة البيانات قبل الفحص لضمان رؤية الفروع الجديدة
-            db = force_init_db()
-            st.session_state.branches_db = db
-            match = db[(db['user_name'].str.replace("أ", "ا") == u_clean) & (db['password'] == p_in)]
+            # البحث في البيانات الطازجة
+            match = fresh_db[(fresh_db['user_name'].str.replace("أ", "ا") == u_clean) & (fresh_db['password'] == p_in)]
+            
             if not match.empty:
                 st.session_state.logged_in = True
                 st.session_state.user_role = match.iloc[0]['role']
                 st.session_state.active_user = u_in
                 st.session_state.my_branch = match.iloc[0]['branch_name']
                 st.rerun()
-            else: st.error("❌ بيانات الدخول غير صحيحة")
+            else:
+                st.error("❌ بيانات الدخول غير صحيحة")
     st.stop()
 
 # 5. القائمة الجانبية
@@ -140,12 +144,13 @@ if menu == "🏪 إدارة الفروع":
             if st.form_submit_button("حفظ الفرع الجديد"):
                 if new_bn and new_un and new_pw:
                     new_row = {'branch_name': new_bn, 'user_name': new_un, 'password': new_pw, 'role': 'shop'}
-                    # تحديث مباشر للملف وللذاكرة
-                    current_db = pd.read_csv(get_db_path(), encoding='utf-8-sig')
-                    new_db = pd.concat([current_db, pd.DataFrame([new_row])], ignore_index=True)
-                    new_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
-                    st.session_state.branches_db = new_db
-                    st.success(f"تم إضافة {new_bn} بنجاح"); st.rerun()
+                    # تحديث مباشر للملف
+                    current_db = force_init_db()
+                    updated_db = pd.concat([current_db, pd.DataFrame([new_row])], ignore_index=True)
+                    updated_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
+                    # تحديث الذاكرة فوراً
+                    st.session_state.branches_db = updated_db
+                    st.success(f"تم إضافة {new_bn} بنجاح. يمكنك الآن الخروج وتسجيل الدخول بهذا الحساب."); st.rerun()
 
     st.write("### قائمة الفروع الحالية")
     db_display = st.session_state.branches_db.copy()
