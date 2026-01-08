@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 # 1. إعدادات الصفحة الأساسية
 st.set_page_config(page_title="نظام أبو عمر المتكامل 2026", layout="wide", page_icon="👑")
 
-# دالات التنسيق والتنظيف (من كود المحل)
+# دالات التنسيق والتنظيف
 def format_num(val):
     try:
         if val == int(val): return str(int(val))
@@ -71,7 +71,7 @@ def auto_save():
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. واجهة المستخدم (التصميم الأخضر المدمج)
+# 3. واجهة المستخدم
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
@@ -122,9 +122,8 @@ else:
 if st.sidebar.button("🚪 خروج آمن"):
     st.session_state.clear(); st.rerun()
 
-# --- محتوى الأقسام (دمج منطق المحل) ---
+# --- محتوى الأقسام ---
 
-# شاشة الإدارة (للمدير فقط)
 if menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة وتعديل الفروع</h1>", unsafe_allow_html=True)
     c1, c2 = st.columns([1, 1.5])
@@ -139,7 +138,6 @@ if menu == "🏪 إدارة الفروع":
                 st.rerun()
     with c2: st.table(pd.read_csv(get_db_path()))
 
-# شاشة نقطة البيع (تصميمك)
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة بيع البضاعة</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
@@ -182,7 +180,6 @@ elif menu == "🛒 نقطة البيع":
             st.session_state.current_bill_id = b_id
             auto_save(); st.session_state.show_cust_fields = True; st.rerun()
 
-# شاشة المخزن (تصميمك)
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
@@ -204,35 +201,36 @@ elif menu == "📦 المخزن والجرد":
                         st.session_state.inventory[idx]['كمية'] = rq
             auto_save(); st.rerun()
 
-# شاشة التقارير (تصميمك المالي الاحترافي)
 elif menu == "📊 التقارير المالية" or menu == "📊 التقارير العامة":
     st.markdown("<h1 class='main-title'>📊 التقارير المالية ورأس المال</h1>", unsafe_allow_html=True)
     
     sales = st.session_state.sales_df[st.session_state.sales_df['branch'] == active_branch].copy() if active_branch != "كافة الفروع" else st.session_state.sales_df.copy()
     if not sales.empty: sales['date_dt'] = pd.to_datetime(sales['date'])
     
-    # حساب رأس المال من المخزن الحالي
     inv_df = pd.DataFrame(st.session_state.inventory)
-    if active_branch != "كافة الفروع": inv_df = inv_df[inv_df['branch'] == active_branch]
-    inv_df['total_capital'] = inv_df['شراء'] * inv_df['كمية']
+    # الإصلاح هنا: التأكد من وجود عمود branch قبل الفلترة
+    if not inv_df.empty and 'branch' in inv_df.columns:
+        if active_branch != "كافة الفروع": 
+            inv_df = inv_df[inv_df['branch'] == active_branch]
     
-    total_cap = inv_df['total_capital'].sum()
-    
-    # عرض الكروت
+    if not inv_df.empty:
+        inv_df['total_capital'] = inv_df['شراء'] * inv_df['كمية']
+        total_cap = inv_df['total_capital'].sum()
+    else:
+        total_cap = 0.0
+
     row = st.columns(3)
-    row[0].markdown(f"<div class='metric-box'><div class='metric-label'>إجمالي المبيعات</div><div class='metric-value'>{format_num(sales['amount'].sum())} ₪</div></div>", unsafe_allow_html=True)
-    row[1].markdown(f"<div class='metric-box'><div class='metric-label'>صافي الأرباح</div><div class='metric-value'>{format_num(sales['profit'].sum())} ₪</div></div>", unsafe_allow_html=True)
+    row[0].markdown(f"<div class='metric-box'><div class='metric-label'>إجمالي المبيعات</div><div class='metric-value'>{format_num(sales['amount'].sum()) if not sales.empty else 0} ₪</div></div>", unsafe_allow_html=True)
+    row[1].markdown(f"<div class='metric-box'><div class='metric-label'>صافي الأرباح</div><div class='metric-value'>{format_num(sales['profit'].sum()) if not sales.empty else 0} ₪</div></div>", unsafe_allow_html=True)
     row[2].markdown(f"<div class='metric-box capital-box'><div class='metric-label'>رأس المال الحالي</div><div class='metric-value'>{format_num(total_cap)} ₪</div></div>", unsafe_allow_html=True)
 
-    # تفصيل الأقسام (من كودك)
     st.markdown("<div class='section-header'>تفصيل رأس مال الأقسام</div>", unsafe_allow_html=True)
-    if not inv_df.empty:
+    if not inv_df.empty and 'قسم' in inv_df.columns:
         cat_cap = inv_df.groupby('قسم')['total_capital'].sum().reset_index()
         cols = st.columns(len(cat_cap))
         for i, r in cat_cap.iterrows():
             cols[i].markdown(f"<div class='metric-box' style='border-right-color: #9b59b6;'><div class='metric-label'>{r['قسم']}</div><div class='metric-value'>{format_num(r['total_capital'])} ₪</div></div>", unsafe_allow_html=True)
 
-# شاشة الإعدادات
 elif menu == "⚙️ الإعدادات":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
     with st.form("add_i"):
@@ -242,7 +240,6 @@ elif menu == "⚙️ الإعدادات":
             st.session_state.inventory.append({"item": n, "قسم": cat, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q), "branch": st.session_state.my_branch})
             auto_save(); st.success("تم الحفظ"); st.rerun()
 
-# شاشة المصروفات
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
     with st.form("exp_f"):
