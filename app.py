@@ -12,17 +12,25 @@ def format_num(val):
         return str(round(val, 2))
     except: return str(val)
 
-# دالة قراءة أحدث بيانات الفروع لضمان تسجيل الدخول الفوري لكل مستخدم جديد
-def get_latest_branches():
-    file_path = 'branches_config.csv'
+# دالة ذكية لقراءة الملفات (تحمي من خطأ الملفات الفارغة)
+def safe_read_csv(file_path, default_cols):
     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-        try: return pd.read_csv(file_path)
-        except: pass
-    return pd.DataFrame([{'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123'}])
+        try:
+            return pd.read_csv(file_path)
+        except Exception:
+            return pd.DataFrame(columns=default_cols)
+    return pd.DataFrame(columns=default_cols)
+
+# دالة قراءة أحدث بيانات الفروع لضمان تسجيل الدخول الفوري
+def get_latest_branches():
+    return safe_read_csv('branches_config.csv', ['branch_name', 'user_name', 'password'])
 
 # 2. تحميل وإدارة البيانات (Session State)
-if 'branches_db' not in st.session_state:
-    st.session_state.branches_db = get_latest_branches()
+if 'branches_db' not in st.session_state or st.session_state.branches_db.empty:
+    db = get_latest_branches()
+    if db.empty:
+        db = pd.DataFrame([{'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123'}])
+    st.session_state.branches_db = db
 
 FILES = {
     'sales': ('sales_final.csv', ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id', 'branch', 'cat']),
@@ -32,20 +40,16 @@ FILES = {
 for key, (file, cols) in FILES.items():
     state_key = f"{key}_df"
     if state_key not in st.session_state:
-        if os.path.exists(file) and os.path.getsize(file) > 0:
-            st.session_state[state_key] = pd.read_csv(file)
-        else:
-            st.session_state[state_key] = pd.DataFrame(columns=cols)
+        st.session_state[state_key] = safe_read_csv(file, cols)
 
 if 'inventory' not in st.session_state:
-    if os.path.exists('inventory_final.csv') and os.path.getsize('inventory_final.csv') > 0:
-        st.session_state.inventory = pd.read_csv('inventory_final.csv').to_dict('records')
-    else:
-        st.session_state.inventory = []
+    inv_df = safe_read_csv('inventory_final.csv', ['item', 'branch', 'قسم', 'شراء', 'بيع', 'كمية'])
+    st.session_state.inventory = inv_df.to_dict('records')
 
 if 'categories' not in st.session_state:
-    if os.path.exists('categories_final.csv'):
-        st.session_state.categories = pd.read_csv('categories_final.csv')['name'].tolist()
+    cat_df = safe_read_csv('categories_final.csv', ['name'])
+    if not cat_df.empty:
+        st.session_state.categories = cat_df['name'].tolist()
     else:
         st.session_state.categories = ["خضار وفواكه", "مكسرات", "ألبان", "منظفات"]
 
@@ -79,12 +83,10 @@ st.markdown("""
         background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         color: white; font-weight: bold; border: none; transition: 0.3s;
     }
-    /* تحسين شكل الجداول */
-    .stDataFrame { border-radius: 15px; overflow: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. بوابة الدخول الذكية
+# 4. بوابة الدخول
 if 'logged_in' not in st.session_state:
     st.markdown("<h1 class='main-title'>🔐 نظام الإدارة الذكي</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 1.2, 1])
@@ -97,7 +99,6 @@ if 'logged_in' not in st.session_state:
                     st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, "admin", "أبو عمر"
                     st.rerun()
                 else:
-                    # جلب الفروع من الملف فوراً لضمان عمل الحسابات الجديدة
                     current_branches = get_latest_branches()
                     match = current_branches[(current_branches['user_name'] == u) & (current_branches['password'] == p)]
                     if not match.empty:
@@ -122,10 +123,9 @@ else:
 if st.sidebar.button("🚨 تسجيل الخروج"):
     st.session_state.clear(); st.rerun()
 
-# --- قسم 1: التقارير المالية (بالعربي) ---
+# --- قسم 1: التقارير المالية ---
 if menu == "📊 التقارير المالية":
     st.markdown(f"<h1 class='main-title'>📊 التقارير المالية: {active_branch}</h1>", unsafe_allow_html=True)
-    
     s_df = st.session_state.sales_df.copy()
     e_df = st.session_state.expenses_df.copy()
     inv_df = pd.DataFrame(st.session_state.inventory)
@@ -141,15 +141,14 @@ if menu == "📊 التقارير المالية":
     with c3: st.markdown(f"<div class='card' style='border-right-color:#f59e0b'><p style='color:grey'>قيمة المخزون</p><h2 style='color:#f59e0b'>{format_num((inv_df['شراء']*inv_df['كمية']).sum() if not inv_df.empty else 0)} ₪</h2></div>", unsafe_allow_html=True)
     with c4: st.markdown(f"<div class='card' style='border-right-color:#ef4444'><p style='color:grey'>إجمالي المصاريف</p><h2 style='color:#ef4444'>{format_num(e_df['amount'].sum())} ₪</h2></div>", unsafe_allow_html=True)
 
-    tab1, tab2, tab3 = st.tabs(["🛒 سجل المبيعات التفصيلي", "💸 سجل المصاريف", "📦 جرد المخزن"])
+    tab1, tab2, tab3 = st.tabs(["🛒 سجل المبيعات", "💸 سجل المصاريف", "📦 جرد المخزن"])
     with tab1:
-        st.dataframe(s_df.rename(columns={'date':'التاريخ','item':'الصنف','amount':'المبلغ','profit':'الربح','method':'طريقة الدفع','customer_name':'الزبون','customer_phone':'الجوال','bill_id':'رقم الفاتورة','branch':'المحل','cat':'القسم'}).sort_values(by='التاريخ', ascending=False), use_container_width=True)
+        st.dataframe(s_df.rename(columns={'date':'التاريخ','item':'الصنف','amount':'المبلغ','profit':'الربح','branch':'المحل'}).sort_values(by='التاريخ', ascending=False), use_container_width=True)
     with tab2:
         st.dataframe(e_df.rename(columns={'date':'التاريخ','reason':'السبب','amount':'المبلغ','branch':'المحل'}).sort_values(by='التاريخ', ascending=False), use_container_width=True)
     with tab3:
         if not inv_df.empty:
-            st.dataframe(inv_df.rename(columns={'item':'الصنف','branch':'المحل','قسم':'القسم','شراء':'سعر الشراء','بيع':'سعر البيع','كمية':'الكمية المتوفرة'}), use_container_width=True)
-        else: st.info("لا توجد بيانات بضاعة حالياً.")
+            st.dataframe(inv_df.rename(columns={'item':'الصنف','branch':'المحل','قسم':'القسم','شراء':'سعر الشراء','بيع':'سعر البيع','كمية':'الكمية'}), use_container_width=True)
 
 # --- قسم 2: إدارة الفروع ---
 elif menu == "🏪 إدارة الفروع":
@@ -163,34 +162,31 @@ elif menu == "🏪 إدارة الفروع":
                 n = st.text_input("اسم المحل")
                 u = st.text_input("اسم المستخدم")
                 p = st.text_input("كلمة المرور")
-                if st.form_submit_button("اعتماد وحفظ الفرع"):
+                if st.form_submit_button("اعتماد وحفظ"):
                     if n and u and p:
                         new_row = pd.DataFrame([{'branch_name':n, 'user_name':u, 'password':p}])
                         st.session_state.branches_db = pd.concat([st.session_state.branches_db, new_row], ignore_index=True)
-                        auto_save()
-                        st.success("✅ تم الحفظ! يمكن للمستخدم الجديد الدخول الآن.")
-                        st.rerun()
+                        auto_save(); st.success("✅ تم الحفظ!"); st.rerun()
         with t_edit:
             if not st.session_state.branches_db.empty:
-                target = st.selectbox("اختر الفرع للتعديل", st.session_state.branches_db['branch_name'].tolist())
+                target = st.selectbox("اختر الفرع", st.session_state.branches_db['branch_name'].tolist())
                 curr = st.session_state.branches_db[st.session_state.branches_db['branch_name'] == target].iloc[0]
                 with st.form("edit_f"):
-                    en = st.text_input("اسم المحل", value=curr['branch_name'])
-                    eu = st.text_input("اسم المستخدم", value=curr['user_name'])
-                    ep = st.text_input("كلمة المرور", value=curr['password'])
+                    en = st.text_input("المحل", value=curr['branch_name'])
+                    eu = st.text_input("المستخدم", value=curr['user_name'])
+                    ep = st.text_input("الكلمة", value=curr['password'])
                     if st.form_submit_button("تحديث"):
                         idx = st.session_state.branches_db[st.session_state.branches_db['branch_name'] == target].index
                         st.session_state.branches_db.loc[idx, ['branch_name', 'user_name', 'password']] = [en, eu, ep]
-                        auto_save(); st.success("تم التحديث بنجاح"); st.rerun()
+                        auto_save(); st.success("تم التحديث"); st.rerun()
         with t_del:
-            d_target = st.selectbox("فرع للحذف", st.session_state.branches_db['branch_name'].tolist())
+            d_target = st.selectbox("حذف فرع", st.session_state.branches_db['branch_name'].tolist())
             if st.button("تأكيد الحذف النهائي"):
                 st.session_state.branches_db = st.session_state.branches_db[st.session_state.branches_db['branch_name'] != d_target]
                 auto_save(); st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
     with col_list:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.subheader("📋 قائمة الفروع النشطة")
         st.table(st.session_state.branches_db.rename(columns={'branch_name':'المحل','user_name':'المستخدم','password':'الكلمة'}))
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -203,18 +199,16 @@ elif menu == "📦 توريد بضاعة":
             item = c1.text_input("اسم الصنف")
             br = c2.selectbox("المحل المستلم", st.session_state.branches_db['branch_name'].tolist())
             ct = c3.selectbox("القسم", st.session_state.categories)
-            buy = c1.number_input("تكلفة الشراء", 0.0); sell = c2.number_input("سعر البيع", 0.0); qty = c3.number_input("الكمية الموردة", 0.0)
-            if st.form_submit_button("ترحيل البضاعة للمخزن"):
+            buy = c1.number_input("تكلفة الشراء", 0.0); sell = c2.number_input("سعر البيع", 0.0); qty = c3.number_input("الكمية", 0.0)
+            if st.form_submit_button("ترحيل للمخزن"):
                 st.session_state.inventory.append({'item':item, 'branch':br, 'قسم':ct, 'شراء':buy, 'بيع':sell, 'كمية':qty})
-                auto_save(); st.success(f"تم توريد {item} لفرع {br} بنجاح")
+                auto_save(); st.success("تم التوريد بنجاح")
 
 # --- قسم 4: الإعدادات ---
 elif menu == "⚙️ الإعدادات":
     st.markdown("<h1 class='main-title'>⚙️ الإعدادات العامة</h1>", unsafe_allow_html=True)
     with st.markdown("<div class='card'>", unsafe_allow_html=True):
-        st.subheader("إدارة أقسام المحل")
-        new_c = st.text_input("إضافة قسم بضاعة جديد")
-        if st.button("حفظ القسم"):
+        new_c = st.text_input("إضافة قسم جديد")
+        if st.button("حفظ"):
             if new_c and new_c not in st.session_state.categories:
                 st.session_state.categories.append(new_c); auto_save(); st.rerun()
-        st.write("الأقسام الحالية المعتمدة:", st.session_state.categories)
