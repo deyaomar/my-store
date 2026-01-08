@@ -49,25 +49,25 @@ if 'branches_db' not in st.session_state:
     st.session_state.branches_db = initialize_db()
 
 FILES = {
-    'sales': ('sales_final.csv', ['date','item','amount','profit','method','customer_name','customer_phone','bill_id','branch']),
-    'expenses': ('expenses_final.csv', ['date','reason','amount','branch']),
-    'waste': ('waste_final.csv', ['date','item','qty','loss_value','branch']),
-    'adjust': ('inventory_adjustments.csv', ['date','item','diff_qty','loss_value','branch'])
+    'sales': ('sales_final.csv', ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id', 'branch']),
+    'expenses': ('expenses_final.csv', ['date', 'reason', 'amount', 'branch']),
+    'waste': ('waste_final.csv', ['date', 'item', 'qty', 'loss_value', 'branch']),
+    'adjust': ('inventory_adjustments.csv', ['date', 'item', 'diff_qty', 'loss_value', 'branch'])
 }
 
 for key, (file, cols) in FILES.items():
-    if f"{key}_df" not in st.session_state:
-        st.session_state[f"{key}_df"] = safe_read_csv(file, cols)
+    state_key = f"{key}_df"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = safe_read_csv(file, cols)
 
 if 'inventory' not in st.session_state:
-    inv_df = safe_read_csv('inventory_final.csv',
-        ['item','branch','قسم','شراء','بيع','كمية','سعر_القطعة'])
+    inv_df = safe_read_csv('inventory_final.csv', ['item', 'branch', 'قسم', 'شراء', 'بيع', 'كمية', 'سعر_القطعة'])
     st.session_state.inventory = inv_df.to_dict('records')
 
 if 'categories' not in st.session_state:
     cat_df = safe_read_csv('categories_final.csv', ['name'])
-    existing = cat_df['name'].tolist() if not cat_df.empty else []
-    st.session_state.categories = list(dict.fromkeys(["سجائر"] + existing))
+    existing_cats = cat_df['name'].tolist() if not cat_df.empty else []
+    st.session_state.categories = list(dict.fromkeys(["سجائر"] + existing_cats))
 
 def auto_save():
     pd.DataFrame(st.session_state.inventory).to_csv('inventory_final.csv', index=False)
@@ -77,83 +77,95 @@ def auto_save():
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. التصميم
+# 3. التصميم (CSS الأصلي)
 st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; }
-</style>
-""", unsafe_allow_html=True)
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+    html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; }
+    [data-testid="stSidebar"] { background-color: #1e293b !important; border-left: 2px solid #27ae60; }
+    [data-testid="stSidebar"] .stRadio div label { background-color: #334155; border-radius: 10px; padding: 12px 20px !important; margin-bottom: 10px; border-right: 5px solid transparent; transition: 0.3s; }
+    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { background-color: #27ae60 !important; border-right: 5px solid #14532d; }
+    [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 18px !important; }
+    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 24px; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #334155; padding-bottom: 15px; }
+    .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; border-radius: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# 4. تسجيل الدخول
+# 4. بوابة الدخول
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    _, col, _ = st.columns([1,1.2,1])
+    st.markdown("<h1 class='main-title'>🔐 نظام الإدارة الذكي</h1>", unsafe_allow_html=True)
+    _, col, _ = st.columns([1, 1.2, 1])
     with col:
         with st.form("login"):
-            u = st.text_input("اسم المستخدم")
-            p = st.text_input("كلمة المرور", type="password")
+            u = st.text_input("👤 اسم المستخدم").strip()
+            p = st.text_input("🔑 كلمة المرور", type="password").strip()
             if st.form_submit_button("دخول"):
                 db = pd.read_csv(get_db_path())
-                m = db[(db.user_name==u)&(db.password==p)]
+                m = db[(db['user_name'] == u) & (db['password'] == p)]
                 if not m.empty:
-                    st.session_state.logged_in=True
-                    st.session_state.active_user=u
-                    st.session_state.user_role=m.iloc[0]['role']
-                    st.session_state.my_branch=m.iloc[0]['branch_name']
-                    st.rerun()
+                    st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, m.iloc[0]['role'], u
+                    st.session_state.my_branch = m.iloc[0]['branch_name']; st.rerun()
     st.stop()
 
-# 5. القائمة
-menu = st.sidebar.radio("القائمة",
-    ["🛒 نقطة البيع","📦 المخزن والجرد","💸 المصروفات","📊 التقارير المالية","⚙️ إدارة الأصناف"])
+# 5. القائمة الجانبية
+st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
+menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ إدارة الأصناف"])
 
-# ⚙️ إدارة الأصناف
-if menu=="⚙️ إدارة الأصناف":
-    tab_add,_,tab_cats = st.tabs(["➕ إضافة أصناف","🛠️","📂 إدارة الأقسام"])
+# --- قسم إدارة الأصناف ---
+if menu == "⚙️ إدارة الأصناف":
+    st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف والتحكم</h1>", unsafe_allow_html=True)
+    target_branch = st.session_state.my_branch
+
+    tab_add, tab_manage, tab_cats = st.tabs(["➕ إضافة أصناف", "🛠️ تعديل المخزن", "📂 إدارة الأقسام"])
 
     with tab_add:
-        cat = st.selectbox("اختر القسم", st.session_state.categories)
-        with st.form("add_item", clear_on_submit=True):
-
-            if cat=="سجائر":
-                st.warning("🚬 نظام السجائر (علب + فرط)")
-                n = st.text_input("اسم النوع")
-                c1,c2 = st.columns(2)
-                q_box = c1.text_input("عدد العلب","0")
-                q_single = c2.text_input("عدد السجائر الفرط","0")
-                buy = st.text_input("سعر العلبة")
-                sell = st.text_input("سعر بيع العلبة")
-                single_price = st.text_input("سعر السيجارة")
+        cat_selection = st.selectbox("اختر القسم لفتح التعليمات:", st.session_state.categories, key="add_cat_sel")
+        with st.form("admin_add_i", clear_on_submit=True):
+            if cat_selection == "سجائر":
+                st.warning("🚬 توريد السجائر: أدخل عدد العلب وعدد السجائر المنفردة")
+                n = st.text_input("اسم نوع الدخان")
+                c1, c2 = st.columns(2)
+                q_box = c1.text_input("كمية العلب الكاملة", value="0")
+                q_singles = c2.text_input("كمية السجائر الفرط (إضافي)", value="0")
+                b = st.text_input("سعر تكلفة العلبة الواحدة")
+                s = st.text_input("سعر بيع العلبة كاملة")
+                sub_p = st.text_input("سعر بيع السيجارة الواحدة")
             else:
                 n = st.text_input("اسم الصنف")
-                q_box = st.text_input("الكمية","0")
-                q_single="0"
-                buy = st.text_input("سعر الشراء")
-                sell = st.text_input("سعر البيع")
-                single_price="0"
+                q_box = st.text_input("الكمية الإجمالية")
+                q_singles = "0"
+                b = st.text_input("سعر الشراء")
+                s = st.text_input("سعر البيع")
+                sub_p = "0"
 
-            if st.form_submit_button("حفظ"):
-                qty = clean_num(q_box)+(clean_num(q_single)/20)
-                st.session_state.inventory.append({
-                    "item":n,"قسم":cat,"شراء":clean_num(buy),
-                    "بيع":clean_num(sell),"كمية":qty,
-                    "سعر_القطعة":clean_num(single_price),
-                    "branch":st.session_state.my_branch
-                })
-                auto_save()
-                st.success("تمت الإضافة")
-                st.rerun()
+            if st.form_submit_button("➕ تنفيذ الإضافة"):
+                if n:
+                    total_qty = clean_num(q_box) + (clean_num(q_singles) / 20)
+                    st.session_state.inventory.append({
+                        "item": n, "قسم": cat_selection, "شراء": clean_num(b),
+                        "بيع": clean_num(s), "كمية": total_qty,
+                        "branch": target_branch, "سعر_القطعة": clean_num(sub_p)
+                    })
+                    auto_save(); st.success(f"✅ تم إضافة {n}"); st.rerun()
+
+    with tab_manage:
+        branch_data = [i for i in st.session_state.inventory if i.get('branch') == target_branch]
+        if branch_data:
+            df_edit = st.data_editor(pd.DataFrame(branch_data)[['item', 'قسم', 'شراء', 'بيع', 'سعر_القطعة', 'كمية']], use_container_width=True, key="edit_inv_table")
+            if st.button("حفظ التعديلات"):
+                new_inv = [i for i in st.session_state.inventory if i.get('branch') != target_branch]
+                for _, row in df_edit.iterrows():
+                    new_inv.append({**row.to_dict(), "branch": target_branch})
+                st.session_state.inventory = new_inv
+                auto_save(); st.success("تم التحديث"); st.rerun()
 
     with tab_cats:
-        with st.form("cat_add"):
-            nc = st.text_input("قسم جديد")
-            if st.form_submit_button("إضافة"):
+        with st.form("cat_form", clear_on_submit=True):
+            nc = st.text_input("اسم القسم الجديد")
+            if st.form_submit_button("حفظ القسم"):
                 if nc and nc not in st.session_state.categories:
-                    st.session_state.categories.append(nc)
-                    auto_save(); st.rerun()
+                    st.session_state.categories.append(nc); auto_save(); st.rerun()
         for c in st.session_state.categories:
-            col1,col2=st.columns([4,1])
-            col1.write(c)
-            if c!="سجائر" and col2.button("❌",key=c):
-                st.session_state.categories.remove(c)
-                auto_save(); st.rerun()
+            c1, c2 = st.columns([4,1]); c1.write(f"📂 {c}")
+            if c != "سجائر" and c2.button("❌", key=f"d_{c}"):
+                st.session_state.categories.remove(c); auto_save(); st.rerun()
