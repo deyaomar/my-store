@@ -183,8 +183,10 @@ elif menu == "🛒 نقطة البيع":
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-    t_list, t_jard = st.tabs(["📋 الرصيد", "⚖️ الجرد"])
+    t_list, t_jard, t_waste = st.tabs(["📋 الرصيد", "⚖️ الجرد", "🗑️ التالف"])
+    
     with t_list: st.dataframe(pd.DataFrame(my_inv), use_container_width=True)
+    
     with t_jard:
         new_counts = {}
         for it in my_inv:
@@ -201,35 +203,34 @@ elif menu == "📦 المخزن والجرد":
                         st.session_state.inventory[idx]['كمية'] = rq
             auto_save(); st.rerun()
 
+    with t_waste:
+        st.markdown("<div class='section-header'>إضافة بضاعة تالفة</div>", unsafe_allow_html=True)
+        with st.form("waste_form"):
+            w_item = st.selectbox("اختر الصنف", [i['item'] for i in my_inv])
+            w_qty = st.number_input("الكمية التالفة", min_value=0.0)
+            if st.form_submit_button("تسجيل تالف"):
+                for idx, inv_item in enumerate(st.session_state.inventory):
+                    if inv_item['item'] == w_item and inv_item['branch'] == st.session_state.my_branch:
+                        loss = w_qty * inv_item['شراء']
+                        st.session_state.inventory[idx]['كمية'] -= w_qty
+                        st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': loss, 'branch': st.session_state.my_branch}])], ignore_index=True)
+                auto_save(); st.success("تم تسجيل التالف وخصمه من المخزن"); st.rerun()
+
 elif menu == "📊 التقارير المالية" or menu == "📊 التقارير العامة":
     st.markdown("<h1 class='main-title'>📊 التقارير المالية ورأس المال</h1>", unsafe_allow_html=True)
-    
     sales = st.session_state.sales_df[st.session_state.sales_df['branch'] == active_branch].copy() if active_branch != "كافة الفروع" else st.session_state.sales_df.copy()
     if not sales.empty: sales['date_dt'] = pd.to_datetime(sales['date'])
-    
     inv_df = pd.DataFrame(st.session_state.inventory)
-    # الإصلاح هنا: التأكد من وجود عمود branch قبل الفلترة
     if not inv_df.empty and 'branch' in inv_df.columns:
-        if active_branch != "كافة الفروع": 
-            inv_df = inv_df[inv_df['branch'] == active_branch]
-    
+        if active_branch != "كافة الفروع": inv_df = inv_df[inv_df['branch'] == active_branch]
     if not inv_df.empty:
         inv_df['total_capital'] = inv_df['شراء'] * inv_df['كمية']
         total_cap = inv_df['total_capital'].sum()
-    else:
-        total_cap = 0.0
-
+    else: total_cap = 0.0
     row = st.columns(3)
     row[0].markdown(f"<div class='metric-box'><div class='metric-label'>إجمالي المبيعات</div><div class='metric-value'>{format_num(sales['amount'].sum()) if not sales.empty else 0} ₪</div></div>", unsafe_allow_html=True)
     row[1].markdown(f"<div class='metric-box'><div class='metric-label'>صافي الأرباح</div><div class='metric-value'>{format_num(sales['profit'].sum()) if not sales.empty else 0} ₪</div></div>", unsafe_allow_html=True)
     row[2].markdown(f"<div class='metric-box capital-box'><div class='metric-label'>رأس المال الحالي</div><div class='metric-value'>{format_num(total_cap)} ₪</div></div>", unsafe_allow_html=True)
-
-    st.markdown("<div class='section-header'>تفصيل رأس مال الأقسام</div>", unsafe_allow_html=True)
-    if not inv_df.empty and 'قسم' in inv_df.columns:
-        cat_cap = inv_df.groupby('قسم')['total_capital'].sum().reset_index()
-        cols = st.columns(len(cat_cap))
-        for i, r in cat_cap.iterrows():
-            cols[i].markdown(f"<div class='metric-box' style='border-right-color: #9b59b6;'><div class='metric-label'>{r['قسم']}</div><div class='metric-value'>{format_num(r['total_capital'])} ₪</div></div>", unsafe_allow_html=True)
 
 elif menu == "⚙️ الإعدادات":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
