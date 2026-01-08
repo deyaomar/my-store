@@ -38,7 +38,10 @@ def force_init_db():
     ]
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         pd.DataFrame(default_data).to_csv(path, index=False, encoding='utf-8-sig')
-    return pd.read_csv(path, encoding='utf-8-sig')
+    return pd.read_csv(path, encoding='utf-8-sig').assign(
+    role=lambda df: df['role'] if 'role' in df.columns else 'shop'
+)
+
 
 # 2. تحميل البيانات الأساسية
 if 'branches_db' not in st.session_state:
