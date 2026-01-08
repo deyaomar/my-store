@@ -91,15 +91,22 @@ st.markdown("""
 # 4. بوابة تسجيل الدخول
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.markdown("<h1 class='main-title'>🔐 نظام أبو عمر للإدارة</h1>", unsafe_allow_html=True)
+
     with st.form("login_form"):
         u_in = st.text_input("👤 اسم المستخدم").strip()
         p_in = st.text_input("🔑 كلمة المرور", type="password").strip()
+
         if st.form_submit_button("دخول"):
             db = force_init_db()
-            db['user_name'] = db['user_name'].astype(str).str.strip()
-db['password'] = db['password'].astype(str).str.strip()
 
-match = db[(db['user_name'] == u_in.strip()) & (db['password'] == p_in.strip())]
+            # تنظيف القيم
+            db['user_name'] = db['user_name'].astype(str).str.strip()
+            db['password'] = db['password'].astype(str).str.strip()
+
+            match = db[
+                (db['user_name'] == u_in) &
+                (db['password'] == p_in)
+            ]
 
             if not match.empty:
                 st.session_state.logged_in = True
@@ -107,8 +114,11 @@ match = db[(db['user_name'] == u_in.strip()) & (db['password'] == p_in.strip())]
                 st.session_state.active_user = u_in
                 st.session_state.my_branch = match.iloc[0]['branch_name']
                 st.rerun()
-            else: st.error("❌ بيانات الدخول غير صحيحة")
+            else:
+                st.error("❌ بيانات الدخول غير صحيحة")
+
     st.stop()
+
 
 # 5. القائمة الجانبية
 st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
