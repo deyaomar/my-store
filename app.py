@@ -96,7 +96,11 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
         p_in = st.text_input("🔑 كلمة المرور", type="password").strip()
         if st.form_submit_button("دخول"):
             db = force_init_db()
-            match = db[(db['user_name'] == u_in) & (db['password'] == p_in)]
+            db['user_name'] = db['user_name'].astype(str).str.strip()
+db['password'] = db['password'].astype(str).str.strip()
+
+match = db[(db['user_name'] == u_in.strip()) & (db['password'] == p_in.strip())]
+
             if not match.empty:
                 st.session_state.logged_in = True
                 st.session_state.user_role = match.iloc[0]['role']
