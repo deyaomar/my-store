@@ -138,7 +138,6 @@ if menu == "⚙️ إدارة الأصناف":
 
     with t_add:
         st.info(f"إضافة بضاعة لفرع: {target_branch}")
-        # عرض قائمة الأقسام
         cat = st.selectbox("اختر القسم لفتح التعليمات:", st.session_state.categories)
         
         with st.form("admin_add_i", clear_on_submit=True):
