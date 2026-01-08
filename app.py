@@ -211,99 +211,101 @@ if menu == "⚙️ إدارة الأصناف":
 
 # --- بقية الأقسام (نفس الكود السابق للحفاظ على الوظائف) 
 elif menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 نظام الكاشير المتكامل</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>🛒 نظام المبيعات المتطور</h1>", unsafe_allow_html=True)
     
-    # جلب بضاعة الفرع
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
     
-    # --- 1. قسم بيانات الزبون (دائم الظهور بناءً على طلبك) ---
-    with st.container(border=True):
-        st.markdown("##### 👤 بيانات الزبون والفاتورة")
-        col_c1, col_c2, col_c3 = st.columns([2, 2, 1.5])
-        cust_name = col_c1.text_input("اسم الزبون", value="زبون عام", key="c_name_pos")
-        cust_phone = col_c2.text_input("رقم الهاتف", key="c_phone_pos")
+    # حالة إتمام الفاتورة (تظهر فقط للتطبيق)
+    if st.session_state.get('show_cust_fields', False):
+        st.markdown("""<div style='background-color: #e0f2fe; padding: 20px; border-radius: 15px; border-right: 5px solid #0369a1; margin-bottom: 20px;'>
+            <h3 style='color: #0369a1; margin: 0;'>📱 اعتماد دفع التطبيق</h3>
+            <p style='color: #1e293b;'>يرجى تسجيل بيانات الزبون لإتمام عملية التطبيق.</p>
+        </div>""", unsafe_allow_html=True)
         
-        # اختيار طريقة الدفع بأزرار عصرية
-        if 'p_method' not in st.session_state: st.session_state.p_method = "نقداً"
+        with st.container(border=True):
+            c_n = st.text_input("👤 اسم الزبون المستفيد")
+            c_p = st.text_input("📞 رقم هاتف الزبون")
+            if st.button("✅ تأكيد وحفظ بيانات التطبيق", use_container_width=True, type="primary"):
+                mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
+                st.session_state.sales_df.loc[mask, ['customer_name', 'customer_phone']] = [c_n, c_p]
+                auto_save()
+                st.session_state.show_cust_fields = False
+                st.success("تم الحفظ بنجاح!"); st.rerun()
+    else:
+        # --- اختيار طريقة الدفع (الأولوية للتطبيق) ---
+        if 'p_method' not in st.session_state: st.session_state.p_method = "تطبيق"
         
-        st.write("💳 طريقة الدفع:")
-        p_cols = st.columns(3)
-        if p_cols[0].button("💵 نقداً", use_container_width=True, type="primary" if st.session_state.p_method == "نقداً" else "secondary"):
-            st.session_state.p_method = "نقداً"
-        if p_cols[1].button("📱 تطبيق", use_container_width=True, type="primary" if st.session_state.p_method == "تطبيق" else "secondary"):
+        st.write("💳 **طريقة الدفع الحالية:**")
+        p_cols = st.columns([1, 1, 1])
+        
+        # ترتيب الأزرار (تطبيق أولاً)
+        if p_cols[0].button("📱 تطبيق / بنكي", use_container_width=True, type="primary" if st.session_state.p_method == "تطبيق" else "secondary"):
             st.session_state.p_method = "تطبيق"
+        if p_cols[1].button("💵 نقداً", use_container_width=True, type="primary" if st.session_state.p_method == "نقداً" else "secondary"):
+            st.session_state.p_method = "نقداً"
         if p_cols[2].button("📝 دين", use_container_width=True, type="primary" if st.session_state.p_method == "دين / آجل" else "secondary"):
             st.session_state.p_method = "دين / آجل"
 
-    st.divider()
-
-    # --- 2. البحث عن الأصناف ---
-    search_q = st.text_input("🔍 بحث سريع عن صنف...", placeholder="اكتب اسم المنتج...")
-
-    bill_items = []
-    
-    # --- 3. عرض المنتجات ---
-    for cat in st.session_state.categories:
-        items = [i for i in my_inv if i.get('قسم') == cat]
-        if search_q: items = [i for i in items if search_q.lower() in i['item'].lower()]
+        st.markdown(f"<div style='text-align: center; background: #f8fafc; padding: 10px; border-radius: 10px; border: 1px dashed #cbd5e1;'>النمط المختار: <b>{st.session_state.p_method}</b></div>", unsafe_allow_html=True)
         
-        if items:
-            st.markdown(f"#### 📂 {cat}")
-            grid = st.columns(3)
-            for idx, it in enumerate(items):
-                with grid[idx % 3]:
-                    with st.container(border=True):
-                        st.markdown(f"<div style='text-align:center;'><b>{it['item']}</b><br><span style='color:#27ae60; font-size:1.1em;'>{it['بيع']} ₪</span></div>", unsafe_allow_html=True)
-                        
-                        val = st.number_input("المبلغ", min_value=0.0, step=1.0, key=f"p_{it['item']}_{idx}", label_visibility="collapsed")
-                        
-                        if val > 0:
-                            qty = val / it['بيع']
-                            if qty > it['كمية']:
-                                st.error("الكمية نافذة!")
-                            else:
-                                bill_items.append({
-                                    "item": it['item'], "qty": qty, 
-                                    "amount": val, "profit": (it['بيع'] - it['شراء']) * qty
-                                })
-                        st.markdown(f"<center><small style='color:gray;'>متوفر: {format_num(it['كمية'])}</small></center>", unsafe_allow_html=True)
+        search_q = st.text_input("🔍 ابحث عن صنف...", placeholder="اكتب هنا للبحث السريع...")
 
-    # --- 4. تأكيد العملية وحفظ البيانات ---
-    if bill_items:
-        total_sum = sum(item['amount'] for item in bill_items)
-        st.write("")
-        with st.container(border=True):
-            c_info, c_btn = st.columns([2, 1])
-            with c_info:
-                st.markdown(f"### 🧾 الإجمالي: <span style='color:#27ae60;'>{format_num(total_sum)} ₪</span>", unsafe_allow_html=True)
-                st.write(f"الزبون: **{cust_name}** | الدفع: **{st.session_state.p_method}**")
+        bill_items = []
+        for cat in st.session_state.categories:
+            items = [i for i in my_inv if i.get('قسم') == cat]
+            if search_q: items = [i for i in items if search_q.lower() in i['item'].lower()]
             
-            if c_btn.button("🚀 تأكيد وحفظ الفاتورة", use_container_width=True, type="primary"):
-                b_id = str(uuid.uuid4())[:8]
-                for e in bill_items:
-                    # خصم الكمية من المخزن
-                    for idx, inv_item in enumerate(st.session_state.inventory):
-                        if inv_item['item'] == e['item'] and inv_item['branch'] == st.session_state.my_branch:
-                            st.session_state.inventory[idx]['كمية'] -= e['qty']
-                    
-                    # تسجيل حركة البيع مع بيانات الزبون كاملة
-                    new_sale = {
-                        'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        'item': e['item'], 
-                        'amount': e['amount'], 
-                        'profit': e['profit'], 
-                        'method': st.session_state.p_method, 
-                        'customer_name': cust_name if cust_name else "زبون عام", 
-                        'customer_phone': cust_phone, 
-                        'bill_id': b_id, 
-                        'branch': st.session_state.my_branch
-                    }
-                    st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_sale])], ignore_index=True)
-                
-                auto_save()
-                st.success(f"تم حفظ فاتورة {cust_name} بنجاح!")
-                st.rerun()
+            if items:
+                with st.expander(f"📂 {cat}", expanded=True):
+                    grid = st.columns(3)
+                    for idx, it in enumerate(items):
+                        with grid[idx % 3]:
+                            with st.container(border=True):
+                                st.markdown(f"<div style='text-align:center;'><b>{it['item']}</b><br><b style='color:#16a34a;'>{it['بيع']} ₪</b></div>", unsafe_allow_html=True)
+                                val = st.number_input("المبلغ", min_value=0.0, step=1.0, key=f"sale_{it['item']}_{idx}", label_visibility="collapsed")
+                                if val > 0:
+                                    qty = val / it['بيع']
+                                    if qty <= it['كمية']:
+                                        bill_items.append({"item": it['item'], "qty": qty, "amount": val, "profit": (it['بيع'] - it['شراء']) * qty})
+                                    else: st.error("الكمية نافذة!")
+                                st.markdown(f"<center><small style='color:#94a3b8;'>متوفر: {format_num(it['كمية'])}</small></center>", unsafe_allow_html=True)
 
+        # --- منطقة التنفيذ ---
+        if bill_items:
+            total_sum = sum(item['amount'] for item in bill_items)
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown(f"""<div style='background: #1e293b; color: white; padding: 20px; border-radius: 15px; text-align: center;'>
+                    <div style='font-size: 1.2em;'>إجمالي المطلوب</div>
+                    <div style='font-size: 2.2em; font-weight: 900; color: #4ade80;'>{format_num(total_sum)} ₪</div>
+                </div>""", unsafe_allow_html=True)
+                
+                if st.button("🚀 إتمام العملية الآن", use_container_width=True, type="primary"):
+                    b_id = str(uuid.uuid4())[:8]
+                    for e in bill_items:
+                        for idx, inv_item in enumerate(st.session_state.inventory):
+                            if inv_item['item'] == e['item'] and inv_item['branch'] == st.session_state.my_branch:
+                                st.session_state.inventory[idx]['كمية'] -= e['qty']
+                        
+                        new_sale = {
+                            'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                            'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 
+                            'method': st.session_state.p_method, 
+                            'customer_name': 'زبون عام', 'customer_phone': '', 
+                            'bill_id': b_id, 'branch': st.session_state.my_branch
+                        }
+                        st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_sale])], ignore_index=True)
+                    
+                    st.session_state.current_bill_id = b_id
+                    auto_save()
+                    
+                    # المنطق المطلوب: إذا كان تطبيق تظهر شاشة البيانات، إذا نقدي يصفر ويخلص
+                    if st.session_state.p_method == "تطبيق":
+                        st.session_state.show_cust_fields = True
+                    else:
+                        st.success("تمت عملية البيع النقدي بنجاح!")
+                        st.session_state.show_cust_fields = False
+                    st.rerun()
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
     with st.form("br"):
