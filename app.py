@@ -99,10 +99,12 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
         if st.form_submit_button("دخول"):
             db = force_init_db()
 
-            # تنظيف القيم
+            # تنظيف القيم من أي فراغات أو أحرف مخفية
             db['user_name'] = db['user_name'].astype(str).str.strip()
             db['password'] = db['password'].astype(str).str.strip()
+            db['role'] = db['role'].astype(str).str.strip()
 
+            # مطابقة المستخدم
             match = db[
                 (db['user_name'] == u_in) &
                 (db['password'] == p_in)
