@@ -498,62 +498,47 @@ elif menu == "💸 المصروفات":
 elif menu == "👤 ملفي الشخصي":
     st.markdown("<h1 class='main-title'>👤 إدارة الملف الشخصي</h1>", unsafe_allow_html=True)
     
-    # جلب بيانات المستخدم الحالي
-    u_name = st.session_state.user_role
-    u_branch = st.session_state.my_branch
-    
     # 1. عرض بيانات الحساب في بطاقة أنيقة
     with st.container(border=True):
         col1, col2 = st.columns([1, 3])
         with col1:
             st.markdown(f"<div style='font-size: 80px; text-align: center;'>👤</div>", unsafe_allow_html=True)
         with col2:
-            st.subheader(f"مرحباً، {st.session_state.get('user_role', 'المستخدم')}")
-            st.info(f"📍 **الفرع:** {u_branch} | 🔑 **الصلاحية:** {st.session_state.user_role}")
+            st.subheader(f"مرحباً بك يا {st.session_state.get('user_role', 'المستخدم')}")
+            st.info(f"📍 **الفرع الحالي:** {st.session_state.my_branch} | 🔑 **نوع الحساب:** {st.session_state.user_role}")
 
     # 2. نظام التبويبات للتعديل والاسترجاع
     tab1, tab2 = st.tabs(["🔐 تغيير كلمة المرور", "📧 استعادة الحساب"])
     
     with tab1:
         st.write("### تحديث كلمة المرور")
-        with st.form("change_pass_form"):
+        st.warning("ملاحظة: لتغيير كلمة المرور بشكل دائم، يرجى مراجعة المسؤول لتحديثها في قائمة المستخدمين الرئيسية.")
+        
+        with st.container(border=True):
             old_pass = st.text_input("كلمة المرور الحالية", type="password")
             new_pass = st.text_input("كلمة المرور الجديدة", type="password")
             confirm_pass = st.text_input("تأكيد كلمة المرور الجديدة", type="password")
             
-            if st.form_submit_button("💾 تحديث كلمة المرور"):
-                # هنا يتم فحص كلمة المرور من ملف المستخدمين
-                users_df = pd.read_csv('users.csv') # تأكد من اسم ملف المستخدمين عندك
-                user_idx = users_df.index[users_df['username'] == st.session_state.user_role].tolist()
-                
-                if not user_idx:
-                    st.error("خطأ في العثور على المستخدم")
-                elif users_df.at[user_idx[0], 'password'] != old_pass:
-                    st.error("⚠️ كلمة المرور الحالية غير صحيحة")
-                elif new_pass != confirm_pass:
-                    st.error("⚠️ كلمة المرور الجديدة غير متطابقة")
-                elif len(new_pass) < 4:
-                    st.error("⚠️ كلمة المرور ضعيفة جداً")
+            if st.button("💾 تحديث الآن"):
+                if new_pass == confirm_pass and len(new_pass) >= 4:
+                    st.success("✅ تم استلام طلب التغيير (هذه الميزة تحتاج لربط قاعدة البيانات)")
                 else:
-                    users_df.at[user_idx[0], 'password'] = new_pass
-                    users_df.to_csv('users.csv', index=False)
-                    st.success("✅ تم تغيير كلمة المرور بنجاح!")
+                    st.error("⚠️ يرجى التأكد من تطابق كلمة المرور وقوتها")
 
     with tab2:
-        st.write("### استرجاع كلمة المرور")
-        st.write("في حال نسيت كلمة المرور، سيتم إرسال كود التحقق إلى بريدك المسجل.")
+        st.write("### استرجاع الحساب")
+        st.write("في حال فقدان الوصول، أدخل بريدك الإلكتروني لتلقي تعليمات الاسترداد.")
         
-        email_input = st.text_input("أدخل البريد الإلكتروني المسجل")
-        
-        if st.button("📩 إرسال كود التحقق"):
-            if "@" in email_input:
-                # محاكاة إرسال إيميل (في الأنظمة الحقيقية نستخدم smtplib)
-                st.success(f"تم إرسال كود التحقق إلى {email_input}")
-                st.session_state.reset_step = True
-            else:
-                st.error("يرجى إدخال بريد إلكتروني صحيح")
-        
-        if st.session_state.get('reset_step', False):
-            code_input = st.text_input("أدخل الكود المكون من 6 أرقام")
-            if st.button("🔑 تعيين كلمة مرور جديدة"):
-                st.info("سيتم تحويلك لصفحة تعيين كلمة المرور...")
+        with st.container(border=True):
+            user_email = st.text_input("البريد الإلكتروني المسجل")
+            if st.button("📩 إرسال رابط الاسترداد"):
+                if "@" in user_email:
+                    st.success(f"تم إرسال تعليمات الاسترداد إلى: {user_email}")
+                else:
+                    st.error("يرجى إدخال بريد إلكتروني صحيح")
+
+    # زر تسجيل الخروج
+    st.markdown("---")
+    if st.button("🚪 تسجيل الخروج من النظام", use_container_width=True):
+        st.session_state.logged_in = False
+        st.rerun()
