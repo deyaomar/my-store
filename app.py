@@ -254,11 +254,67 @@ elif menu == "🏪 إدارة الفروع":
     st.table(pd.read_csv(get_db_path()))
 
 elif menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
-    st.markdown("<h1 class='main-title'>📊 التقارير</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 class='main-title'>📊 التقارير المالية - {active_branch}</h1>", unsafe_allow_html=True)
+    
+    # تجهيز البيانات
     s_df = st.session_state.sales_df.copy()
-    if active_branch != "كافة الفروع": s_df = s_df[s_df['branch'] == active_branch]
-    st.metric("إجمالي المبيعات", f"{format_num(s_df['amount'].sum())} ₪")
-    st.dataframe(s_df, use_container_width=True)
+    e_df = st.session_state.expenses_df.copy()
+    
+    # تصفية حسب الفرع المختار (إذا كان المدير اختار فرع معين أو كان مستخدم فرع)
+    if active_branch != "كافة الفروع":
+        s_df = s_df[s_df['branch'] == active_branch]
+        e_df = e_df[e_df['branch'] == active_branch]
+
+    # حساب القيم الإجمالية
+    total_sales = s_df['amount'].sum()
+    total_profit = s_df['profit'].sum()
+    total_exp = e_df['amount'].sum()
+    net_total = total_profit - total_exp
+
+    # --- التصميم الاحترافي للبطاقات ---
+    c1, c2, c3, c4 = st.columns(4)
+    
+    with c1:
+        st.markdown(f"""
+            <div class="rep-card" style="border-top-color: #3498db;">
+                <div class="rep-label">💰 إجمالي المبيعات</div>
+                <div class="rep-value">{format_num(total_sales)} ₪</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+    with c2:
+        st.markdown(f"""
+            <div class="rep-card" style="border-top-color: #27ae60;">
+                <div class="rep-label">📈 صافي الأرباح</div>
+                <div class="rep-value">{format_num(total_profit)} ₪</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with c3:
+        st.markdown(f"""
+            <div class="rep-card" style="border-top-color: #e74c3c;">
+                <div class="rep-label">💸 إجمالي المصاريف</div>
+                <div class="rep-value">{format_num(total_exp)} ₪</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with c4:
+        color = "#27ae60" if net_total >= 0 else "#e74c3c"
+        st.markdown(f"""
+            <div class="rep-card" style="border-top-color: {color};">
+                <div class="rep-label">⚖️ المتبقي النهائي</div>
+                <div class="rep-value" style="color: {color};">{format_num(net_total)} ₪</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # عرض الجداول تحت البطاقات
+    t1, t2 = st.tabs(["📄 تفاصيل المبيعات", "📉 تفاصيل المصاريف"])
+    with t1:
+        st.dataframe(s_df.sort_values(by='date', ascending=False), use_container_width=True)
+    with t2:
+        st.dataframe(e_df.sort_values(by='date', ascending=False), use_container_width=True)
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 المخزن</h1>", unsafe_allow_html=True)
