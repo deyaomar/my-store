@@ -254,25 +254,49 @@ elif menu == "💸 المصروفات":
     st.dataframe(st.session_state.expenses_df[st.session_state.expenses_df['branch'] == st.session_state.my_branch], use_container_width=True)
 
 elif menu == "⚙️ إدارة الأصناف":
-    st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
-    with st.form("add_i", clear_on_submit=True):
-        n = st.text_input("اسم الصنف")
-        cat = st.selectbox("القسم", st.session_state.categories)
-        b = st.text_input("التكلفة (شراء)")
-        s = st.text_input("سعر البيع")
-        q = st.text_input("الكمية المتوفرة")
-        if st.form_submit_button("➕ إضافة الصنف"):
-            if n:
-                st.session_state.inventory.append({
-                    "item": n, "قسم": cat, 
-                    "شراء": clean_num(b), "بيع": clean_num(s), 
-                    "كمية": clean_num(q), "branch": st.session_state.my_branch
-                })
+    st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف والأقسام</h1>", unsafe_allow_html=True)
+    
+    t_items, t_cats = st.tabs(["📦 إضافة أصناف", "📂 إدارة الأقسام"])
+    
+    with t_items:
+        with st.form("add_i", clear_on_submit=True):
+            n = st.text_input("اسم الصنف")
+            cat = st.selectbox("القسم", st.session_state.categories)
+            b = st.text_input("التكلفة (شراء)")
+            s = st.text_input("سعر البيع")
+            q = st.text_input("الكمية المتوفرة")
+            if st.form_submit_button("➕ إضافة الصنف"):
+                if n:
+                    st.session_state.inventory.append({
+                        "item": n, "قسم": cat, 
+                        "شراء": clean_num(b), "بيع": clean_num(s), 
+                        "كمية": clean_num(q), "branch": st.session_state.my_branch
+                    })
+                    auto_save()
+                    st.success(f"✅ تم إضافة {n} بنجاح!")
+                    st.rerun()
+                else: st.error("⚠️ يرجى إدخال اسم الصنف")
+
+    with t_cats:
+        st.subheader("إضافة قسم جديد")
+        with st.form("add_cat", clear_on_submit=True):
+            new_c = st.text_input("اسم القسم الجديد")
+            if st.form_submit_button("💾 حفظ القسم"):
+                if new_c and new_c not in st.session_state.categories:
+                    st.session_state.categories.append(new_c)
+                    auto_save()
+                    st.success(f"✅ تم إضافة قسم {new_c}")
+                    st.rerun()
+        
+        st.markdown("---")
+        st.subheader("الأقسام الحالية")
+        for c in st.session_state.categories:
+            c1, c2 = st.columns([3, 1])
+            c1.write(f"📂 {c}")
+            if c2.button("❌ حذف", key=f"del_{c}"):
+                st.session_state.categories.remove(c)
                 auto_save()
-                st.success(f"✅ تم إضافة {n} بنجاح وتم تفريغ الحقول!")
                 st.rerun()
-            else:
-                st.error("⚠️ يرجى إدخال اسم الصنف على الأقل")
 
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
