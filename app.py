@@ -88,7 +88,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. بوابة تسجيل الدخول
+# --- 4. بوابة تسجيل الدخول ---
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.markdown("<h1 class='main-title'>🔐 نظام أبو عمر للإدارة</h1>", unsafe_allow_html=True)
 
@@ -99,26 +99,29 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
         if st.form_submit_button("دخول"):
             db = force_init_db()
 
-            # تنظيف القيم من أي فراغات أو أحرف مخفية
+            # تنظيف القيم من مسافات
             db['user_name'] = db['user_name'].astype(str).str.strip()
             db['password'] = db['password'].astype(str).str.strip()
             db['role'] = db['role'].astype(str).str.strip()
 
-            # مطابقة المستخدم
-            match = db[
-                (db['user_name'] == u_in) &
-                (db['password'] == p_in)
-            ]
-
-            if not match.empty:
+            # تحقق صريح للمدير العام
+            if u_in == "أبو عمر" and p_in == "admin":
                 st.session_state.logged_in = True
-                st.session_state.user_role = match.iloc[0]['role']
+                st.session_state.user_role = "admin"
                 st.session_state.active_user = u_in
-                st.session_state.my_branch = match.iloc[0]['branch_name']
+                st.session_state.my_branch = "المدير العام"
                 st.rerun()
             else:
-                st.error("❌ بيانات الدخول غير صحيحة")
-
+                # تحقق لجميع المستخدمين الآخرين
+                match = db[(db['user_name'] == u_in) & (db['password'] == p_in)]
+                if not match.empty:
+                    st.session_state.logged_in = True
+                    st.session_state.user_role = match.iloc[0]['role']
+                    st.session_state.active_user = u_in
+                    st.session_state.my_branch = match.iloc[0]['branch_name']
+                    st.rerun()
+                else:
+                    st.error("❌ بيانات الدخول غير صحيحة")
     st.stop()
 
 
