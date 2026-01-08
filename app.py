@@ -122,20 +122,92 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.stop()
 
 
-# 5. القائمة الجانبية
-st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
-st.sidebar.markdown("<div class='nav-label'>🧭 التنقل السريع</div>", unsafe_allow_html=True)
+# --- 5. القائمة الجانبية حسب نوع المستخدم ---
+if st.session_state.user_role == "admin":  # مدير الموقع
+    menu = st.sidebar.radio(
+        "لوحة المدير العام",
+        ["📊 التقارير المالية العامة", "🏪 إدارة الفروع", "⚙️ إدارة الأصناف", "👤 ملفي الشخصي"],
+        label_visibility="collapsed"
+    )
+    st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👑</div>", unsafe_allow_html=True)
+    active_branch = "جميع الفروع"  # المدير العام يشوف كل الفروع
 
-if st.session_state.user_role == "admin":
-    menu = st.sidebar.radio("", ["📊 التقارير المالية العامة", "🏪 إدارة الفروع", "⚙️ إدارة الأصناف", "👤 ملفي الشخصي"], label_visibility="collapsed")
-    st.sidebar.markdown("<div class='nav-label'>🏠 تصفية حسب الفرع:</div>", unsafe_allow_html=True)
-    active_branch = st.sidebar.selectbox("", ["كافة الفروع"] + pd.read_csv(get_db_path())['branch_name'].tolist(), label_visibility="collapsed")
-else:
-    menu = st.sidebar.radio("", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ إدارة الأصناف", "👤 ملفي الشخصي"], label_visibility="collapsed")
+else:  # مدير فرع
+    menu = st.sidebar.radio(
+        "لوحة مدير الفرع",
+        ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ إدارة الأصناف", "👤 ملفي الشخصي"],
+        label_visibility="collapsed"
+    )
+    st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
     active_branch = st.session_state.my_branch
 
 if st.sidebar.button("🚪 تسجيل الخروج"):
-    st.session_state.clear(); st.rerun()
+    st.session_state.clear()
+    st.rerun()
+
+# --- الصفحات ---
+if st.session_state.user_role == "admin":
+    # --- صفحة المدير العام ---
+    if menu == "📊 التقارير المالية العامة":
+        st.markdown(f"<h1 class='main-title'>📊 التقارير المالية لجميع الفروع</h1>", unsafe_allow_html=True)
+        s_df = st.session_state.sales_df.copy()
+        e_df = st.session_state.expenses_df.copy()
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: st.markdown(f"<div class='metric-container'>💰 المبيعات<br>{format_num(s_df['amount'].sum())} ₪</div>", unsafe_allow_html=True)
+        with c2: st.markdown(f"<div class='metric-container'>📈 الربح<br>{format_num(s_df['profit'].sum())} ₪</div>", unsafe_allow_html=True)
+        with c3: st.markdown(f"<div class='metric-container'>📉 المصاريف<br>{format_num(e_df['amount'].sum())} ₪</div>", unsafe_allow_html=True)
+        with c4:
+            net = s_df['profit'].sum() - e_df['amount'].sum()
+            st.markdown(f"<div class='metric-container'>⚖️ الصافي<br>{format_num(net)} ₪</div>", unsafe_allow_html=True)
+        st.dataframe(s_df.sort_values(by='date', ascending=False), use_container_width=True)
+
+    elif menu == "🏪 إدارة الفروع":
+        st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
+        db = pd.read_csv(get_db_path())
+
+        # إضافة فرع جديد
+        st.subheader("➕ إضافة فرع جديد")
+        with st.form("add_branch"):
+            bn = st.text_input("اسم الفرع")
+            un = st.text_input("اسم المستخدم")
+            pw = st.text_input("كلمة المرور")
+            if st.form_submit_button("إضافة"):
+                if bn and un and pw:
+                    db = pd.concat([db, pd.DataFrame([{
+                        'branch_name': bn,
+                        'user_name': un,
+                        'password': pw,
+                        'role': 'shop'
+                    }])], ignore_index=True)
+                    db.to_csv(get_db_path(), index=False)
+                    st.success("تمت الإضافة")
+                    st.rerun()
+
+        st.divider()
+        st.subheader("✏️ تعديل / حذف الفروع")
+        # تعديل أو حذف الفروع العادية فقط
+        for i, row in db.iterrows():
+            if row['role'] != 'shop':
+                continue
+            with st.expander(f"🏬 {row['branch_name']}"):
+                new_bn = st.text_input("اسم الفرع", row['branch_name'], key=f"bn_{i}")
+                new_un = st.text_input("اسم المستخدم", row['user_name'], key=f"un_{i}")
+                new_pw = st.text_input("كلمة المرور", row['password'], key=f"pw_{i}")
+                c1, c2 = st.columns(2)
+                if c1.button("💾 حفظ التعديلات", key=f"save_{i}"):
+                    db.loc[i, ['branch_name', 'user_name', 'password']] = [new_bn, new_un, new_pw]
+                    db.to_csv(get_db_path(), index=False)
+                    st.success("تم التعديل")
+                    st.rerun()
+                if c2.button("🗑️ حذف الفرع", key=f"del_{i}"):
+                    db = db.drop(i)
+                    db.to_csv(get_db_path(), index=False)
+                    st.warning("تم الحذف")
+                    st.rerun()
+
+elif menu == "👤 ملفي الشخصي":
+    st.markdown("<h1 class='main-title'>👤 بيانات الحساب</h1>", unsafe_allow_html=True)
+    st.write(f"المستخدم: {st.session_state.active_user}")
 
 # --- الصفحات ---
 
