@@ -202,12 +202,52 @@ elif menu == "📦 المخزن والجرد":
 
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
-    with st.form("br_add"):
-        bn, un, pw = st.text_input("اسم المحل"), st.text_input("المستخدم"), st.text_input("المرور")
-        if st.form_submit_button("إضافة فرع"):
-            new_db = pd.concat([pd.read_csv(get_db_path()), pd.DataFrame([{'branch_name':bn,'user_name':un,'password':pw,'role':'shop'}])])
-            new_db.to_csv(get_db_path(), index=False); st.rerun()
-    st.dataframe(pd.read_csv(get_db_path()), use_container_width=True)
+
+    db = pd.read_csv(get_db_path())
+
+    st.subheader("➕ إضافة فرع جديد")
+    with st.form("add_branch"):
+        bn = st.text_input("اسم الفرع")
+        un = st.text_input("اسم المستخدم")
+        pw = st.text_input("كلمة المرور")
+        if st.form_submit_button("إضافة"):
+            if bn and un and pw:
+                db = pd.concat([db, pd.DataFrame([{
+                    'branch_name': bn,
+                    'user_name': un,
+                    'password': pw,
+                    'role': 'shop'
+                }])], ignore_index=True)
+                db.to_csv(get_db_path(), index=False)
+                st.success("تمت الإضافة")
+                st.rerun()
+
+    st.divider()
+    st.subheader("✏️ تعديل / حذف الفروع")
+
+    for i, row in db.iterrows():
+        if row['role'] != 'shop':
+            continue
+
+        with st.expander(f"🏬 {row['branch_name']}"):
+            new_bn = st.text_input("اسم الفرع", row['branch_name'], key=f"bn_{i}")
+            new_un = st.text_input("اسم المستخدم", row['user_name'], key=f"un_{i}")
+            new_pw = st.text_input("كلمة المرور", row['password'], key=f"pw_{i}")
+
+            c1, c2 = st.columns(2)
+
+            if c1.button("💾 حفظ التعديلات", key=f"save_{i}"):
+                db.loc[i, ['branch_name', 'user_name', 'password']] = [new_bn, new_un, new_pw]
+                db.to_csv(get_db_path(), index=False)
+                st.success("تم التعديل")
+                st.rerun()
+
+            if c2.button("🗑️ حذف الفرع", key=f"del_{i}"):
+                db = db.drop(i)
+                db.to_csv(get_db_path(), index=False)
+                st.warning("تم الحذف")
+                st.rerun()
+
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 سجل المصاريف</h1>", unsafe_allow_html=True)
