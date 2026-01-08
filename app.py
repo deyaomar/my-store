@@ -70,39 +70,19 @@ def auto_save():
     st.session_state.expenses_df.to_csv('expenses_final.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. التصميم (نفس التصميم اللي طلبته يا أبو عمر)
+# 3. التصميم (نفس التصميم الفخم)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; direction: rtl; }
-    
     [data-testid="stSidebar"] { background-color: #0f172a !important; border-left: 3px solid #10b981; }
-    .sidebar-user { 
-        background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-        color: white !important; 
-        font-weight: 900; 
-        font-size: 22px; 
-        text-align: center; 
-        padding: 20px; 
-        border-radius: 15px;
-        margin: 10px;
-    }
+    .sidebar-user { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white !important; font-weight: 900; font-size: 22px; text-align: center; padding: 20px; border-radius: 15px; margin: 10px; }
     .nav-label { color: #94a3b8; font-size: 14px; margin: 20px 10px 10px 0; font-weight: bold; }
-    
-    [data-testid="stSidebar"] .stRadio div label { 
-        background-color: #1e293b; 
-        border-radius: 12px; 
-        padding: 10px 15px !important; 
-        margin-bottom: 8px; 
-        border: 1px solid #334155;
-    }
-    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { 
-        background-color: #10b981 !important; 
-    }
+    [data-testid="stSidebar"] .stRadio div label { background-color: #1e293b; border-radius: 12px; padding: 10px 15px !important; margin-bottom: 8px; border: 1px solid #334155; }
+    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { background-color: #10b981 !important; }
     [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 16px !important; }
-
     .main-title { color: #1e293b; text-align: center; border-bottom: 4px solid #10b981; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
-    .metric-container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #10b981; text-align: center; margin-bottom: 20px; }
+    .sale-card { background: #f8fafc; padding: 15px; border-radius: 10px; border-right: 5px solid #10b981; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -121,7 +101,7 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
             else: st.error("❌ بيانات الدخول خاطئة")
     st.stop()
 
-# 5. القائمة الجانبية (نفس التنسيق اللي طلبته)
+# 5. القائمة الجانبية
 st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
 st.sidebar.markdown("<div class='nav-label'>🧭 التنقل السريع</div>", unsafe_allow_html=True)
 
@@ -137,13 +117,82 @@ if st.sidebar.button("🚪 تسجيل الخروج"):
     st.session_state.clear(); st.rerun()
 
 # --- الصفحات البرمجية ---
-if menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
+
+if menu == "🛒 نقطة البيع":
+    st.markdown("<h1 class='main-title'>🛒 شاشة البيع الاحترافية</h1>", unsafe_allow_html=True)
+    
+    # قسم بيانات الزبون
+    with st.expander("👤 بيانات الزبون (اختياري)", expanded=False):
+        c1, c2 = st.columns(2)
+        cust_name = c1.text_input("اسم الزبون")
+        cust_phone = c2.text_input("رقم الجوال")
+        pay_method = st.selectbox("طريقة الدفع", ["نقدي", "دين/آجل", "تحويل بنكي"])
+
+    # البحث واختيار الأصناف
+    my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
+    search = st.text_input("🔍 ابحث عن صنف لبيعه...")
+    
+    bill_items = []
+    bill_id = str(uuid.uuid4())[:8]
+
+    st.write("---")
+    for it in my_inv:
+        if not search or search.lower() in it['item'].lower():
+            with st.container():
+                st.markdown(f"<div class='sale-card'>", unsafe_allow_html=True)
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                col1.write(f"**{it['item']}** \n <small>المتوفر: {format_num(it['كمية'])}</small>", unsafe_allow_html=True)
+                
+                # خيارات البيع (علبة أو فرط)
+                opts = ["وحدة/علبة"]
+                if it.get('سعر_القطعة', 0) > 0: opts.append("تجزئة/فرط")
+                sale_type = col2.selectbox("النوع", opts, key=f"type_{it['item']}")
+                
+                amt = clean_num(col3.text_input("المبلغ (₪)", key=f"amt_{it['item']}"))
+                
+                if amt > 0:
+                    price = it['بيع'] if sale_type == "وحدة/علبة" else it.get('سعر_القطعة', it['بيع'])
+                    # حساب الكمية: إذا كان فرط دخان نقسم على 20
+                    qty = (amt / price) / 20 if (sale_type == "تجزئة/فرط" and it.get('قسم') == "سجائر") else (amt / price)
+                    profit = amt - (it['شراء'] * qty)
+                    bill_items.append({
+                        'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        'item': it['item'], 'amount': amt, 'profit': profit, 
+                        'method': pay_method, 'customer_name': cust_name, 
+                        'customer_phone': cust_phone, 'bill_id': bill_id,
+                        'branch': st.session_state.my_branch, 'qty_to_sub': qty
+                    })
+                st.markdown("</div>", unsafe_allow_html=True)
+
+    st.write("---")
+    if st.button("🚀 إتمام الفاتورة وحفظ البيانات", use_container_width=True):
+        if bill_items:
+            for item in bill_items:
+                # تحديث المخزن
+                for i, inv_item in enumerate(st.session_state.inventory):
+                    if inv_item['item'] == item['item'] and inv_item['branch'] == st.session_state.my_branch:
+                        st.session_state.inventory[i]['كمية'] -= item['qty_to_sub']
+                
+                # تسجيل المبيعات (بدون حقل qty_to_sub الزائد في الملف)
+                save_data = item.copy()
+                del save_data['qty_to_sub']
+                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([save_data])], ignore_index=True)
+            
+            auto_save()
+            st.success(f"✅ تم إصدار الفاتورة رقم {bill_id} بنجاح!")
+            st.balloons()
+            st.rerun()
+        else:
+            st.warning("⚠️ الرجاء إدخال مبالغ للأصناف قبل الإتمام")
+
+elif menu in ["📊 التقارير المالية العامة", "📊 التقارير المالية"]:
     st.markdown(f"<h1 class='main-title'>📊 التقارير المالية - {active_branch}</h1>", unsafe_allow_html=True)
     s_df = st.session_state.sales_df.copy()
     e_df = st.session_state.expenses_df.copy()
     if active_branch != "كافة الفروع":
         s_df = s_df[s_df['branch'] == active_branch]
         e_df = e_df[e_df['branch'] == active_branch]
+    
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f"<div class='metric-container'><div>💰 المبيعات</div><div style='font-size:24px; font-weight:900;'>{format_num(s_df['amount'].sum())} ₪</div></div>", unsafe_allow_html=True)
     with c2: st.markdown(f"<div class='metric-container'><div>📈 الربح</div><div style='font-size:24px; font-weight:900;'>{format_num(s_df['profit'].sum())} ₪</div></div>", unsafe_allow_html=True)
@@ -151,37 +200,13 @@ if menu in ["📊 التقارير المالية العامة", "📊 التق�
     with c4: 
         net = s_df['profit'].sum() - e_df['amount'].sum()
         st.markdown(f"<div class='metric-container'><div>⚖️ الصافي</div><div style='font-size:24px; font-weight:900; color:{'#10b981' if net >= 0 else '#ef4444'}'>{format_num(net)} ₪</div></div>", unsafe_allow_html=True)
-    st.tabs(["📑 المبيعات", "💸 المصروفات"])[0].dataframe(s_df, use_container_width=True)
-
-elif menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
-    my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-    search = st.text_input("🔍 بحث...")
-    bill = []
-    for it in my_inv:
-        if not search or search.lower() in it['item'].lower():
-            c1, c2, c3 = st.columns([2, 1, 1])
-            c1.write(f"**{it['item']}**")
-            opts = ["علبة/قطعة", "فرط/تجزئة"] if it.get('سعر_القطعة', 0) > 0 else ["علبة/قطعة"]
-            m = c2.selectbox("النوع", opts, key=f"m_{it['item']}_{it.get('branch')}")
-            v = clean_num(c3.text_input("₪", key=f"v_{it['item']}_{it.get('branch')}"))
-            if v > 0:
-                # حل مشكلة KeyError عبر استخدام .get()
-                p = it['بيع'] if m == "علبة/قطعة" else it.get('سعر_القطعة', it['بيع'])
-                q = (v/p)/20 if (m=="فرط/تجزئة" and it.get('قسم')=="سجائر") else (v/p)
-                bill.append({"item": it['item'], "qty": q, "amount": v, "profit": v - (it['شراء']*q)})
-    if st.button("🚀 إتمام") and bill:
-        for e in bill:
-            for i, item in enumerate(st.session_state.inventory):
-                if item['item'] == e['item'] and item['branch'] == st.session_state.my_branch: st.session_state.inventory[i]['كمية'] -= e['qty']
-            new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'branch': st.session_state.my_branch}
-            st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
-        auto_save(); st.success("✅ تم بنجاح"); st.rerun()
+    
+    st.dataframe(s_df.sort_values(by='date', ascending=False), use_container_width=True)
 
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
     target_branch = st.session_state.my_branch if st.session_state.user_role != "admin" else st.selectbox("المحل:", pd.read_csv(get_db_path())['branch_name'].tolist())
-    tab_add, tab_manage, tab_cats = st.tabs(["➕ إضافة أصناف", "🛠️ تعديل المخزن", "📂 إدارة الأقسام"])
+    tab_add, tab_cats = st.tabs(["➕ إضافة أصناف", "📂 إدارة الأقسام"])
     with tab_add:
         cat_selection = st.selectbox("القسم:", st.session_state.categories)
         with st.form("admin_add_i", clear_on_submit=True):
@@ -196,24 +221,11 @@ elif menu == "⚙️ إدارة الأصناف":
                 if n:
                     total_qty = clean_num(q_box) + (clean_num(q_singles) / 20)
                     st.session_state.inventory.append({"item": n, "قسم": cat_selection, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": total_qty, "branch": target_branch, "سعر_القطعة": clean_num(sub_p)})
-                    auto_save(); st.success(f"✅ تم حفظ {n}"); st.rerun()
-    with tab_cats:
-        with st.form("c_f"):
-            nc = st.text_input("قسم جديد")
-            if st.form_submit_button("إضافة"):
-                if nc and nc not in st.session_state.categories: st.session_state.categories.append(nc); auto_save(); st.rerun()
+                    auto_save(); st.success(f"✅ تم إضافة {n}"); st.rerun()
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 جرد المخزن</h1>", unsafe_allow_html=True)
     st.table(pd.DataFrame([i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]))
-
-elif menu == "🏪 إدارة الفروع":
-    st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
-    with st.form("br_add"):
-        bn, un, pw = st.text_input("المحل"), st.text_input("المستخدم"), st.text_input("المرور")
-        if st.form_submit_button("إضافة"):
-            new_db = pd.concat([pd.read_csv(get_db_path()), pd.DataFrame([{'branch_name':bn,'user_name':un,'password':pw,'role':'shop'}])])
-            new_db.to_csv(get_db_path(), index=False); st.rerun()
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 المصروفات</h1>", unsafe_allow_html=True)
@@ -222,7 +234,3 @@ elif menu == "💸 المصروفات":
         if st.form_submit_button("حفظ"):
             st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a, 'branch': st.session_state.my_branch}])], ignore_index=True)
             auto_save(); st.rerun()
-
-elif menu == "👤 ملفي الشخصي":
-    st.markdown("<h1 class='main-title'>👤 ملفي الشخصي</h1>", unsafe_allow_html=True)
-    st.write(f"المستخدم: {st.session_state.active_user}")
