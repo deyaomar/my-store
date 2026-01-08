@@ -145,8 +145,9 @@ elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة بيع البضاعة</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
     
+    # --- تعديل: جعل القائمة مفتوحة تلقائياً (expanded=True) ---
     if st.session_state.show_cust_fields:
-        with st.status("✅ تم اعتماد الفاتورة! سجل بيانات الزبون الآن"):
+        with st.expander("✅ تم اعتماد الفاتورة! سجل بيانات الزبون الآن", expanded=True):
             c_n = st.text_input("اسم الزبون")
             c_p = st.text_input("رقم الهاتف")
             if st.button("💾 حفظ البيانات"):
