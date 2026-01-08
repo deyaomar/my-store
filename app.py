@@ -43,10 +43,6 @@ def force_init_db():
     if 'role' not in df.columns:
         df['role'] = 'shop'
         df.loc[df['user_name'] == 'أبو عمر', 'role'] = 'admin'
-    # تنظيف البيانات مباشرة لمنع مشاكل تسجيل الدخول
-    df['user_name'] = df['user_name'].astype(str).str.strip()
-    df['password'] = df['password'].astype(str).str.strip()
-    df['branch_name'] = df['branch_name'].astype(str).str.strip()
     return df
 
 # 2. تحميل البيانات الأساسية
@@ -78,33 +74,36 @@ def auto_save():
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False, encoding='utf-8-sig')
 
 # 3. التصميم (CSS الأصلي)
-st.markdown("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; direction: rtl; }
-[data-testid="stSidebar"] { background-color: #0f172a !important; border-left: 3px solid #10b981; }
-.sidebar-user { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white !important; font-weight: 900; font-size: 22px; text-align: center; padding: 20px; border-radius: 15px; margin: 10px; }
-.nav-label { color: #94a3b8; font-size: 14px; margin: 20px 10px 10px 0; font-weight: bold; }
-[data-testid="stSidebar"] .stRadio div label { background-color: #1e293b; border-radius: 12px; padding: 10px 15px !important; margin-bottom: 8px; border: 1px solid #334155; }
-[data-testid="stSidebar"] .stRadio div label[data-selected="true"] { background-color: #10b981 !important; border-color: #059669; }
-[data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 16px !important; }
-.main-title { color: #1e293b; text-align: center; border-bottom: 4px solid #10b981; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
-.metric-container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #10b981; text-align: center; margin-bottom: 20px; }
-.sale-card { background: #f8fafc; padding: 15px; border-radius: 12px; border-right: 6px solid #10b981; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-</style>""", unsafe_allow_html=True)
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+    html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; direction: rtl; }
+    [data-testid="stSidebar"] { background-color: #0f172a !important; border-left: 3px solid #10b981; }
+    .sidebar-user { background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white !important; font-weight: 900; font-size: 22px; text-align: center; padding: 20px; border-radius: 15px; margin: 10px; }
+    .nav-label { color: #94a3b8; font-size: 14px; margin: 20px 10px 10px 0; font-weight: bold; }
+    [data-testid="stSidebar"] .stRadio div label { background-color: #1e293b; border-radius: 12px; padding: 10px 15px !important; margin-bottom: 8px; border: 1px solid #334155; }
+    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] { background-color: #10b981 !important; border-color: #059669; }
+    [data-testid="stSidebar"] .stRadio div label p { color: white !important; font-weight: 700 !important; font-size: 16px !important; }
+    .main-title { color: #1e293b; text-align: center; border-bottom: 4px solid #10b981; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
+    .metric-container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 5px solid #10b981; text-align: center; margin-bottom: 20px; }
+    .sale-card { background: #f8fafc; padding: 15px; border-radius: 12px; border-right: 6px solid #10b981; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    </style>
+    """, unsafe_allow_html=True)
 
-# 4. بوابة تسجيل الدخول
+# 4. تسجيل الدخول
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.markdown("<h1 class='main-title'>🔐 نظام أبو عمر للإدارة</h1>", unsafe_allow_html=True)
     with st.form("login_form"):
         u_in = st.text_input("👤 اسم المستخدم").strip()
         p_in = st.text_input("🔑 كلمة المرور", type="password").strip()
         if st.form_submit_button("دخول"):
+            # اقرأ آخر نسخة من الملف مباشرة
             fresh_db = force_init_db()
             st.session_state.branches_db = fresh_db
-            u_clean = u_in.replace("أ", "ا").strip()
-            # البحث عن المستخدم بشكل مضبوط
-            match = fresh_db[(fresh_db['user_name'].str.replace("أ", "ا").str.strip() == u_clean) &
-                             (fresh_db['password'].str.strip() == p_in)]
+            
+            u_clean = u_in.replace("أ", "ا")
+            match = fresh_db[(fresh_db['user_name'].str.replace("أ", "ا") == u_clean) & (fresh_db['password'] == p_in)]
+            
             if not match.empty:
                 st.session_state.logged_in = True
                 st.session_state.user_role = match.iloc[0]['role']
@@ -129,9 +128,10 @@ else:
     active_branch = st.session_state.my_branch
 
 if st.sidebar.button("🚪 تسجيل الخروج"):
-    st.session_state.clear(); st.rerun()
+    st.session_state.clear()
+    st.rerun()
 
-# --- إدارة الفروع للمدير العام (محدثة) ---
+# --- صفحات إدارة الفروع ---
 if menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع والمستخدمين</h1>", unsafe_allow_html=True)
     
@@ -143,31 +143,22 @@ if menu == "🏪 إدارة الفروع":
             if st.form_submit_button("حفظ الفرع الجديد"):
                 if new_bn and new_un and new_pw:
                     new_row = {'branch_name': new_bn, 'user_name': new_un, 'password': new_pw, 'role': 'shop'}
-                    # تحديث مباشر للملف
                     current_db = force_init_db()
                     updated_db = pd.concat([current_db, pd.DataFrame([new_row])], ignore_index=True)
                     updated_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
-                    # تحديث الذاكرة فوراً
                     st.session_state.branches_db = updated_db
-                    st.success(f"تم إضافة {new_bn} بنجاح. يمكنك الآن الخروج وتسجيل الدخول بهذا الحساب.")
+                    st.success(f"تم إضافة {new_bn} بنجاح. يمكنك الآن تسجيل الدخول بهذا الحساب.")
                     st.rerun()
 
     st.write("### قائمة الفروع الحالية")
     db_display = st.session_state.branches_db.copy()
-
-    # تأكد أن عمود role موجود لكل الصفوف
-    if 'role' not in db_display.columns:
-        db_display['role'] = 'shop'
-
+    
     for index, row in db_display.iterrows():
         with st.container():
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
             col1.write(f"**الفرع:** {row['branch_name']}")
             col2.write(f"**المستخدم:** {row['user_name']}")
-            
-            # اصلاح KeyError
-            is_admin = True if row.get('role', 'shop') == 'admin' else False
-            
+            is_admin = True if row.get('role','shop') == 'admin' else False
             if not is_admin:
                 if col3.button("📝 تعديل", key=f"edit_{index}"):
                     st.session_state.edit_index = index
@@ -176,4 +167,22 @@ if menu == "🏪 إدارة الفروع":
                     st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
                     st.warning("تم حذف الفرع")
                     st.rerun()
-            st.divider()
+        st.divider()
+
+    if 'edit_index' in st.session_state:
+        idx = st.session_state.edit_index
+        st.markdown("---")
+        st.subheader(f"تعديل بيانات: {st.session_state.branches_db.loc[idx, 'branch_name']}")
+        with st.form("edit_form"):
+            e_bn = st.text_input("الاسم الجديد", value=st.session_state.branches_db.loc[idx, 'branch_name'])
+            e_un = st.text_input("المستخدم الجديد", value=st.session_state.branches_db.loc[idx, 'user_name'])
+            e_pw = st.text_input("كلمة المرور الجديدة", value=st.session_state.branches_db.loc[idx, 'password'])
+            if st.form_submit_button("تحديث البيانات"):
+                st.session_state.branches_db.loc[idx, ['branch_name','user_name','password']] = [e_bn,e_un,e_pw]
+                st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
+                del st.session_state.edit_index
+                st.success("تم التحديث")
+                st.rerun()
+        if st.button("إلغاء التعديل"):
+            del st.session_state.edit_index
+            st.rerun()
