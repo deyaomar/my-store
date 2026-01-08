@@ -67,8 +67,6 @@ if 'categories' not in st.session_state:
     all_cats = list(dict.fromkeys(["سجائر"] + existing_cats))
     st.session_state.categories = all_cats
 
-if 'show_cust_fields' not in st.session_state: st.session_state.show_cust_fields = False
-
 def auto_save():
     pd.DataFrame(st.session_state.inventory).to_csv('inventory_final.csv', index=False)
     st.session_state.sales_df.to_csv('sales_final.csv', index=False)
@@ -104,85 +102,47 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
                 m = db[(db['user_name'] == u) & (db['password'] == p)]
                 if not m.empty:
                     st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, m.iloc[0]['role'], u
-                    st.session_state.my_branch = m.iloc[0]['branch_name']
-                    st.rerun()
-                elif u == "أبو عمر" and p == "admin":
-                    st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, "admin", "أبو عمر"
-                    st.session_state.my_branch = "الإدارة"
-                    st.rerun()
-                else: st.error("❌ خطأ في البيانات")
+                    st.session_state.my_branch = m.iloc[0]['branch_name']; st.rerun()
     st.stop()
 
 # 5. القائمة الجانبية
 st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
-if st.session_state.user_role == "admin":
-    menu = st.sidebar.radio("التنقل السريع", ["📊 التقارير المالية العامة", "🏪 إدارة الفروع", "⚙️ إدارة الأصناف", "👤 ملفي الشخصي"])
-    active_branch = st.sidebar.selectbox("🏠 اختيار الفرع للعرض:", ["كافة الفروع"] + pd.read_csv(get_db_path())['branch_name'].tolist())
-else:
-    menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ إدارة الأصناف", "👤 ملفي الشخصي"])
-    active_branch = st.session_state.my_branch
-
-if st.sidebar.button("🚪 خروج آمن"):
-    st.session_state.clear(); st.rerun()
+menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ إدارة الأصناف"])
 
 # --- قسم إدارة الأصناف ---
 if menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
     target_branch = st.session_state.my_branch
-    t_add, t_manage, t_cats = st.tabs(["➕ إضافة أصناف", "🛠️ جرد وتعديل", "📂 الأقسام"])
+    cat_selection = st.selectbox("اختر القسم لفتح التعليمات:", st.session_state.categories)
+    
+    with st.form("admin_add_i", clear_on_submit=True):
+        if cat_selection == "سجائر":
+            st.warning("🚬 توريد السجائر: أدخل عدد العلب وعدد السجائر المنفردة")
+            n = st.text_input("اسم نوع الدخان")
+            c1, c2 = st.columns(2)
+            q_box = c1.text_input("كمية العلب الكاملة")
+            q_singles = c2.text_input("كمية السجائر الفرط (إضافي)")
+            b = st.text_input("سعر تكلفة العلبة الواحدة")
+            s = st.text_input("سعر بيع العلبة كاملة")
+            sub_p = st.text_input("سعر بيع السيجارة الواحدة")
+        else:
+            n = st.text_input("اسم الصنف")
+            q_box = st.text_input("الكمية الإجمالية")
+            q_singles = "0"
+            b = st.text_input("سعر الشراء")
+            s = st.text_input("سعر البيع")
+            sub_p = "0"
 
-    with t_add:
-        cat_selection = st.selectbox("اختر القسم:", st.session_state.categories)
-        with st.form("admin_add_i", clear_on_submit=True):
-            if cat_selection == "سجائر":
-                st.warning("🚬 توريد السجائر: أدخل عدد العلب والسجائر الزائدة، والنظام سيحسب التكلفة")
-                n = st.text_input("اسم نوع الدخان")
-                c1, c2 = st.columns(2)
-                q_box = c1.text_input("عدد العلب الكاملة")
-                q_singles = c2.text_input("عدد السجائر الفرط")
-                b = st.text_input("سعر تكلفة العلبة الواحدة")
-                s = st.text_input("سعر بيع العلبة كاملة")
-                sub_p = st.text_input("سعر بيع السيجارة الواحدة")
-            else:
-                n = st.text_input("اسم الصنف")
-                q_box = st.text_input("الكمية")
-                q_singles = "0"
-                b = st.text_input("سعر الشراء")
-                s = st.text_input("سعر البيع")
-                sub_p = "0"
-
-            if st.form_submit_button("➕ إضافة"):
-                if n:
-                    total_qty = clean_num(q_box) + (clean_num(q_singles) / 20)
-                    st.session_state.inventory.append({
-                        "item": n, "قسم": cat_selection, "شراء": clean_num(b), 
-                        "بيع": clean_num(s), "كمية": total_qty, 
-                        "branch": target_branch, "سعر_القطعة": clean_num(sub_p)
-                    })
-                    auto_save(); st.success(f"✅ تم إضافة {n}"); st.rerun()
-
-    with t_manage:
-        branch_data = [i for i in st.session_state.inventory if i.get('branch') == target_branch]
-        if branch_data:
-            df_branch = pd.DataFrame(branch_data)
-            edited_df = st.data_editor(df_branch[['item', 'قسم', 'شراء', 'بيع', 'سعر_القطعة', 'كمية']], use_container_width=True)
-            if st.button("💾 حفظ التعديلات"):
-                new_inv = [i for i in st.session_state.inventory if i.get('branch') != target_branch]
-                for _, row in edited_df.iterrows():
-                    new_inv.append({**row.to_dict(), "branch": target_branch})
-                st.session_state.inventory = new_inv
-                auto_save(); st.success("✅ تم الحفظ!"); st.rerun()
-
-    with t_cats:
-        with st.form("c_form", clear_on_submit=True):
-            nc = st.text_input("إضافة قسم جديد")
-            if st.form_submit_button("حفظ"):
-                if nc and nc not in st.session_state.categories:
-                    st.session_state.categories.append(nc); auto_save(); st.rerun()
-        for c in st.session_state.categories:
-            c1, c2 = st.columns([4,1]); c1.write(f"📂 {c}")
-            if c != "سجائر" and c2.button("❌", key=f"del_{c}"):
-                st.session_state.categories.remove(c); auto_save(); st.rerun()
+        if st.form_submit_button("➕ تنفيذ الإضافة"):
+            if n:
+                # دمج العلب والفرط في رقم واحد عشري (السيجارة = 0.05 علبة)
+                total_qty = clean_num(q_box) + (clean_num(q_singles) / 20)
+                st.session_state.inventory.append({
+                    "item": n, "قسم": cat_selection, "شراء": clean_num(b), 
+                    "بيع": clean_num(s), "كمية": total_qty, 
+                    "branch": target_branch, "سعر_القطعة": clean_num(sub_p)
+                })
+                auto_save(); st.success(f"✅ تم إضافة {n}"); st.rerun()
 
 # --- شاشة البيع ---
 elif menu == "🛒 نقطة البيع":
@@ -195,10 +155,10 @@ elif menu == "🛒 نقطة البيع":
             with st.container():
                 c1, c2, c3 = st.columns([2, 1, 1])
                 c1.write(f"**{it['item']}**")
-                mode = c2.selectbox("النوع", ["بالوحدة", "بالتجزئة"] if it.get('سعر_القطعة', 0) > 0 else ["بالوحدة"], key=f"m_{it['item']}")
+                mode = c2.selectbox("النوع", ["بالعلبة/الوحدة", "بالسيجارة/التجزئة"] if it.get('سعر_القطعة', 0) > 0 else ["بالوحدة"], key=f"m_{it['item']}")
                 val = clean_num(c3.text_input("المبلغ ₪", key=f"p_{it['item']}"))
                 if val > 0:
-                    if mode == "بالتجزئة":
+                    if mode == "بالسيجارة/التجزئة":
                         qty = (val / it['سعر_القطعة']) / 20 if it['قسم'] == "سجائر" else (val / it['سعر_القطعة'])
                         cost_base = it['شراء'] / 20 if it['قسم'] == "سجائر" else it['شراء']
                         profit = val - (cost_base * (val / it['سعر_القطعة']))
@@ -214,8 +174,9 @@ elif menu == "🛒 نقطة البيع":
             st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
         auto_save(); st.success("✅ تمت العملية!"); st.rerun()
 
+# --- الأقسام الأخرى ---
 elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 المخزن</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>📦 حالة المخزن</h1>", unsafe_allow_html=True)
     st.table(pd.DataFrame([i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]))
 
 elif menu == "📊 التقارير المالية":
@@ -231,8 +192,3 @@ elif menu == "💸 المصروفات":
         if st.form_submit_button("حفظ"):
             st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a, 'branch': st.session_state.my_branch}])], ignore_index=True)
             auto_save(); st.rerun()
-    st.dataframe(st.session_state.expenses_df[st.session_state.expenses_df['branch'] == st.session_state.my_branch], use_container_width=True)
-
-elif menu == "👤 ملفي الشخصي":
-    st.markdown("<h1 class='main-title'>👤 ملفي الشخصي</h1>", unsafe_allow_html=True)
-    st.write(f"المستخدم الحالي: {st.session_state.active_user}")
