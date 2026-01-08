@@ -71,13 +71,13 @@ def auto_save():
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. واجهة المستخدم والتصميم الاحترافي للقائمة
+# 3. واجهة المستخدم والتصميم
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; }
     
-    /* ستايل القائمة الجانبية المطور */
+    /* القائمة الجانبية الاحترافية */
     [data-testid="stSidebar"] { background-color: #1e293b !important; border-left: 2px solid #27ae60; }
     [data-testid="stSidebar"] .stRadio div label {
         background-color: #334155;
@@ -93,7 +93,6 @@ st.markdown("""
     }
     [data-testid="stSidebar"] .stRadio div label[data-selected="true"] {
         background-color: #27ae60 !important;
-        color: white !important;
         border-right: 5px solid #14532d;
     }
     [data-testid="stSidebar"] .stRadio div label p {
@@ -107,7 +106,10 @@ st.markdown("""
     .metric-box { background-color: #ffffff; border-right: 10px solid #27ae60; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); margin-bottom: 10px; }
     .metric-label { font-size: 15px; color: #7f8c8d; font-weight: bold; }
     .metric-value { font-size: 24px; color: #2c3e50; font-weight: 900; }
-    .stButton>button { width: 100%; border-radius: 12px; font-weight: bold; height: 3em; background: #27ae60; color: white; border: none; }
+    .capital-box { border-right-color: #e67e22; background-color: #fff9f4; }
+    .section-header { background: #f1f4f6; padding: 10px; border-radius: 10px; color: #2c3e50; font-weight: 900; margin: 15px 0; border-right: 5px solid #27ae60; }
+    .stButton>button { width: 100%; border-radius: 12px; font-weight: bold; height: 3em; background: #27ae60; color: white; border: none; transition: 0.3s; }
+    .stButton>button:hover { background: #219150; transform: translateY(-2px); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -132,9 +134,8 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
                 else: st.error("❌ خطأ في البيانات")
     st.stop()
 
-# 5. القائمة الجانبية (تصميم احترافي)
+# 5. القائمة الجانبية
 st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
-
 st.sidebar.markdown("<p style='color: #94a3b8; font-weight: bold; margin-bottom: 5px;'>التنقل السريع</p>", unsafe_allow_html=True)
 
 if st.session_state.user_role == "admin":
@@ -150,6 +151,7 @@ if st.sidebar.button("🚪 خروج آمن"):
 
 # --- محتوى الأقسام ---
 
+# 1. إدارة الفروع (للمدير)
 if menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة وتعديل الفروع</h1>", unsafe_allow_html=True)
     c1, c2 = st.columns([1, 1.5])
@@ -164,6 +166,7 @@ if menu == "🏪 إدارة الفروع":
                 st.rerun()
     with c2: st.table(pd.read_csv(get_db_path()))
 
+# 2. نقطة البيع
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة بيع البضاعة</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
@@ -206,12 +209,14 @@ elif menu == "🛒 نقطة البيع":
             st.session_state.current_bill_id = b_id
             auto_save(); st.session_state.show_cust_fields = True; st.rerun()
 
+# 3. المخزن والجرد
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-    t_list, t_jard, t_waste = st.tabs(["📋 الرصيد", "⚖️ الجرد", "🗑️ التالف"])
+    t_list, t_jard, t_waste = st.tabs(["📋 الرصيد الحالي", "⚖️ الجرد الدوري", "🗑️ التالف"])
     
-    with t_list: st.dataframe(pd.DataFrame(my_inv), use_container_width=True)
+    with t_list: 
+        st.dataframe(pd.DataFrame(my_inv), use_container_width=True)
     
     with t_jard:
         new_counts = {}
@@ -232,7 +237,7 @@ elif menu == "📦 المخزن والجرد":
     with t_waste:
         st.markdown("<div class='section-header'>إضافة بضاعة تالفة</div>", unsafe_allow_html=True)
         with st.form("waste_form"):
-            w_item = st.selectbox("اختر الصنف", [i['item'] for i in my_inv])
+            w_item = st.selectbox("اختر الصنف من المخزن", [i['item'] for i in my_inv])
             w_qty = st.number_input("الكمية التالفة", min_value=0.0)
             if st.form_submit_button("تسجيل تالف"):
                 for idx, inv_item in enumerate(st.session_state.inventory):
@@ -240,38 +245,75 @@ elif menu == "📦 المخزن والجرد":
                         loss = w_qty * inv_item['شراء']
                         st.session_state.inventory[idx]['كمية'] -= w_qty
                         st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': loss, 'branch': st.session_state.my_branch}])], ignore_index=True)
-                auto_save(); st.rerun()
+                auto_save(); st.success("تم خصم التالف"); st.rerun()
 
+# 4. التقارير المالية
 elif menu == "📊 التقارير المالية" or menu == "📊 التقارير العامة":
     st.markdown("<h1 class='main-title'>📊 التقارير المالية ورأس المال</h1>", unsafe_allow_html=True)
     sales = st.session_state.sales_df[st.session_state.sales_df['branch'] == active_branch].copy() if active_branch != "كافة الفروع" else st.session_state.sales_df.copy()
     if not sales.empty: sales['date_dt'] = pd.to_datetime(sales['date'])
+    
     inv_df = pd.DataFrame(st.session_state.inventory)
     if not inv_df.empty and 'branch' in inv_df.columns:
         if active_branch != "كافة الفروع": inv_df = inv_df[inv_df['branch'] == active_branch]
+    
     if not inv_df.empty:
         inv_df['total_capital'] = inv_df['شراء'] * inv_df['كمية']
         total_cap = inv_df['total_capital'].sum()
     else: total_cap = 0.0
+
     row = st.columns(3)
     row[0].markdown(f"<div class='metric-box'><div class='metric-label'>إجمالي المبيعات</div><div class='metric-value'>{format_num(sales['amount'].sum()) if not sales.empty else 0} ₪</div></div>", unsafe_allow_html=True)
     row[1].markdown(f"<div class='metric-box'><div class='metric-label'>صافي الأرباح</div><div class='metric-value'>{format_num(sales['profit'].sum()) if not sales.empty else 0} ₪</div></div>", unsafe_allow_html=True)
     row[2].markdown(f"<div class='metric-box capital-box'><div class='metric-label'>رأس المال الحالي</div><div class='metric-value'>{format_num(total_cap)} ₪</div></div>", unsafe_allow_html=True)
 
+    st.markdown("<div class='section-header'>تفصيل رأس مال الأقسام</div>", unsafe_allow_html=True)
+    if not inv_df.empty and 'قسم' in inv_df.columns:
+        cat_cap = inv_df.groupby('قسم')['total_capital'].sum().reset_index()
+        cols = st.columns(len(cat_cap))
+        for i, r in cat_cap.iterrows():
+            cols[i].markdown(f"<div class='metric-box' style='border-right-color: #9b59b6;'><div class='metric-label'>{r['قسم']}</div><div class='metric-value'>{format_num(r['total_capital'])} ₪</div></div>", unsafe_allow_html=True)
+
+# 5. الإعدادات (إدارة الأصناف)
 elif menu == "⚙️ الإعدادات":
     st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
-    with st.form("add_i"):
-        n = st.text_input("الصنف"); cat = st.selectbox("القسم", st.session_state.categories)
-        b = st.text_input("سعر التكلفة"); s = st.text_input("سعر البيع"); q = st.text_input("الكمية")
-        if st.form_submit_button("إضافة للمخزن"):
-            st.session_state.inventory.append({"item": n, "قسم": cat, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q), "branch": st.session_state.my_branch})
-            auto_save(); st.success("تم الحفظ"); st.rerun()
+    
+    tab1, tab2 = st.tabs(["➕ إضافة صنف جديد", "📋 إدارة وحذف الأصناف"])
+    
+    with tab1:
+        with st.form("add_i"):
+            n = st.text_input("اسم الصنف")
+            cat = st.selectbox("القسم", st.session_state.categories)
+            b = st.text_input("سعر التكلفة (شراء)")
+            s = st.text_input("سعر البيع")
+            q = st.text_input("الكمية الابتدائية")
+            if st.form_submit_button("إضافة للمخزن"):
+                st.session_state.inventory.append({
+                    "item": n, "قسم": cat, "شراء": clean_num(b), 
+                    "بيع": clean_num(s), "كمية": clean_num(q), 
+                    "branch": st.session_state.my_branch
+                })
+                auto_save(); st.success("تمت الإضافة"); st.rerun()
+    
+    with tab2:
+        my_inv_df = pd.DataFrame([i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch])
+        if not my_inv_df.empty:
+            for idx, row in my_inv_df.iterrows():
+                c1, c2, c3 = st.columns([3, 1, 1])
+                c1.write(f"**{row['item']}** ({row['قسم']})")
+                c2.write(f"{row['بيع']} ₪")
+                if c3.button("🗑️ حذف", key=f"del_{idx}"):
+                    st.session_state.inventory = [i for i in st.session_state.inventory if not (i['item'] == row['item'] and i['branch'] == st.session_state.my_branch)]
+                    auto_save(); st.rerun()
+        else:
+            st.info("لا توجد أصناف مسجلة لهذا الفرع بعد.")
 
+# 6. المصروفات
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
     with st.form("exp_f"):
         r = st.text_input("البيان"); a = st.number_input("المبلغ", min_value=0.0)
-        if st.form_submit_button("حفظ"):
+        if st.form_submit_button("حفظ المصروف"):
             st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a, 'branch': st.session_state.my_branch}])], ignore_index=True)
             auto_save(); st.rerun()
     st.dataframe(st.session_state.expenses_df[st.session_state.expenses_df['branch'] == st.session_state.my_branch], use_container_width=True)
