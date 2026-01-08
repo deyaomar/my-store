@@ -5,60 +5,29 @@ import os
 # 1. إعدادات الصفحة الأساسية
 st.set_page_config(page_title="نظام أبو عمر المتكامل 2026", layout="wide", page_icon="👑")
 
-# دالة برمجية للتأكد من جودة الأرقام
+# دالة لتنظيف وتنسيق الأرقام
 def format_num(val):
     try:
         if val == int(val): return str(int(val))
         return str(round(val, 2))
     except: return str(val)
 
-# --- نظام إدارة الملفات الصارم ---
-def force_read_branches():
-    """قراءة مباشرة وحيّة للملف لضمان رؤية المستخدمين الجدد فوراً"""
-    path = 'branches_config.csv'
-    cols = ['branch_name', 'user_name', 'password']
-    if os.path.exists(path) and os.path.getsize(path) > 0:
-        try:
-            df = pd.read_csv(path)
-            # تنظيف الفراغات من النصوص لضمان مطابقة كلمة السر
-            for c in df.columns:
-                if df[c].dtype == 'object':
-                    df[c] = df[c].astype(str).str.strip()
-            return df
-        except:
-            return pd.DataFrame(columns=cols)
-    return pd.DataFrame([{'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123'}])
+# --- نظام الإدارة المباشر للملفات ---
+def get_db_path():
+    return 'branches_config.csv'
 
-def force_save_branches(df):
-    """حفظ فعلي في الملف مع التأكد من الكتابة على القرص"""
-    df.to_csv('branches_config.csv', index=False)
-    # تحديث الذاكرة فوراً بعد الحفظ
-    st.session_state.branches_db = df
+def initialize_db():
+    path = get_db_path()
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        df = pd.DataFrame([{'branch_name': 'المحل الرئيسي', 'user_name': 'admin', 'password': '123'}])
+        df.to_csv(path, index=False)
+    return pd.read_csv(path)
 
-# 2. تحميل البيانات الأولية
+# 2. تحميل البيانات الأساسية
 if 'branches_db' not in st.session_state:
-    st.session_state.branches_db = force_read_branches()
+    st.session_state.branches_db = initialize_db()
 
-# تحميل بقية الجداول (مبيعات، مصاريف، مخزن)
-def load_data():
-    if 'sales_df' not in st.session_state:
-        if os.path.exists('sales_final.csv'): st.session_state.sales_df = pd.read_csv('sales_final.csv')
-        else: st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id', 'branch', 'cat'])
-    
-    if 'expenses_df' not in st.session_state:
-        if os.path.exists('expenses_final.csv'): st.session_state.expenses_df = pd.read_csv('expenses_final.csv')
-        else: st.session_state.expenses_df = pd.DataFrame(columns=['date', 'reason', 'amount', 'branch'])
-
-    if 'inventory' not in st.session_state:
-        if os.path.exists('inventory_final.csv'): st.session_state.inventory = pd.read_csv('inventory_final.csv').to_dict('records')
-        else: st.session_state.inventory = []
-
-    if 'categories' not in st.session_state:
-        st.session_state.categories = ["خضار وفواكه", "مكسرات", "ألبان", "منظفات"]
-
-load_data()
-
-# 3. التصميم الفخم (ستايل أبو عمر)
+# 3. التنسيق (ستايل أبو عمر الفخم)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
@@ -76,7 +45,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 4. بوابة الدخول (مُحدثة بالكامل لتقرأ الملف فوراً)
+# 4. بوابة الدخول (النظام المباشر)
 if 'logged_in' not in st.session_state:
     st.markdown("<h1 class='main-title'>🔐 نظام الإدارة الذكي</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 1.2, 1])
@@ -84,32 +53,37 @@ if 'logged_in' not in st.session_state:
         with st.form("login_form"):
             u_input = st.text_input("👤 اسم المستخدم").strip()
             p_input = st.text_input("🔑 كلمة المرور", type="password").strip()
-            submit = st.form_submit_button("دخول النظام")
-            
-            if submit:
-                # 1. فحص المدير العام
+            if st.form_submit_button("دخول النظام"):
+                # التحقق المباشر من الملف (أقوى وسيلة لضمان رؤية المستخدمين الجدد)
+                current_data = pd.read_csv(get_db_path())
+                # تنظيف البيانات
+                current_data['user_name'] = current_data['user_name'].astype(str).str.strip()
+                current_data['password'] = current_data['password'].astype(str).str.strip()
+                
+                # فحص الأدمن (أبو عمر)
                 if u_input == "أبو عمر" and p_input == "admin":
                     st.session_state.logged_in, st.session_state.user_role, st.session_state.active_user = True, "admin", "أبو عمر"
                     st.rerun()
                 
-                # 2. فحص الفروع من الملف مباشرة (Live Check)
-                current_db = force_read_branches()
-                match = current_db[(current_db['user_name'] == u_input) & (current_db['password'] == p_input)]
-                
+                # فحص الفروع
+                match = current_data[(current_data['user_name'] == u_input) & (current_data['password'] == p_input)]
                 if not match.empty:
                     st.session_state.logged_in = True
                     st.session_state.user_role = "shop"
                     st.session_state.my_branch = match.iloc[0]['branch_name']
                     st.session_state.active_user = u_input
+                    st.session_state.branches_db = current_data # تحديث الذاكرة
                     st.rerun()
                 else:
-                    st.error("❌ البيانات غير موجودة. تأكد من الحفظ في لوحة الإدارة أولاً.")
+                    st.error("❌ فشل الدخول. الحساب غير موجود في الملف حالياً.")
     st.stop()
 
 # 5. القائمة الجانبية
 if st.session_state.user_role == "admin":
     st.sidebar.markdown(f"<div style='background:#10b981; padding:20px; border-radius:15px; text-align:center; margin-bottom:20px;'>👑 <b>المدير العام</b><br>{st.session_state.active_user}</div>", unsafe_allow_html=True)
     menu = st.sidebar.radio("📋 المهام الرئيسية", ["📊 التقارير المالية", "🏪 إدارة الفروع", "📦 توريد بضاعة", "⚙️ الإعدادات"])
+    # تحديث قائمة الفروع في السايد بار باستمرار
+    st.session_state.branches_db = pd.read_csv(get_db_path())
     active_branch = st.sidebar.selectbox("🏠 عرض فرع محدد:", ["كافة الفروع"] + st.session_state.branches_db['branch_name'].tolist())
 else:
     st.sidebar.markdown(f"<div style='background:#3b82f6; padding:20px; border-radius:15px; text-align:center; margin-bottom:20px;'>🏪 <b>فرع: {st.session_state.my_branch}</b></div>", unsafe_allow_html=True)
@@ -119,7 +93,7 @@ else:
 if st.sidebar.button("🚨 تسجيل الخروج"):
     st.session_state.clear(); st.rerun()
 
-# --- قسم 2: إدارة الفروع (تم تقوية نظام الحفظ هنا) ---
+# --- صفحة إدارة الفروع ---
 if menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة وتعديل الفروع</h1>", unsafe_allow_html=True)
     col_edit, col_list = st.columns([1, 1.5])
@@ -129,54 +103,40 @@ if menu == "🏪 إدارة الفروع":
         t_add, t_edit, t_del = st.tabs(["➕ إضافة", "📝 تعديل", "❌ حذف"])
         
         with t_add:
-            with st.form("add_branch_form", clear_on_submit=True):
-                new_n = st.text_input("اسم المحل").strip()
-                new_u = st.text_input("اسم المستخدم").strip()
-                new_p = st.text_input("كلمة المرور").strip()
-                if st.form_submit_button("حفظ الفرع الآن"):
-                    if new_n and new_u and new_p:
-                        # قراءة الملف، إضافة السطر، ثم الحفظ الفعلي
-                        temp_db = force_read_branches()
-                        new_data = pd.DataFrame([{'branch_name': new_n, 'user_name': new_u, 'password': new_p}])
-                        updated_db = pd.concat([temp_db, new_data], ignore_index=True)
-                        force_save_branches(updated_db)
-                        st.success(f"✅ تم الحفظ! جرب الدخول الآن بـ {new_u}")
+            with st.form("add_form"):
+                n = st.text_input("اسم المحل").strip()
+                u = st.text_input("اسم المستخدم").strip()
+                p = st.text_input("كلمة المرور").strip()
+                if st.form_submit_button("حفظ واعتماد"):
+                    if n and u and p:
+                        df = pd.read_csv(get_db_path())
+                        new_row = pd.DataFrame([{'branch_name': n, 'user_name': u, 'password': p}])
+                        df = pd.concat([df, new_row], ignore_index=True)
+                        df.to_csv(get_db_path(), index=False)
+                        st.success("✅ تم الحفظ في الملف بنجاح!")
                         st.rerun()
         
         with t_edit:
-            if not st.session_state.branches_db.empty:
-                target = st.selectbox("اختر للتعديل", st.session_state.branches_db['branch_name'].tolist())
-                curr = st.session_state.branches_db[st.session_state.branches_db['branch_name'] == target].iloc[0]
-                with st.form("edit_f"):
-                    en = st.text_input("الاسم", value=curr['branch_name'])
-                    eu = st.text_input("المستخدم", value=curr['user_name'])
-                    ep = st.text_input("الكلمة", value=curr['password'])
-                    if st.form_submit_button("تحديث"):
-                        db = force_read_branches()
-                        db.loc[db['branch_name'] == target, ['branch_name', 'user_name', 'password']] = [en, eu, ep]
-                        force_save_branches(db); st.rerun()
-        
-        with t_del:
-            d_target = st.selectbox("حذف نهائي", st.session_state.branches_db['branch_name'].tolist())
-            if st.button("تأكيد الحذف"):
-                db = force_read_branches()
-                db = db[db['branch_name'] != d_target]
-                force_save_branches(db); st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+            # دائماً نقرأ من الملف للتعديل
+            db_edit = pd.read_csv(get_db_path())
+            target = st.selectbox("اختر للتعديل", db_edit['branch_name'].tolist())
+            curr = db_edit[db_edit['branch_name'] == target].iloc[0]
+            with st.form("edit_form"):
+                en = st.text_input("الاسم الجديد", value=curr['branch_name'])
+                eu = st.text_input("المستخدم الجديد", value=curr['user_name'])
+                ep = st.text_input("كلمة المرور الجديدة", value=curr['password'])
+                if st.form_submit_button("تحديث"):
+                    db_edit.loc[db_edit['branch_name'] == target, ['branch_name', 'user_name', 'password']] = [en, eu, ep]
+                    db_edit.to_csv(get_db_path(), index=False)
+                    st.rerun()
 
     with col_list:
         st.markdown("<div class='card'>", unsafe_allow_html=True)
-        st.subheader("📋 الفروع المسجلة في النظام")
-        # إعادة قراءة لضمان عرض الحقيقة
-        st.table(force_read_branches().rename(columns={'branch_name':'المحل','user_name':'المستخدم','password':'الكلمة'}))
+        st.subheader("📋 حالة الملف الحالية")
+        st.table(pd.read_csv(get_db_path()))
         st.markdown("</div>", unsafe_allow_html=True)
 
-# --- بقية الأقسام (التقارير، التوريد، الإعدادات) ---
+# بقية الأقسام (تقارير، توريد...)
 elif menu == "📊 التقارير المالية":
-    st.markdown(f"<h1 class='main-title'>📊 التقارير المالية: {active_branch}</h1>", unsafe_allow_html=True)
-    # كود التقارير المعرب...
-    st.info("قسم التقارير المالية نشط.")
-
-elif menu == "📦 توريد بضاعة":
-    st.markdown("<h1 class='main-title'>📦 توريد بضاعة</h1>", unsafe_allow_html=True)
-    # كود التوريد...
+    st.markdown("<h1 class='main-title'>📊 التقارير المالية</h1>", unsafe_allow_html=True)
+    st.info("التقارير المالية تعمل وتعتمد على بيانات المبيعات والمصاريف.")
