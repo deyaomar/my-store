@@ -142,35 +142,38 @@ if menu == "🏪 إدارة الفروع":
             new_pw = st.text_input("كلمة المرور")
             if st.form_submit_button("حفظ الفرع الجديد"):
                 if new_bn and new_un and new_pw:
-                    # إضافة الفرع مباشرة للملف
+                    new_row = {'branch_name': new_bn, 'user_name': new_un, 'password': new_pw, 'role': 'shop'}
+                    # تحديث مباشر للملف
                     current_db = force_init_db()
-                    new_row = {'branch_name': new_bn.strip(), 'user_name': new_un.strip(), 'password': new_pw.strip(), 'role': 'shop'}
                     updated_db = pd.concat([current_db, pd.DataFrame([new_row])], ignore_index=True)
                     updated_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
+                    # تحديث الذاكرة فوراً
                     st.session_state.branches_db = updated_db
-                    st.success(f"تم إضافة {new_bn} بنجاح. يمكنك الآن تسجيل الدخول بهذا الحساب."); st.rerun()
+                    st.success(f"تم إضافة {new_bn} بنجاح. يمكنك الآن الخروج وتسجيل الدخول بهذا الحساب.")
+                    st.rerun()
 
-  st.write("### قائمة الفروع الحالية")
-db_display = st.session_state.branches_db.copy()
+    st.write("### قائمة الفروع الحالية")
+    db_display = st.session_state.branches_db.copy()
 
-# تأكد أن عمود role موجود لكل الصفوف
-if 'role' not in db_display.columns:
-    db_display['role'] = 'shop'
+    # تأكد أن عمود role موجود لكل الصفوف
+    if 'role' not in db_display.columns:
+        db_display['role'] = 'shop'
 
-for index, row in db_display.iterrows():
-    with st.container():
-        col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-        col1.write(f"**الفرع:** {row['branch_name']}")
-        col2.write(f"**المستخدم:** {row['user_name']}")
-        
-        # اصلاح KeyError
-        is_admin = True if row.get('role', 'shop') == 'admin' else False
-        
-        if not is_admin:
-            if col3.button("📝 تعديل", key=f"edit_{index}"):
-                st.session_state.edit_index = index
-            if col4.button("🗑️ حذف", key=f"del_{index}"):
-                st.session_state.branches_db = st.session_state.branches_db.drop(index)
-                st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
-                st.warning("تم حذف الفرع"); st.rerun()
-        st.divider()
+    for index, row in db_display.iterrows():
+        with st.container():
+            col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+            col1.write(f"**الفرع:** {row['branch_name']}")
+            col2.write(f"**المستخدم:** {row['user_name']}")
+            
+            # اصلاح KeyError
+            is_admin = True if row.get('role', 'shop') == 'admin' else False
+            
+            if not is_admin:
+                if col3.button("📝 تعديل", key=f"edit_{index}"):
+                    st.session_state.edit_index = index
+                if col4.button("🗑️ حذف", key=f"del_{index}"):
+                    st.session_state.branches_db = st.session_state.branches_db.drop(index)
+                    st.session_state.branches_db.to_csv(get_db_path(), index=False, encoding='utf-8-sig')
+                    st.warning("تم حذف الفرع")
+                    st.rerun()
+            st.divider()
