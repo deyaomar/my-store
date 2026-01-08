@@ -71,20 +71,43 @@ def auto_save():
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. واجهة المستخدم
+# 3. واجهة المستخدم والتصميم الاحترافي للقائمة
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; }
-    [data-testid="stSidebar"] { background-color: #2c3e50 !important; border-left: 1px solid #27ae60; }
-    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 26px; text-align: center; margin-bottom: 25px; border-bottom: 3px solid #27ae60; padding-bottom: 15px; }
+    
+    /* ستايل القائمة الجانبية المطور */
+    [data-testid="stSidebar"] { background-color: #1e293b !important; border-left: 2px solid #27ae60; }
+    [data-testid="stSidebar"] .stRadio div label {
+        background-color: #334155;
+        border-radius: 10px;
+        padding: 12px 20px !important;
+        margin-bottom: 10px;
+        border-right: 5px solid transparent;
+        transition: 0.3s;
+    }
+    [data-testid="stSidebar"] .stRadio div label:hover {
+        background-color: #475569;
+        border-right: 5px solid #27ae60;
+    }
+    [data-testid="stSidebar"] .stRadio div label[data-selected="true"] {
+        background-color: #27ae60 !important;
+        color: white !important;
+        border-right: 5px solid #14532d;
+    }
+    [data-testid="stSidebar"] .stRadio div label p {
+        color: white !important;
+        font-weight: 700 !important;
+        font-size: 18px !important;
+    }
+
+    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 24px; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #334155; padding-bottom: 15px; }
     .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; border-radius: 10px; }
     .metric-box { background-color: #ffffff; border-right: 10px solid #27ae60; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); margin-bottom: 10px; }
     .metric-label { font-size: 15px; color: #7f8c8d; font-weight: bold; }
     .metric-value { font-size: 24px; color: #2c3e50; font-weight: 900; }
-    .capital-box { border-right-color: #e67e22; background-color: #fff9f4; }
-    .section-header { background: #f1f4f6; padding: 10px; border-radius: 10px; color: #2c3e50; font-weight: 900; margin: 15px 0; border-right: 5px solid #27ae60; }
-    .stButton>button { width: 100%; border-radius: 12px; font-weight: bold; }
+    .stButton>button { width: 100%; border-radius: 12px; font-weight: bold; height: 3em; background: #27ae60; color: white; border: none; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -109,16 +132,19 @@ if 'logged_in' not in st.session_state or not st.session_state.logged_in:
                 else: st.error("❌ خطأ في البيانات")
     st.stop()
 
-# 5. القائمة الجانبية
+# 5. القائمة الجانبية (تصميم احترافي)
 st.sidebar.markdown(f"<div class='sidebar-user'>أهلاً {st.session_state.active_user} 👋</div>", unsafe_allow_html=True)
 
+st.sidebar.markdown("<p style='color: #94a3b8; font-weight: bold; margin-bottom: 5px;'>التنقل السريع</p>", unsafe_allow_html=True)
+
 if st.session_state.user_role == "admin":
-    menu = st.sidebar.radio("التنقل السريع", ["📊 التقارير العامة", "🏪 إدارة الفروع", "⚙️ الإعدادات"])
+    menu = st.sidebar.radio("", ["📊 التقارير العامة", "🏪 إدارة الفروع", "⚙️ الإعدادات"])
     active_branch = st.sidebar.selectbox("🏠 عرض فرع:", ["كافة الفروع"] + pd.read_csv(get_db_path())['branch_name'].tolist())
 else:
-    menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
+    menu = st.sidebar.radio("", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
     active_branch = st.session_state.my_branch
 
+st.sidebar.markdown("---")
 if st.sidebar.button("🚪 خروج آمن"):
     st.session_state.clear(); st.rerun()
 
@@ -169,7 +195,7 @@ elif menu == "🛒 نقطة البيع":
                             qty = val if mode == "كجم" else val / it['بيع']
                             bill_items.append({"item": it['item'], "qty": qty, "amount": val if mode == "₪" else val * it['بيع'], "profit": (it['بيع'] - it['شراء']) * qty})
         
-        if st.button("🚀 إتمام البيع", type="primary") and bill_items:
+        if st.button("🚀 إتمام البيع") and bill_items:
             b_id = str(uuid.uuid4())[:8]
             for e in bill_items:
                 for idx, inv_item in enumerate(st.session_state.inventory):
@@ -214,7 +240,7 @@ elif menu == "📦 المخزن والجرد":
                         loss = w_qty * inv_item['شراء']
                         st.session_state.inventory[idx]['كمية'] -= w_qty
                         st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': loss, 'branch': st.session_state.my_branch}])], ignore_index=True)
-                auto_save(); st.success("تم تسجيل التالف وخصمه من المخزن"); st.rerun()
+                auto_save(); st.rerun()
 
 elif menu == "📊 التقارير المالية" or menu == "📊 التقارير العامة":
     st.markdown("<h1 class='main-title'>📊 التقارير المالية ورأس المال</h1>", unsafe_allow_html=True)
