@@ -132,85 +132,78 @@ if st.sidebar.button("🚪 خروج آمن"):
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>⚙️ الإدارة المركزية للأصناف</h1>", unsafe_allow_html=True)
     
-    # 1. جلب قائمة الفروع المتوفرة
+    # 1. جلب قائمة الفروع (استخدام قائمة مباشرة لتجنب أخطاء الملفات)
     try:
-        branches_list = pd.read_csv(get_db_path())['branch_name'].unique().tolist()
+        # محاولة جلب الفروع من سجلات الفروع
+        branches_list = pd.read_csv('branches.csv')['branch_name'].unique().tolist()
     except:
-        branches_list = []
-
+        # إذا فشل، نعتمد على الفروع الموجودة فعلياً في المخزن الحالي
+        branches_list = list(set([i.get('branch') for i in st.session_state.inventory if i.get('branch')]))
+    
     if not branches_list:
-        st.error("⚠️ لا يوجد فروع مسجلة حالياً. يرجى إضافة فروع أولاً من قسم إدارة الفروع.")
+        st.warning("⚠️ لم يتم العثور على فروع مسجلة. يرجى التأكد من إضافة فروع أولاً.")
     else:
-        # 2. اختيار الفرع المطلوب التحكم به
-        selected_branch = st.selectbox("🏗️ اختر الفرع الذي تود إدارته:", branches_list)
-        
-        st.markdown(f"### 📍 إدارة أصناف فرع: {selected_branch}")
-        
-        # تصفية البضاعة للفرع المختار
+        # 2. اختيار الفرع للتحكم به
+        selected_branch = st.selectbox("🏗️ اختر الفرع المطلوب إدارته:", branches_list)
+        st.info(f"📍 أنت الآن تتحكم بمخزن فرع: **{selected_branch}**")
+
+        # تصفية بضاعة الفرع المختار فقط
         branch_inv = [i for i in st.session_state.inventory if i.get('branch') == selected_branch]
-        
-        # 3. قسم إضافة صنف جديد لهذا الفرع
-        with st.expander(f"➕ إضافة صنف جديد لفرع {selected_branch}", expanded=False):
-            with st.form("add_item_form"):
-                col1, col2 = st.columns(2)
-                item_name = col1.text_input("اسم الصنف")
-                item_cat = col2.selectbox("القسم", st.session_state.categories)
+
+        # 3. إضافة صنف جديد (تصميم بسيط ومباشر)
+        with st.expander(f"➕ إضافة صنف جديد لـ {selected_branch}", expanded=False):
+            with st.form("admin_add_form"):
+                c1, c2 = st.columns(2)
+                new_name = c1.text_input("اسم المنتج")
+                new_cat = c2.selectbox("القسم", st.session_state.categories)
                 
-                col3, col4, col5 = st.columns(3)
-                buy_p = col3.number_input("سعر الشراء", min_value=0.0)
-                sell_p = col4.number_input("سعر البيع", min_value=0.0)
-                qty = col5.number_input("الكمية الابتدائية", min_value=0.0)
+                c3, c4, c5 = st.columns(3)
+                p_buy = c3.number_input("سعر الشراء", min_value=0.0, step=1.0)
+                p_sell = c4.number_input("سعر البيع", min_value=0.0, step=1.0)
+                p_qty = c5.number_input("الكمية", min_value=0.0, step=1.0)
                 
-                if st.form_submit_button("🚀 إضافة الصنف للمخزن"):
-                    if item_name:
-                        new_item = {
-                            'item': item_name, 'قسم': item_cat, 
-                            'شراء': buy_p, 'بيع': sell_p, 
-                            'كمية': qty, 'branch': selected_branch
-                        }
-                        st.session_state.inventory.append(new_item)
+                if st.form_submit_button("💾 حفظ الصنف في الفرع"):
+                    if new_name:
+                        st.session_state.inventory.append({
+                            'item': new_name, 'قسم': new_cat, 'شراء': p_buy, 
+                            'بيع': p_sell, 'كمية': p_qty, 'branch': selected_branch
+                        })
                         auto_save()
-                        st.success(f"✅ تم إضافة {item_name} لفرع {selected_branch} بنجاح!")
-                        st.rerun()
+                        st.success(f"تمت إضافة {new_name} بنجاح!"); st.rerun()
                     else:
-                        st.error("يرجى كتابة اسم الصنف")
+                        st.error("اسم الصنف مطلوب!")
 
         st.divider()
 
-        # 4. عرض وجدول التحكم (تعديل وحذف)
+        # 4. عرض وإدارة الأصناف (تعديل وحذف)
         if branch_inv:
-            df_branch = pd.DataFrame(branch_inv)
-            st.write(f"📊 قائمة الأصناف الحالية في {selected_branch}:")
-            
-            for idx, row in df_branch.iterrows():
+            st.write(f"📋 أصناف فرع {selected_branch}:")
+            for idx, item in enumerate(branch_inv):
                 with st.container(border=True):
-                    c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-                    c1.markdown(f"**{row['item']}**\n<small>{row['قسم']}</small>", unsafe_allow_html=True)
-                    c2.write(f"شراء: {row['شراء']}")
-                    c3.write(f"بيع: {row['بيع']}")
-                    c4.write(f"الكمية: {row['كمية']}")
+                    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+                    col1.markdown(f"**{item['item']}**\n<small>{item['قسم']}</small>", unsafe_allow_html=True)
+                    col2.write(f"شراء: {item['شراء']}")
+                    col3.write(f"بيع: {item['بيع']}")
+                    col4.write(f"الكمية: {item['كمية']}")
                     
-                    # أزرار التحكم
-                    if c5.button("🗑️ حذف", key=f"del_{selected_branch}_{idx}"):
-                        # حذف الصنف من القائمة الرئيسية
-                        st.session_state.inventory = [i for i in st.session_state.inventory if not (i['item'] == row['item'] and i['branch'] == selected_branch)]
+                    if col5.button("🗑️ حذف", key=f"del_admin_{selected_branch}_{idx}"):
+                        # حذف الصنف من الذاكرة الرئيسية
+                        st.session_state.inventory = [i for i in st.session_state.inventory if not (i['item'] == item['item'] and i['branch'] == selected_branch)]
                         auto_save()
-                        st.warning(f"تم حذف {row['item']}")
-                        st.rerun()
+                        st.warning(f"تم حذف {item['item']} من {selected_branch}"); st.rerun()
             
-            # خيار التعديل السريع عبر جداول البيانات (اختياري)
-            with st.expander("📝 تعديل البيانات بشكل جدولي سريع"):
-                edited_df = st.data_editor(df_branch, num_rows="dynamic", key=f"editor_{selected_branch}")
+            # محرر الجدول السريع
+            with st.expander("📝 تعديل سريع لكافة الأصناف (جدول)"):
+                df_to_edit = pd.DataFrame(branch_inv)
+                edited_df = st.data_editor(df_to_edit, key=f"edit_table_{selected_branch}")
                 if st.button("💾 حفظ التعديلات الجدولية"):
-                    # تحديث المخزن الرئيسي بالبيانات المعدلة لهذا الفرع
-                    # أولاً نحذف قديم هذا الفرع ونضيف الجديد المعدل
+                    # تحديث المخزن: حذف قديم الفرع وإضافة الجديد المعدل
                     st.session_state.inventory = [i for i in st.session_state.inventory if i.get('branch') != selected_branch]
                     st.session_state.inventory.extend(edited_df.to_dict('records'))
                     auto_save()
-                    st.success("✅ تم تحديث كافة البيانات بنجاح!")
-                    st.rerun()
+                    st.success("تم تحديث بيانات الفرع!"); st.rerun()
         else:
-            st.info(f"المخزن فارغ في فرع {selected_branch}")
+            st.info("هذا الفرع لا يحتوي على أصناف حالياً.")
 
     with t_cats:
         st.subheader("التحكم في أقسام النظام")
