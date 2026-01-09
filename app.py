@@ -73,16 +73,88 @@ def auto_save():
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
 # 3. واجهة المستخدم (CSS)
+# --- 1. تنسيق CSS المطور للقائمة الجانبية ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-    html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; }
-    [data-testid="stSidebar"] { background-color: #2c3e50 !important; border-left: 1px solid #27ae60; }
-    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 26px; text-align: center; border-bottom: 3px solid #27ae60; padding-bottom: 15px; }
-    .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
-    .metric-box { background-color: #ffffff; border-right: 10px solid #27ae60; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    /* تنسيق الحاوية الكلية للقائمة الجانبية */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+        border-left: 2px solid #27ae60;
+    }
+    
+    /* تنسيق رسالة الترحيب */
+    .sidebar-user {
+        color: #ffffff !important;
+        font-weight: 900;
+        font-size: 24px;
+        text-align: center;
+        padding: 20px 10px;
+        background: rgba(39, 174, 96, 0.2);
+        border-radius: 10px;
+        margin: 10px;
+        border: 1px solid #27ae60;
+    }
+
+    /* تنسيق عنوان التنقل السريع */
+    .nav-title {
+        color: #94a3b8 !important;
+        font-size: 14px;
+        font-weight: bold;
+        padding: 10px 20px 5px 0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* تحسين شكل الراديو (الأزرار) */
+    [data-testid="stSidebar"] .stRadio div label {
+        background-color: transparent !important;
+        color: #cbd5e1 !important;
+        padding: 12px 15px !important;
+        border-radius: 8px !important;
+        transition: all 0.3s ease;
+        margin-bottom: 5px !important;
+        font-weight: 600 !important;
+    }
+
+    /* تأثير عند تمرير الماوس أو الاختيار */
+    [data-testid="stSidebar"] .stRadio div label:hover {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        color: #27ae60 !important;
+    }
+
+    [data-testid="stSidebar"] .stRadio div label[data-checked="true"] {
+        background-color: #27ae60 !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+    }
+    
+    /* زر الخروج */
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
+
+# --- 2. هيكل القائمة الجانبية المطور ---
+with st.sidebar:
+    st.markdown(f"<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
+    
+    st.markdown("<div class='nav-title'>التنقل السريع</div>", unsafe_allow_html=True)
+    
+    # القائمة مع أيقونات محسنة
+    menu = st.radio(
+        label="قائمة التحكم", # العنوان مخفي برمجياً عبر الـ CSS
+        options=["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"],
+        label_visibility="collapsed" 
+    )
+    
+    st.markdown("---") # خط فاصل جمالي
+    
+    if st.button("🚪 خروج آمن"):
+        st.session_state.clear()
+        st.rerun()
 
 # 4. نظام تسجيل الدخول
 if 'logged_in' not in st.session_state:
