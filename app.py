@@ -179,100 +179,52 @@ if menu == "⚙️ إدارة أصناف الفروع" and st.session_state.user
 # ---------------------------------------------------------
 # القسم المطور: إدارة الأصناف (لضمان الظهور في نقطة البيع)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# قسم إدارة الأصناف - نسخة الحفظ المباشر
+# ---------------------------------------------------------
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>📦 إدارة أصناف المحل</h1>", unsafe_allow_html=True)
     
-    # التأكد من الفرع الحالي
     my_branch = st.session_state.get('my_branch', 'الفرع الحالي')
 
-    with st.expander("➕ إضافة صنف جديد لمحلّك", expanded=True):
-        with st.form("shop_add_form_fixed"):
-            c1, c2 = st.columns(2)
-            name = c1.text_input("اسم الصنف (مثلاً: شامبو)")
-            
-            # التأكد من اختيار قسم موجود أو "عام"
-            available_cats = st.session_state.categories if st.session_state.categories else ["عام"]
-            cat = c2.selectbox("القسم (تأكد أن القسم موجود ليظهر في نقطة البيع)", available_cats)
-            
-            c3, c4, c5 = st.columns(3)
-            buy = c3.number_input("سعر الشراء", min_value=0.0, step=0.5)
-            sell = c4.number_input("سعر البيع للزبون", min_value=0.0, step=0.5)
-            qty = c5.number_input("الكمية المتوفرة", min_value=0.0, step=1.0)
-            
-            if st.form_submit_button("حفظ وتحديث المحل"):
-                if name:
-                    # إضافة الصنف مع التأكد من اسم الفرع بدقة
-                    new_item = {
-                        'item': name, 
-                        'قسم': cat, 
-                        'شراء': buy, 
-                        'بيع': sell, 
-                        'كمية': qty, 
-                        'branch': my_branch
-                    }
-                    st.session_state.inventory.append(new_item)
-                    auto_save() # حفظ في الملف الخارجي
-                    st.success(f"✅ تم إضافة {name} بنجاح ويظهر الآن في نقطة البيع تحت قسم {cat}")
-                    st.rerun() # إعادة تحميل الصفحة لتحديث القوائم
-                else:
-                    st.error("يرجى كتابة اسم الصنف أولاً!")
+    # نموذج إضافة بسيط بدون Form معقد لتجنب مشاكل التحديث
+    with st.container(border=True):
+        st.subheader("➕ إضافة صنف جديد")
+        col1, col2 = st.columns(2)
+        name = col1.text_input("اسم المنتج")
+        cat = col2.selectbox("القسم", st.session_state.categories if st.session_state.categories else ["عام"])
+        
+        col3, col4, col5 = st.columns(3)
+        buy = col3.number_input("سعر الشراء", min_value=0.0, step=0.1)
+        sell = col4.number_input("سعر البيع", min_value=0.0, step=0.1)
+        qty = col5.number_input("الكمية المتوفرة", min_value=0.0, step=1.0)
+        
+        if st.button("💾 حفظ الصنف الآن", use_container_width=True):
+            if name:
+                # التأكد من إنشاء قائمة المخزن إذا لم تكن موجودة
+                if 'inventory' not in st.session_state:
+                    st.session_state.inventory = []
+                
+                # إضافة الصنف
+                new_data = {'item': name, 'قسم': cat, 'شراء': buy, 'بيع': sell, 'كمية': qty, 'branch': my_branch}
+                st.session_state.inventory.append(new_data)
+                
+                # الحفظ الفوري
+                auto_save()
+                st.success(f"تم حفظ {name} بنجاح!")
+                time.sleep(0.5)
+                st.rerun()
+            else:
+                st.error("يرجى إدخال اسم المنتج")
 
-    # عرض الأصناف الموجودة حالياً للتأكد منها
     st.divider()
+    # عرض الأصناف للتأكد من وجودها
+    st.subheader("📋 الأصناف الموجودة في مخزنك")
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == my_branch]
     if my_inv:
-        st.write("### الأصناف المسجلة في عهدتك")
-        df_show = pd.DataFrame(my_inv)
-        st.dataframe(df_show[['item', 'قسم', 'شراء', 'بيع', 'كمية']], use_container_width=True)
+        st.table(pd.DataFrame(my_inv)[['item', 'قسم', 'شراء', 'بيع', 'كمية']])
     else:
-        st.info("لا توجد أصناف مسجلة لهذا الفرع بعد.")
-elif menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 شاشة البيع الاحترافية</h1>", unsafe_allow_html=True)
-    my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
-    
-    if st.session_state.get('show_cust_fields', False):
-        with st.container(border=True):
-            st.subheader("📱 بيانات دفع التطبيق")
-            c_n = st.text_input("👤 اسم الزبون")
-            c_p = st.text_input("📞 رقم الهاتف")
-            if st.button("✅ إتمام", use_container_width=True):
-                mask = st.session_state.sales_df['bill_id'] == st.session_state.current_bill_id
-                st.session_state.sales_df.loc[mask, ['customer_name', 'customer_phone']] = [c_n, c_p]
-                auto_save(); st.session_state.show_cust_fields = False; st.success("تم!"); st.rerun()
-    else:
-        p_method = st.radio("وسيلة الدفع", ["تطبيق", "نقداً", "دين / آجل"], horizontal=True)
-        st.divider()
-        bill_items = []
-        for cat in st.session_state.categories:
-            items = [i for i in my_inv if i.get('قسم') == cat]
-            if items:
-                st.write(f"### {cat}")
-                grid = st.columns(3)
-                for i, it in enumerate(items):
-                    with grid[i % 3]:
-                        with st.container(border=True):
-                            st.write(f"**{it['item']}** ({it['بيع']} ₪)")
-                            val = st.number_input(f"المبلغ", min_value=0.0, key=f"s_{it['item']}_{i}")
-                            if val > 0:
-                                qty = val / it['بيع']
-                                if qty <= it['كمية']:
-                                    bill_items.append({"item": it['item'], "qty": qty, "amount": val, "profit": (it['بيع'] - it['شراء']) * qty})
-                                else: st.error("المخزن لا يكفي")
-
-        if bill_items:
-            total = sum(i['amount'] for i in bill_items)
-            st.write(f"## الإجمالي: {total} ₪")
-            if st.button("🚀 تأكيد البيع", use_container_width=True):
-                b_id = str(uuid.uuid4())[:8]
-                for e in bill_items:
-                    for idx, inv_item in enumerate(st.session_state.inventory):
-                        if inv_item['item'] == e['item'] and inv_item['branch'] == st.session_state.my_branch:
-                            st.session_state.inventory[idx]['كمية'] -= e['qty']
-                    new_sale = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': p_method, 'customer_name': 'زبون عام', 'customer_phone': '', 'bill_id': b_id, 'branch': st.session_state.my_branch}
-                    st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_sale])], ignore_index=True)
-                auto_save(); st.session_state.current_bill_id = b_id
-                if p_method == "تطبيق": st.session_state.show_cust_fields = True
-                st.rerun()
+        st.info("لا يوجد أصناف في المخزن حالياً.")
 
 elif menu == "🏪 إدارة الفروع":
     st.markdown("<h1 class='main-title'>🏪 إدارة الفروع</h1>", unsafe_allow_html=True)
