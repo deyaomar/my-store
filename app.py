@@ -87,7 +87,8 @@ else:
 
     # --- 🛒 نقطة البيع ---
     if menu == "🛒 نقطة البيع":
-        st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>")
+        # تصحيح الخطأ هنا بإضافة المحول الخاص بـ HTML
+        st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>", unsafe_allow_html=True)
         
         if 'show_customer_form' not in st.session_state:
             st.session_state.show_customer_form = False
@@ -137,9 +138,9 @@ else:
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 📊 التقارير المالية (تمت استعادتها بالكامل) ---
+    # --- 📊 التقارير المالية (مستعادة بالكامل) ---
     elif menu == "📊 التقارير المالية":
-        st.markdown("<h1 class='main-title'>📊 التقارير المالية والتحليل الأسبوعي</h1>")
+        st.markdown("<h1 class='main-title'>📊 التقارير المالية والتحليل الأسبوعي</h1>", unsafe_allow_html=True)
         today = datetime.now().strftime("%Y-%m-%d")
         last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
         
@@ -180,7 +181,7 @@ else:
 
     # --- باقي الأقسام ---
     elif menu == "📦 المخزن والجرد":
-        st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>")
+        st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
         t1, t2 = st.tabs(["📋 الرصيد", "🗑️ تسجيل تالف"])
         with t1: st.dataframe(pd.DataFrame([{"الصنف": k, "الكمية": v['كمية']} for k, v in st.session_state.inventory.items()]), use_container_width=True)
         with t2:
@@ -194,7 +195,7 @@ else:
                     auto_save(); st.rerun()
 
     elif menu == "💸 المصروفات":
-        st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>")
+        st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp"):
             r = st.text_input("البيان"); a = st.number_input("المبلغ"); c = st.selectbox("التصنيف", ["عمال", "إيجار", "أخرى"])
             if st.form_submit_button("حفظ"):
@@ -203,7 +204,7 @@ else:
         st.dataframe(st.session_state.expenses_df)
 
     elif menu == "⚙️ الإعدادات":
-        st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>")
+        st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
         with st.form("add"):
             n = st.text_input("اسم الصنف"); cat = st.selectbox("القسم", st.session_state.categories)
             b = st.text_input("سعر الشراء"); s = st.text_input("سعر البيع"); q = st.text_input("الكمية")
