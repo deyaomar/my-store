@@ -73,150 +73,111 @@ def auto_save():
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
 # 3. واجهة المستخدم (CSS)
-# --- 1. التنسيق الشامل والاحترافي (CSS) ---
+# --- 1. التنسيق والستايل (CSS) ---
 st.markdown("""
     <style>
-    /* استيراد خط تجوال بجميع الأوزان */
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     
-    /* إعدادات الخط والاتجاه العام */
     html, body, [class*="css"], .stMarkdown {
         font-family: 'Tajawal', sans-serif !important;
         direction: rtl !important;
         text-align: right !important;
     }
 
-    /* القائمة الجانبية - خلفية سوداء فخمة */
+    /* خلفية القائمة الجانبية سوداء ملكية */
     [data-testid="stSidebar"] {
         background-color: #000000 !important;
-        border-left: 3px solid #27ae60;
-        min-width: 320px !important;
+        border-left: 2px solid #27ae60;
     }
 
-    /* منطقة الترحيب بأبو عمر */
+    /* صندوق الترحيب */
     .welcome-box {
         background-color: #1a1a1a;
-        padding: 30px 10px;
+        padding: 25px 10px;
         border-radius: 15px;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         border: 2px solid #27ae60;
         text-align: center;
     }
     .welcome-box h1 {
-        color: #27ae60 !important;
+        color: #ffffff !important; /* اللون الأبيض */
         font-weight: 900 !important;
-        font-size: 28px !important;
+        font-size: 26px !important;
         margin: 0;
     }
 
-    /* تنسيق أزرار القائمة الجانبية (الخط أبيض وعريض جداً) */
-    [data-testid="stSidebar"] .stRadio div label {
+    /* تنسيق أزرار القائمة الجانبية - خط أبيض عريض جداً */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
         background-color: #1a1a1a !important;
-        color: #ffffff !important; /* لون الخط أبيض */
-        padding: 18px 25px !important;
-        border-radius: 12px !important;
-        margin-bottom: 12px !important;
+        color: #ffffff !important; /* لون الخط أبيض ناصع */
+        padding: 15px 20px !important;
+        border-radius: 10px !important;
+        margin-bottom: 10px !important;
         border: 1px solid #333 !important;
-        font-size: 20px !important; /* حجم خط كبير */
+        font-size: 19px !important;
         font-weight: 900 !important; /* خط عريض جداً */
-        transition: all 0.2s ease-in-out;
-        display: flex;
-        justify-content: flex-start;
+        transition: 0.3s;
     }
 
-    /* تأثير عند اختيار القسم */
-    [data-testid="stSidebar"] .stRadio div label[data-checked="true"] {
-        background-color: #27ae60 !important; /* أخضر عند الاختيار */
+    /* عند اختيار الزر */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label[data-checked="true"] {
+        background-color: #27ae60 !important;
         color: #ffffff !important;
         border: 1px solid #ffffff !important;
-        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.4);
     }
 
-    /* عند تمرير الماوس فوق الأزرار */
-    [data-testid="stSidebar"] .stRadio div label:hover {
-        background-color: #333 !important;
-        border-color: #27ae60 !important;
-        cursor: pointer;
-    }
-
-    /* إخفاء دوائر الراديو الافتراضية */
+    /* إخفاء الدوائر والأسماء المكررة */
     [data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label > span:first-child {
         display: none !important;
     }
-
-    /* العناوين الرئيسية في الصفحة */
+    
     .main-title {
         color: #1a1a1a;
         font-weight: 900;
-        font-size: 35px;
-        border-bottom: 5px solid #27ae60;
-        display: inline-block;
-        padding-bottom: 10px;
-        margin-bottom: 40px;
-    }
-
-    /* تنسيق زر تسجيل الخروج */
-    .stButton>button {
-        background-color: #e74c3c !important;
-        color: white !important;
-        font-weight: 900 !important;
-        height: 50px;
-        border-radius: 10px;
-        margin-top: 20px;
+        font-size: 30px;
+        border-bottom: 4px solid #27ae60;
+        padding-bottom: 5px;
+        margin-bottom: 30px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. تنفيذ القائمة الجانبية (Sidebar) ---
+# --- 2. القائمة الجانبية (مرة واحدة فقط) ---
 with st.sidebar:
-    # المربع الترحيبي
-    st.markdown("""
-        <div class='welcome-box'>
-            <h1>أهلاً أبو عمر 👋</h1>
-            <p style='color: white; font-weight: 700; margin-top: 10px;'>نظام الإدارة المتكامل</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div class='welcome-box'><h1>أهلاً أبو عمر 👋</h1></div>", unsafe_allow_html=True)
     
-    st.markdown("<p style='color: #888; font-weight: 900; font-size: 16px; margin-right: 10px;'>إختر الوجهة:</p>", unsafe_allow_html=True)
-    
-    # القائمة الرئيسية
+    # اختيار الوجهة (هذا هو الكود الوحيد للقائمة)
     menu = st.radio(
-        "Navigation",
+        "القائمة",
         ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"],
-        label_visibility="collapsed"
+        label_visibility="collapsed" # لإخفاء كلمة "القائمة" ومنع التكرار
     )
     
     st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    # زر الخروج
-    if st.button("🚪 خروج من النظام", use_container_width=True):
+    if st.button("🚪 خروج آمن", use_container_width=True):
         st.session_state.clear()
         st.rerun()
 
-# --- 3. العناوين داخل الصفحات ---
+# --- 3. التنقل بين الصفحات بناءً على الخيار ---
 if menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 شاشة البيع المباشر</h1>", unsafe_allow_html=True)
-    # باقي كود نقطة البيع هنا...
+    st.markdown("<h1 class='main-title'>🛒 نقطة البيع</h1>", unsafe_allow_html=True)
+    # (هنا تضع الكود الخاص بالبيع)
 
 elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 إدارة بضاعة المخزن</h1>", unsafe_allow_html=True)
-    # باقي كود المخزن هنا...
+    st.markdown("<h1 class='main-title'>📦 المخزن والجرد</h1>", unsafe_allow_html=True)
+    # (هنا تضع الكود الخاص بالمخزن)
+
+elif menu == "💸 المصروفات":
+    st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
+    # (كود المصروفات)
 
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقارير والأرباح</h1>", unsafe_allow_html=True)
-    # باقي كود التقارير هنا...
-# 4. نظام تسجيل الدخول
-if 'logged_in' not in st.session_state:
-    st.markdown("<h1 class='main-title'>🔒 نظام إدارة أبو عمر</h1>", unsafe_allow_html=True)
-    pwd = st.text_input("كلمة مرور الإدارة", type="password")
-    if st.button("دخول النظام"):
-        if pwd == "123": st.session_state.logged_in = True; st.rerun()
-else:
-    st.sidebar.markdown("<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
-    
-    if st.sidebar.button("🚪 خروج آمن"):
-        st.session_state.clear(); st.rerun()
+    st.markdown("<h1 class='main-title'>📊 التقارير المالية</h1>", unsafe_allow_html=True)
+    # (كود التقارير)
+
+elif menu == "⚙️ الإعدادات":
+    st.markdown("<h1 class='main-title'>⚙️ الإعدادات</h1>", unsafe_allow_html=True)
+    # (كود الإعدادات)
 
     # --- 1. نقطة البيع ---
     if menu == "🛒 نقطة البيع":
