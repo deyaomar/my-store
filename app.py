@@ -50,16 +50,79 @@ def auto_save():
     st.session_state.waste_df.to_csv('waste_final.csv', index=False)
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
 
-# 3. واجهة المستخدم والتنسيق
+# 3. واجهة المستخدم والتنسيق الاحترافي (تم تحديث التنسيق هنا)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-    html, body, [class*="css"], .stMarkdown { font-family: 'Tajawal', sans-serif !important; direction: rtl !important; text-align: right !important; }
-    [data-testid="stSidebar"] { background-color: #000000 !important; border-left: 3px solid #27ae60; min-width: 300px !important; }
-    .sidebar-user { background-color: #1a1a1a; padding: 25px 10px; border-radius: 15px; margin: 15px 10px; border: 2px solid #27ae60; text-align: center; color: white !important; font-weight: 900; font-size: 24px; }
+    
+    /* الخط العام */
+    html, body, [class*="css"], .stMarkdown { 
+        font-family: 'Tajawal', sans-serif !important; 
+        direction: rtl !important; 
+        text-align: right !important; 
+    }
+
+    /* تنسيق القائمة الجانبية بالكامل */
+    [data-testid="stSidebar"] {
+        background-color: #0c0c0c !important;
+        background-image: linear-gradient(180deg, #0c0c0c 0%, #1a1a1a 100%) !important;
+        border-left: 1px solid #27ae60;
+    }
+
+    /* حاوية الترحيب بأبو عمر */
+    .sidebar-user {
+        background: linear-gradient(90deg, #27ae60, #2ecc71);
+        padding: 20px 10px;
+        border-radius: 12px;
+        margin: 20px 10px;
+        text-align: center;
+        color: white !important;
+        font-weight: 900;
+        font-size: 22px;
+        box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    /* تحسين شكل أزرار الاختيار (الراديو) في القائمة */
+    div[data-testid="stSidebarUserContent"] .stRadio > div {
+        background-color: transparent !important;
+        padding: 10px;
+    }
+
+    div[data-testid="stSidebarUserContent"] .stRadio label {
+        background-color: #262626 !important;
+        color: #ffffff !important;
+        padding: 12px 20px !important;
+        border-radius: 10px !important;
+        margin-bottom: 10px !important;
+        border: 1px solid #333 !important;
+        transition: all 0.3s ease !important;
+        display: block !important;
+    }
+
+    /* تأثير عند تمرير الماوس على القوائم */
+    div[data-testid="stSidebarUserContent"] .stRadio label:hover {
+        border-color: #27ae60 !important;
+        background-color: #333 !important;
+        transform: translateX(-5px);
+    }
+
+    /* اللون عند الاختيار النشط */
+    div[data-testid="stSidebarUserContent"] .stRadio label[data-checked="true"] {
+        background: rgba(39, 174, 96, 0.2) !important;
+        border: 2px solid #27ae60 !important;
+        color: #27ae60 !important;
+        font-weight: bold !important;
+    }
+
+    /* العناوين والبطاقات */
     .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-bottom: 5px solid #27ae60; padding-bottom: 5px; margin-bottom: 30px; display: inline-block; }
     .report-card { background: #f9f9f9; padding: 20px; border-radius: 15px; border-right: 5px solid #27ae60; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; }
     .stock-card { background: white; border-radius: 15px; padding: 15px; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-right: 5px solid #27ae60; }
+    
+    /* زر تسجيل الخروج */
+    .stButton>button {
+        border-radius: 8px !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -73,9 +136,20 @@ if not st.session_state.logged_in:
         if pwd == "123": st.session_state.logged_in = True; st.rerun()
 else:
     with st.sidebar:
+        # الترحيب بأبو عمر في القائمة الجانبية
         st.markdown("<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
-        menu = st.radio("القائمة", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"], label_visibility="collapsed")
-        if st.button("🚪 تسجيل خروج", use_container_width=True): st.session_state.logged_in = False; st.rerun()
+        
+        # القائمة الجانبية بتنسيق الأزرار
+        menu = st.radio(
+            "اختر القسم:",
+            ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"],
+            label_visibility="collapsed"
+        )
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        if st.button("🚪 تسجيل خروج", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
 
     # --- 🛒 نقطة البيع ---
     if menu == "🛒 نقطة البيع":
@@ -114,7 +188,7 @@ else:
                     st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
                 auto_save(); st.session_state.show_customer_form = False; st.rerun()
 
-    # --- 📦 المخزن والجرد (تمت استعادة القوائم هنا) ---
+    # --- 📦 المخزن والجرد ---
     elif menu == "📦 المخزن والجرد":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن والجرد</h1>", unsafe_allow_html=True)
         tab1, tab2, tab3 = st.tabs(["📋 رصيد المخزن", "⚖️ الجرد والمطابقة", "🗑️ التالف"])
