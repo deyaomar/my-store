@@ -38,12 +38,10 @@ for key, (file, cols) in FILES.items():
         else:
             st.session_state[state_key] = pd.DataFrame(columns=cols)
 
-# --- إصلاح مشكلة قراءة المخزن والتكرار ---
 if 'inventory' not in st.session_state:
     if os.path.exists('inventory_final.csv'):
         try:
             inv_df = pd.read_csv('inventory_final.csv')
-            # إذا وجد تكرار في أول عمود (الأسماء)، نحذف المكرر ونبقي الأحدث
             inv_df = inv_df.drop_duplicates(subset=[inv_df.columns[0]], keep='last')
             st.session_state.inventory = inv_df.set_index(inv_df.columns[0]).to_dict('index')
         except Exception as e:
@@ -55,32 +53,97 @@ if 'inventory' not in st.session_state:
 if 'categories' not in st.session_state:
     st.session_state.categories = pd.read_csv('categories_final.csv')['name'].tolist() if os.path.exists('categories_final.csv') else ["خضار وفواكه", "مكسرات"]
 
-# حالات التشغيل
 if 'p_method' not in st.session_state: st.session_state.p_method = "تطبيق"
 if 'show_cust_fields' not in st.session_state: st.session_state.show_cust_fields = False
 if 'current_bill_id' not in st.session_state: st.session_state.current_bill_id = None
 
-# --- إصلاح دالة الحفظ لضمان عدم التكرار ---
 def auto_save():
     if st.session_state.inventory:
         inv_df_to_save = pd.DataFrame.from_dict(st.session_state.inventory, orient='index')
         inv_df_to_save.to_csv('inventory_final.csv', index=True)
-    
     st.session_state.sales_df.to_csv('sales_final.csv', index=False)
     st.session_state.expenses_df.to_csv('expenses_final.csv', index=False)
     st.session_state.waste_df.to_csv('waste_final.csv', index=False)
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
     pd.DataFrame(st.session_state.categories, columns=['name']).to_csv('categories_final.csv', index=False)
 
-# 3. واجهة المستخدم (CSS)
+# 3. التنسيق الاحترافي (CSS) - تم تحديثه لعيون أبو عمر
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-    html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; text-align: right; }
-    [data-testid="stSidebar"] { background-color: #2c3e50 !important; border-left: 1px solid #27ae60; }
-    .sidebar-user { color: #27ae60 !important; font-weight: 900; font-size: 26px; text-align: center; border-bottom: 3px solid #27ae60; padding-bottom: 15px; }
+    
+    html, body, [class*="css"], .stMarkdown {
+        font-family: 'Tajawal', sans-serif !important;
+        direction: rtl !important;
+        text-align: right !important;
+    }
+
+    /* القائمة الجانبية - تصميم فخم */
+    [data-testid="stSidebar"] {
+        background-color: #000000 !important;
+        border-left: 2px solid #27ae60;
+        min-width: 320px !important;
+    }
+
+    /* صندوق الترحيب العلوي */
+    .sidebar-user {
+        background-color: #1a1a1a;
+        padding: 30px 10px;
+        border-radius: 15px;
+        margin: 15px 10px;
+        border: 2px solid #27ae60;
+        text-align: center;
+        color: #ffffff !important;
+        font-weight: 900;
+        font-size: 24px;
+        box-shadow: 0 4px 15px rgba(39, 174, 96, 0.2);
+    }
+
+    /* عنوان التنقل */
+    .nav-title {
+        color: #888;
+        font-weight: 900;
+        font-size: 14px;
+        margin: 20px 20px 10px 0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* أزرار الراديو (القائمة) */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label {
+        background-color: #1a1a1a !important;
+        color: #ffffff !important;
+        padding: 15px 20px !important;
+        border-radius: 12px !important;
+        margin-bottom: 10px !important;
+        border: 1px solid #333 !important;
+        font-size: 18px !important;
+        font-weight: 700 !important;
+        transition: all 0.3s ease;
+    }
+
+    /* عند اختيار زر */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label[data-checked="true"] {
+        background-color: #27ae60 !important;
+        color: white !important;
+        border: 1px solid #ffffff !important;
+        box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+    }
+
+    /* إخفاء الدائرة الافتراضية */
+    [data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label > span:first-child {
+        display: none !important;
+    }
+
+    /* العناوين والبطاقات */
     .main-title { color: #2c3e50; text-align: center; border-bottom: 5px solid #27ae60; padding-bottom: 10px; font-weight: 900; margin-bottom: 30px; }
     .metric-box { background-color: #ffffff; border-right: 10px solid #27ae60; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    
+    /* زر الخروج */
+    .stButton>button {
+        border-radius: 10px;
+        font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -91,11 +154,20 @@ if 'logged_in' not in st.session_state:
     if st.button("دخول النظام"):
         if pwd == "123": st.session_state.logged_in = True; st.rerun()
 else:
-    st.sidebar.markdown("<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
-    menu = st.sidebar.radio("التنقل السريع", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
-    
-    if st.sidebar.button("🚪 خروج آمن"):
-        st.session_state.clear(); st.rerun()
+    # --- بناء القائمة الجانبية المنسقة ---
+    with st.sidebar:
+        st.markdown("<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
+        st.markdown("<div class='nav-title'>التنقل السريع</div>", unsafe_allow_html=True)
+        
+        menu = st.radio(
+            "Menu",
+            ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"],
+            label_visibility="collapsed"
+        )
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        if st.button("🚪 خروج آمن", use_container_width=True):
+            st.session_state.clear(); st.rerun()
 
     # --- 1. نقطة البيع ---
     if menu == "🛒 نقطة البيع":
@@ -172,7 +244,6 @@ else:
             q = st.text_input("الكمية")
             if st.form_submit_button("إضافة / تحديث الصنف"):
                 if n:
-                    # إضافة الصنف للقاموس (إذا كان موجوداً سيتم تحديثه ولن يتكرر)
                     st.session_state.inventory[n] = {"قسم": cat, "شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q)}
                     auto_save()
                     st.success(f"تم حفظ {n}")
