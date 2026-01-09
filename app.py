@@ -129,77 +129,72 @@ if st.sidebar.button("🚪 خروج آمن"):
 
 # --- محتوى الأقسام (تم اختصار الأقسام الأخرى لبيان تعديل إدارة الأصناف) ---
 
-elif menu == "⚙️ إدارة الأصناف":
-    st.markdown("<h1 class='main-title'>⚙️ الإدارة المركزية للأصناف</h1>", unsafe_allow_html=True)
+if menu == "⚙️ إدارة الأصناف":
+    st.markdown("<h1 class='main-title'>⚙️ إدارة التحكم الشامل بالأصناف</h1>", unsafe_allow_html=True)
     
-    # 1. الربط الحقيقي: جلب الفروع من ملف إدارة الفروع
-    try:
-        # نقرأ ملف الفروع الذي يتم تحديثه من صفحة "إدارة الفروع"
-        df_branches = pd.read_csv('branches.csv')
-        real_branches = df_branches['branch_name'].unique().tolist()
-    except:
-        # إذا الملف مش موجود أو فاضي، بنعطيه تنبيه واضح
-        real_branches = []
-
-    if not real_branches:
-        st.error("⚠️ لم يتم العثور على فروع حقيقية! يرجى إضافة الفروع أولاً من قسم (إدارة الفروع والصفحات).")
+    # تحديد الفرع المستهدف للإدارة (للمدير العام)
+    if st.session_state.user_role == "admin":
+        branch_list = pd.read_csv(get_db_path())['branch_name'].tolist()
+        target_branch = st.selectbox("🏬 اختر الفرع للتحكم ببياناته:", branch_list)
     else:
-        # 2. اختيار الفرع (مرتبط بالبيانات الحقيقية)
-        selected_branch = st.selectbox("🏗️ اختر الفرع المطلوب إدارته:", real_branches)
-        
-        # تصفية الأصناف المرتبطة بهذا الفرع فقط من المخزن العام
-        branch_inv = [i for i in st.session_state.inventory if i.get('branch') == selected_branch]
+        target_branch = st.session_state.my_branch
 
-        st.success(f"📍 أنت الآن تتحكم بمخزن فرع: {selected_branch}")
+    t_add, t_manage, t_cats = st.tabs(["➕ إضافة أصناف للفرع", "🛠️ جرد وتعديل مخزن الفرع", "📂 إدارة الأقسام"])
 
-        # 3. واجهة الإضافة (مباشرة بدون أي متغيرات قديمة مثل t_cats)
-        with st.container(border=True):
-            st.markdown(f"#### ➕ إضافة صنف جديد لـ {selected_branch}")
-            with st.form("admin_actual_add_form"):
-                col_a, col_b = st.columns(2)
-                i_name = col_a.text_input("اسم الصنف")
-                i_cat = col_b.selectbox("القسم", st.session_state.categories if 'categories' in st.session_state else ["عام"])
-                
-                col_c, col_d, col_e = st.columns(3)
-                i_buy = col_c.number_input("سعر الشراء", min_value=0.0, step=1.0, value=0.0) # خانة فارغة/صفر للتعديل
-                i_sell = col_d.number_input("سعر البيع", min_value=0.0, step=1.0, value=0.0)
-                i_qty = col_e.number_input("الكمية المتوفرة", min_value=0.0, step=1.0, value=0.0)
-                
-                if st.form_submit_button("🚀 حفظ في مخزن الفرع"):
-                    if i_name:
-                        new_item = {
-                            'item': i_name, 'قسم': i_cat, 
-                            'شراء': i_buy, 'بيع': i_sell, 
-                            'كمية': i_qty, 'branch': selected_branch
-                        }
-                        st.session_state.inventory.append(new_item)
-                        auto_save()
-                        st.success(f"✅ تم إضافة {i_name} بنجاح إلى فرع {selected_branch}")
-                        st.rerun()
-                    else:
-                        st.error("يرجى إدخال اسم الصنف!")
+    with t_add:
+        with st.form("admin_add_i", clear_on_submit=True):
+            st.info(f"إضافة صنف جديد إلى: {target_branch}")
+            n = st.text_input("اسم الصنف")
+            cat = st.selectbox("القسم", st.session_state.categories)
+            b = st.text_input("سعر التكلفة (شراء)")
+            s = st.text_input("سعر البيع")
+            q = st.text_input("الكمية")
+            if st.form_submit_button("➕ تنفيذ الإضافة"):
+                if n:
+                    st.session_state.inventory.append({
+                        "item": n, "قسم": cat, "شراء": clean_num(b), 
+                        "بيع": clean_num(s), "كمية": clean_num(q), "branch": target_branch
+                    })
+                    auto_save()
+                    st.success(f"✅ تم إضافة {n} لفرع {target_branch}")
+                    st.rerun()
 
-        st.divider()
-
-        # 4. عرض وإدارة الأصناف (تعديل وحذف حقيقي)
-        st.markdown(f"### 📋 قائمة بضاعة {selected_branch}")
-        if branch_inv:
-            for idx, item in enumerate(branch_inv):
-                with st.container(border=True):
-                    c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
-                    c1.markdown(f"**{item['item']}**\n<small>🏷️ {item['قسم']}</small>", unsafe_allow_html=True)
-                    c2.write(f"شراء: {item['شراء']}")
-                    c3.write(f"بيع: {item['بيع']}")
-                    c4.write(f"الكمية: {item['كمية']}")
-                    
-                    if c5.button("🗑️ حذف", key=f"del_real_{selected_branch}_{idx}"):
-                        # حذف الصنف من المخزن العام بناءً على الاسم والفرع
-                        st.session_state.inventory = [i for i in st.session_state.inventory if not (i['item'] == item['item'] and i['branch'] == selected_branch)]
-                        auto_save()
-                        st.warning(f"تم حذف {item['item']} من مخزن {selected_branch}")
-                        st.rerun()
+    with t_manage:
+        st.subheader(f"قائمة بضائع فرع: {target_branch}")
+        # تصفية البضاعة للفرع المختار
+        branch_data = [i for i in st.session_state.inventory if i.get('branch') == target_branch]
+        if branch_data:
+            df_branch = pd.DataFrame(branch_data)
+            # عرض جدول قابل للتعديل (Data Editor) للمدير
+            edited_df = st.data_editor(
+                df_branch[['item', 'قسم', 'شراء', 'بيع', 'كمية']],
+                column_config={
+                    "item": "اسم الصنف",
+                    "قسم": st.column_config.SelectboxColumn("القسم", options=st.session_state.categories),
+                    "شراء": "سعر الشراء",
+                    "بيع": "سعر البيع",
+                    "كمية": "الكمية المتوفرة"
+                },
+                num_rows="dynamic",
+                use_container_width=True,
+                key="editor"
+            )
+            
+            if st.button("💾 حفظ كافة التغييرات للفرع"):
+                # تحديث المصفوفة الرئيسية بالبيانات المعدلة
+                new_inventory = [i for i in st.session_state.inventory if i.get('branch') != target_branch]
+                for _, row in edited_df.iterrows():
+                    new_inventory.append({
+                        "item": row['item'], "قسم": row['قسم'], 
+                        "شراء": clean_num(row['شراء']), "بيع": clean_num(row['بيع']), 
+                        "كمية": clean_num(row['كمية']), "branch": target_branch
+                    })
+                st.session_state.inventory = new_inventory
+                auto_save()
+                st.success("✅ تم تحديث بيانات الفرع بنجاح!")
+                st.rerun()
         else:
-            st.info(f"لا توجد بضاعة مضافة في {selected_branch} حتى الآن.")
+            st.warning("هذا الفرع لا يحتوي على أصناف حالياً.")
 
     with t_cats:
         st.subheader("التحكم في أقسام النظام")
@@ -501,49 +496,5 @@ elif menu == "💸 المصروفات":
     st.dataframe(st.session_state.expenses_df[st.session_state.expenses_df['branch'] == st.session_state.my_branch], use_container_width=True)
 
 elif menu == "👤 ملفي الشخصي":
-    st.markdown("<h1 class='main-title'>👤 إدارة الملف الشخصي</h1>", unsafe_allow_html=True)
-    
-    # 1. عرض بيانات الحساب في بطاقة أنيقة
-    with st.container(border=True):
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            st.markdown(f"<div style='font-size: 80px; text-align: center;'>👤</div>", unsafe_allow_html=True)
-        with col2:
-            st.subheader(f"مرحباً بك يا {st.session_state.get('user_role', 'المستخدم')}")
-            st.info(f"📍 **الفرع الحالي:** {st.session_state.my_branch} | 🔑 **نوع الحساب:** {st.session_state.user_role}")
-
-    # 2. نظام التبويبات للتعديل والاسترجاع
-    tab1, tab2 = st.tabs(["🔐 تغيير كلمة المرور", "📧 استعادة الحساب"])
-    
-    with tab1:
-        st.write("### تحديث كلمة المرور")
-        st.warning("ملاحظة: لتغيير كلمة المرور بشكل دائم، يرجى مراجعة المسؤول لتحديثها في قائمة المستخدمين الرئيسية.")
-        
-        with st.container(border=True):
-            old_pass = st.text_input("كلمة المرور الحالية", type="password")
-            new_pass = st.text_input("كلمة المرور الجديدة", type="password")
-            confirm_pass = st.text_input("تأكيد كلمة المرور الجديدة", type="password")
-            
-            if st.button("💾 تحديث الآن"):
-                if new_pass == confirm_pass and len(new_pass) >= 4:
-                    st.success("✅ تم استلام طلب التغيير (هذه الميزة تحتاج لربط قاعدة البيانات)")
-                else:
-                    st.error("⚠️ يرجى التأكد من تطابق كلمة المرور وقوتها")
-
-    with tab2:
-        st.write("### استرجاع الحساب")
-        st.write("في حال فقدان الوصول، أدخل بريدك الإلكتروني لتلقي تعليمات الاسترداد.")
-        
-        with st.container(border=True):
-            user_email = st.text_input("البريد الإلكتروني المسجل")
-            if st.button("📩 إرسال رابط الاسترداد"):
-                if "@" in user_email:
-                    st.success(f"تم إرسال تعليمات الاسترداد إلى: {user_email}")
-                else:
-                    st.error("يرجى إدخال بريد إلكتروني صحيح")
-
-    # زر تسجيل الخروج
-    st.markdown("---")
-    if st.button("🚪 تسجيل الخروج من النظام", use_container_width=True):
-        st.session_state.logged_in = False
-        st.rerun()
+    st.markdown("<h1 class='main-title'>👤 ملفي الشخصي</h1>", unsafe_allow_html=True)
+    st.write(f"المستخدم الحالي: {st.session_state.active_user}")
