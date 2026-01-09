@@ -302,16 +302,44 @@ elif menu == "🏪 إدارة الفروع":
             st.success("تم إضافة الفرع"); st.rerun()
     st.table(st.session_state.branches_db)
 
-elif menu in ["📊 التقارير المالية العامة", "📊 التقارير"]:
-    st.markdown(f"<h1 class='main-title'>📊 التقارير - {active_branch}</h1>", unsafe_allow_html=True)
+# ---------------------------------------------------------
+# الجزء المحدث: التقارير المالية
+# ---------------------------------------------------------
+elif menu in ["📊 التقارير العامة", "📊 التقارير"]:
+    st.markdown(f"<h1 class='main-title'>📊 التقارير المالية - {active_branch}</h1>", unsafe_allow_html=True)
+    
+    # تجهيز البيانات
     s_df = st.session_state.sales_df.copy()
     e_df = st.session_state.expenses_df.copy()
+    
+    # تصفية حسب الفرع المختار
     if active_branch != "كافة الفروع":
         s_df = s_df[s_df['branch'] == active_branch]
         e_df = e_df[e_df['branch'] == active_branch]
-    
-    st.metric("صافي الأرباح", f"{format_num(s_df['profit'].sum() - e_df['amount'].sum())} ₪")
-    st.dataframe(s_df, use_container_width=True)
+
+    # حساب القيم الإجمالية
+    total_sales = s_df['amount'].sum() if not s_df.empty else 0
+    total_profit = s_df['profit'].sum() if not s_df.empty else 0
+    total_exp = e_df['amount'].sum() if not e_df.empty else 0
+    net_total = total_profit - total_exp
+
+    # عرض البطاقات المالية
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("💰 المبيعات", f"{total_sales} ₪")
+    with c2:
+        st.metric("📈 الأرباح", f"{total_profit} ₪")
+    with c3:
+        st.metric("💸 المصاريف", f"{total_exp} ₪")
+    with c4:
+        st.metric("⚖️ الصافي", f"{net_total} ₪")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    t1, t2 = st.tabs(["📄 تفاصيل المبيعات", "📉 تفاصيل المصاريف"])
+    with t1:
+        st.dataframe(s_df.sort_values(by='date', ascending=False) if not s_df.empty else s_df, use_container_width=True)
+    with t2:
+        st.dataframe(e_df.sort_values(by='date', ascending=False) if not e_df.empty else e_df, use_container_width=True)
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 جرد مخزن: " + st.session_state.my_branch + "</h1>", unsafe_allow_html=True)
