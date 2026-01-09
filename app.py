@@ -57,7 +57,7 @@ def auto_save():
     st.session_state.waste_df.to_csv('waste_final.csv', index=False)
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
 
-# 3. واجهة المستخدم (التنسيق)
+# 3. واجهة المستخدم (التنسيق الاحترافي)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
@@ -65,8 +65,17 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #000000 !important; border-left: 3px solid #27ae60; min-width: 300px !important; }
     .sidebar-user { background-color: #1a1a1a; padding: 25px 10px; border-radius: 15px; margin: 15px 10px; border: 2px solid #27ae60; text-align: center; color: white !important; font-weight: 900; font-size: 24px; }
     .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-bottom: 5px solid #27ae60; padding-bottom: 5px; margin-bottom: 30px; display: inline-block; }
+    
+    /* تنسيق بطاقات المخزن */
+    .stock-card { background: white; border-radius: 15px; padding: 20px; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; position: relative; overflow: hidden; }
+    .stock-card::before { content: ''; position: absolute; top: 0; right: 0; height: 100%; width: 5px; background: #27ae60; }
+    .stock-card.low-stock::before { background: #e67e22; }
+    .stock-name { font-size: 1.3rem; font-weight: 900; color: #2c3e50; margin-bottom: 10px; }
+    .stock-info { font-size: 0.95rem; color: #7f8c8d; }
+    .stock-qty { font-size: 1.5rem; font-weight: 900; color: #27ae60; }
+    .low-stock-text { color: #e67e22; font-size: 0.8rem; font-weight: bold; }
+    
     .report-card { background: #f9f9f9; padding: 20px; border-radius: 15px; border-right: 5px solid #27ae60; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .pos-card { background-color: white; border-radius: 12px; padding: 15px; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 10px; }
     .customer-box { background-color: #f0fff4; padding: 20px; border-radius: 15px; border: 2px solid #27ae60; margin-top: 20px; }
     </style>
     """, unsafe_allow_html=True)
@@ -101,7 +110,7 @@ else:
             
             for idx, (it, data) in enumerate(filtered_items):
                 with cols[idx % 3]:
-                    st.markdown(f'<div class="pos-card"><b>{it}</b><br><span style="color:#27ae60">{data["بيع"]} ₪</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:white; pading:10px; border-radius:10px; border:1px solid #eee; text-align:center; margin-bottom:5px;"><b>{it}</b><br><span style="color:#27ae60">{data["بيع"]} ₪</span></div>', unsafe_allow_html=True)
                     mc1, mc2 = st.columns(2)
                     mode = mc1.radio("بـ", ["₪", "كجم"], key=f"m_{it}", horizontal=True)
                     val = clean_num(mc2.text_input("المقدار", key=f"v_{it}"))
@@ -128,52 +137,66 @@ else:
             if st.button("🔙 رجوع"): st.session_state.show_customer_form = False; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 📦 المخزن والجرد (المطابقة المحدثة بظهور الكمية الحالية) ---
+    # --- 📦 المخزن والجرد (التنسيق الاحترافي الجديد) ---
     elif menu == "📦 المخزن والجرد":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن والجرد الذكي</h1>", unsafe_allow_html=True)
-        tab1, tab2, tab3 = st.tabs(["📋 رصيد المخزن", "⚖️ الجرد السريع والمطابقة", "🗑️ تسجيل التالف"])
+        tab1, tab2, tab3 = st.tabs(["📋 عرض الرصيد الاحترافي", "⚖️ الجرد السريع والمطابقة", "🗑️ تسجيل التالف"])
 
         with tab1:
-            inv_data = [{"الصنف": k, "القسم": v['قسم'], "الكمية المسجلة": format_num(v['كمية']), "سعر الشراء": v['شراء']} for k, v in st.session_state.inventory.items()]
-            st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
+            # إحصائيات سريعة
+            total_items = len(st.session_state.inventory)
+            low_stock_count = sum(1 for v in st.session_state.inventory.values() if v['كمية'] < 5)
+            
+            s1, s2, s3 = st.columns(3)
+            s1.metric("إجمالي الأصناف", total_items)
+            s2.metric("أصناف متوفرة", total_items - low_stock_count)
+            s3.metric("أصناف شارفت على الانتهاء", low_stock_count, delta_color="inverse")
+            st.divider()
+
+            # عرض البطاقات
+            cols = st.columns(3)
+            for idx, (it, data) in enumerate(st.session_state.inventory.items()):
+                is_low = data['كمية'] < 5
+                low_class = "low-stock" if is_low else ""
+                with cols[idx % 3]:
+                    st.markdown(f"""
+                    <div class="stock-card {low_class}">
+                        <div class="stock-name">{it}</div>
+                        <div class="stock-info">القسم: {data['قسم']}</div>
+                        <div class="stock-qty">{format_num(data['كمية'])} <span style="font-size:1rem; color:#7f8c8d">كجم</span></div>
+                        <div style="display:flex; justify-content:space-between; margin-top:10px; border-top:1px solid #f4f4f4; pt-5">
+                            <span>الشراء: {data['شراء']} ₪</span>
+                            <span>البيع: {data['بيع']} ₪</span>
+                        </div>
+                        {"<div class='low-stock-text'>⚠️ مخزون منخفض!</div>" if is_low else ""}
+                    </div>
+                    """, unsafe_allow_html=True)
 
         with tab2:
             st.info("أدخل الكميات الفعلية للمطابقة. (الكمية الحالية تظهر للمساعدة)")
             h1, h2, h3, h4, h5, h6 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.2])
             h1.write("**الصنف**"); h2.write("**رصيد النظام**"); h3.write("**الكمية الفعلية**"); h4.write("**الحالة**"); h5.write("**الفرق**"); h6.write("**الخسارة ₪**")
             st.divider()
-
             audit_results = []
             total_audit_loss = 0.0
             for it, data in st.session_state.inventory.items():
                 c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.2])
-                c1.write(f"**{it}**")
-                recorded_val = data['كمية']
-                c2.write(f"{format_num(recorded_val)}") # عرض الكمية الحالية
-                
+                c1.write(f"**{it}**"); c2.write(f"{format_num(data['كمية'])}")
                 actual = c3.text_input("الفعلية", key=f"audit_{it}", label_visibility="collapsed", placeholder="0.0")
                 if actual:
-                    act_val = clean_num(actual)
-                    diff_qty = act_val - recorded_val
-                    diff_money = diff_qty * data['شراء']
-                    
+                    act_val = clean_num(actual); diff_qty = act_val - data['كمية']; diff_money = diff_qty * data['شراء']
                     if abs(diff_qty) < 0.01: c4.success("مطابق ✅")
                     else: c4.error("عجز/زيادة ⚠️")
-                    
                     color = "green" if diff_qty > 0 else "red"
                     c5.markdown(f"<span style='color:{color}'>{format_num(diff_qty)}</span>", unsafe_allow_html=True)
                     c6.markdown(f"<span style='color:{color}'>{format_num(diff_money)}</span>", unsafe_allow_html=True)
-                    
                     audit_results.append({'item': it, 'new': act_val, 'diff': diff_qty, 'loss': diff_money})
                     total_audit_loss += diff_money
-
-            st.divider()
-            st.metric("إجمالي فرق القيمة في الجرد", f"{format_num(total_audit_loss)} ₪")
-            if audit_results and st.button("💾 اعتماد الجرد وتحديث المخزن نهائياً", use_container_width=True, type="primary"):
+            if audit_results and st.button("💾 اعتماد الجرد وتحديث المخزن", use_container_width=True, type="primary"):
                 for res in audit_results:
                     st.session_state.inventory[res['item']]['كمية'] = res['new']
                     st.session_state.adjust_df = pd.concat([st.session_state.adjust_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': res['item'], 'diff_qty': res['diff'], 'loss_value': abs(res['loss'])}])], ignore_index=True)
-                auto_save(); st.success("تم تحديث الرصيد بنجاح!"); st.rerun()
+                auto_save(); st.rerun()
 
         with tab3:
             with st.form("waste_form"):
@@ -184,7 +207,7 @@ else:
                     st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': w_qty * st.session_state.inventory[w_item]['شراء']}])], ignore_index=True)
                     auto_save(); st.rerun()
 
-    # --- باقي الأقسام (المصروفات، التقارير، الإعدادات) تبقى كما هي بدون تغيير ---
+    # --- باقي الأقسام (المصروفات، التقارير، الإعدادات) تبقى كما هي ---
     elif menu == "💸 المصروفات":
         st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp"):
