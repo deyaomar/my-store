@@ -128,7 +128,7 @@ else:
             if st.button("🔙 رجوع"): st.session_state.show_customer_form = False; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 📦 المخزن والجرد (الجرد السريع والذكي) ---
+    # --- 📦 المخزن والجرد (المطابقة المحدثة بظهور الكمية الحالية) ---
     elif menu == "📦 المخزن والجرد":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن والجرد الذكي</h1>", unsafe_allow_html=True)
         tab1, tab2, tab3 = st.tabs(["📋 رصيد المخزن", "⚖️ الجرد السريع والمطابقة", "🗑️ تسجيل التالف"])
@@ -138,37 +138,42 @@ else:
             st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
 
         with tab2:
-            st.info("أدخل الكميات الفعلية للمطابقة:")
-            h1, h2, h3, h4, h5 = st.columns([2, 1.5, 1.5, 1.5, 1.5])
-            h1.write("**الصنف**"); h2.write("**الكمية الفعلية**"); h3.write("**الحالة**"); h4.write("**الفرق (وحدة)**"); h5.write("**الفرق (₪)**")
+            st.info("أدخل الكميات الفعلية للمطابقة. (الكمية الحالية تظهر للمساعدة)")
+            h1, h2, h3, h4, h5, h6 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.2])
+            h1.write("**الصنف**"); h2.write("**رصيد النظام**"); h3.write("**الكمية الفعلية**"); h4.write("**الحالة**"); h5.write("**الفرق**"); h6.write("**الخسارة ₪**")
             st.divider()
 
             audit_results = []
             total_audit_loss = 0.0
             for it, data in st.session_state.inventory.items():
-                c1, c2, c3, c4, c5 = st.columns([2, 1.5, 1.5, 1.5, 1.5])
+                c1, c2, c3, c4, c5, c6 = st.columns([1.5, 1.2, 1.2, 1.2, 1.2, 1.2])
                 c1.write(f"**{it}**")
-                actual = c2.text_input("الفعلية", key=f"audit_{it}", label_visibility="collapsed")
+                recorded_val = data['كمية']
+                c2.write(f"{format_num(recorded_val)}") # عرض الكمية الحالية
+                
+                actual = c3.text_input("الفعلية", key=f"audit_{it}", label_visibility="collapsed", placeholder="0.0")
                 if actual:
                     act_val = clean_num(actual)
-                    recorded_val = data['كمية']
                     diff_qty = act_val - recorded_val
                     diff_money = diff_qty * data['شراء']
-                    if abs(diff_qty) < 0.01: c3.success("مطابق ✅")
-                    else: c3.error("غير مطابق ⚠️")
+                    
+                    if abs(diff_qty) < 0.01: c4.success("مطابق ✅")
+                    else: c4.error("عجز/زيادة ⚠️")
+                    
                     color = "green" if diff_qty > 0 else "red"
-                    c4.markdown(f"<span style='color:{color}'>{format_num(diff_qty)}</span>", unsafe_allow_html=True)
-                    c5.markdown(f"<span style='color:{color}'>{format_num(diff_money)} ₪</span>", unsafe_allow_html=True)
+                    c5.markdown(f"<span style='color:{color}'>{format_num(diff_qty)}</span>", unsafe_allow_html=True)
+                    c6.markdown(f"<span style='color:{color}'>{format_num(diff_money)}</span>", unsafe_allow_html=True)
+                    
                     audit_results.append({'item': it, 'new': act_val, 'diff': diff_qty, 'loss': diff_money})
                     total_audit_loss += diff_money
 
             st.divider()
-            st.metric("إجمالي فرق الجرد", f"{format_num(total_audit_loss)} ₪")
-            if audit_results and st.button("💾 اعتماد الجرد وتحديث المخزن", use_container_width=True, type="primary"):
+            st.metric("إجمالي فرق القيمة في الجرد", f"{format_num(total_audit_loss)} ₪")
+            if audit_results and st.button("💾 اعتماد الجرد وتحديث المخزن نهائياً", use_container_width=True, type="primary"):
                 for res in audit_results:
                     st.session_state.inventory[res['item']]['كمية'] = res['new']
                     st.session_state.adjust_df = pd.concat([st.session_state.adjust_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': res['item'], 'diff_qty': res['diff'], 'loss_value': abs(res['loss'])}])], ignore_index=True)
-                auto_save(); st.success("تم التحديث!"); st.rerun()
+                auto_save(); st.success("تم تحديث الرصيد بنجاح!"); st.rerun()
 
         with tab3:
             with st.form("waste_form"):
@@ -179,7 +184,7 @@ else:
                     st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': w_qty * st.session_state.inventory[w_item]['شراء']}])], ignore_index=True)
                     auto_save(); st.rerun()
 
-    # --- 💸 المصروفات ---
+    # --- باقي الأقسام (المصروفات، التقارير، الإعدادات) تبقى كما هي بدون تغيير ---
     elif menu == "💸 المصروفات":
         st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp"):
@@ -189,7 +194,6 @@ else:
                 auto_save(); st.rerun()
         st.dataframe(st.session_state.expenses_df)
 
-    # --- 📊 التقارير المالية ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التقارير المالية والتحليل الأسبوعي</h1>", unsafe_allow_html=True)
         today = datetime.now().strftime("%Y-%m-%d")
@@ -203,8 +207,6 @@ else:
         total_waste = st.session_state.waste_df['loss_value'].sum()
         total_exp = st.session_state.expenses_df['amount'].sum()
         net_profit = total_profit_raw - total_waste - total_exp
-        weekly_data = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]
-        best_item = weekly_data.groupby('item')['profit'].sum().idxmax() if not weekly_data.empty else "لا يوجد"
         
         c1, c2, c3 = st.columns(3)
         c1.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
@@ -217,7 +219,6 @@ else:
         c5.markdown(f"<div class='report-card' style='border-color:#e74c3c'><h3>🗑️ إجمالي التالف</h3><h2 style='color:#e74c3c'>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
         c6.markdown(f"<div class='report-card'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
 
-    # --- ⚙️ الإعدادات ---
     elif menu == "⚙️ الإعدادات":
         st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف</h1>", unsafe_allow_html=True)
         with st.form("add"):
