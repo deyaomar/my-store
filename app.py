@@ -341,12 +341,28 @@ elif menu in ["📊 التقارير العامة", "📊 التقارير"]:
     with t2:
         st.dataframe(e_df.sort_values(by='date', ascending=False) if not e_df.empty else e_df, use_container_width=True)
 
+# ---------------------------------------------------------
+# الجزء المحدث: المخزن والجرد (نسخة آمنة من الأخطاء)
+# ---------------------------------------------------------
 elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 جرد مخزن: " + st.session_state.my_branch + "</h1>", unsafe_allow_html=True)
-    my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
+    # التأكد من وجود اسم الفرع لتجنب الخطأ
+    branch_name = st.session_state.get('my_branch', 'غير محدد')
+    
+    st.markdown(f"<h1 class='main-title'>📦 جرد مخزن: {branch_name}</h1>", unsafe_allow_html=True)
+    
+    # جلب بضاعة هذا الفرع فقط من المخزن العام
+    my_inv = [i for i in st.session_state.inventory if i.get('branch') == branch_name]
+    
     if my_inv:
-        st.dataframe(pd.DataFrame(my_inv), use_container_width=True)
-    else: st.warning("المخزن فارغ")
+        df_inv = pd.DataFrame(my_inv)
+        # ترتيب الأعمدة لشكل أفضل
+        cols = ['item', 'قسم', 'شراء', 'بيع', 'كمية']
+        st.dataframe(df_inv[cols] if all(c in df_inv.columns for c in cols) else df_inv, use_container_width=True)
+        
+        # ملخص سريع
+        st.info(f"عدد الأصناف المتوفرة: {len(my_inv)}")
+    else:
+        st.warning("لا توجد بضاعة مسجلة لهذا الفرع حالياً.")
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 تسجيل المصروفات</h1>", unsafe_allow_html=True)
