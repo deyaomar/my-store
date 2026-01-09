@@ -69,6 +69,21 @@ st.markdown("""
     [data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label > span:first-child { display: none !important; }
     .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-bottom: 5px solid #27ae60; padding-bottom: 5px; margin-bottom: 30px; display: inline-block; }
     .report-card { background: #f9f9f9; padding: 20px; border-radius: 15px; border-right: 5px solid #27ae60; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    
+    /* تنسيق كرت الصنف في نقطة البيع */
+    .pos-card {
+        background-color: white;
+        border-radius: 12px;
+        padding: 15px;
+        border: 1px solid #eee;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
+        transition: 0.3s;
+    }
+    .pos-card:hover { border-color: #27ae60; box-shadow: 0 6px 12px rgba(39, 174, 96, 0.1); }
+    .pos-item-name { font-size: 1.2rem; font-weight: 900; color: #2c3e50; margin-bottom: 5px; }
+    .pos-item-price { font-size: 1.1rem; color: #27ae60; font-weight: 700; }
+    .pos-stock { font-size: 0.85rem; color: #7f8c8d; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -84,25 +99,64 @@ else:
         menu = st.radio("Menu", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"], label_visibility="collapsed")
         if st.button("🚪 خروج آمن", use_container_width=True): st.session_state.clear(); st.rerun()
 
-    # --- 🛒 نقطة البيع (مختصرة) ---
+    # --- 🛒 نقطة البيع (تنسيق احترافي ومربعات) ---
     if menu == "🛒 نقطة البيع":
         st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>")
-        c1, c2 = st.columns([1, 2]); p_meth = c1.selectbox("💳 الدفع", ["تطبيق", "نقداً"]); search_q = c2.text_input("🔍 ابحث...")
+        
+        # الجزء العلوي: خيارات الدفع والبحث
+        c_top1, c_top2 = st.columns([1, 2])
+        p_meth = c_top1.selectbox("💳 طريقة الدفع", ["نقداً", "تطبيق"])
+        search_q = c_top2.text_input("🔍 ابحث عن صنف بالاسم...", placeholder="اكتب اسم المنتج هنا...")
+        
+        st.divider()
+
         bill_items = []
-        for it, data in st.session_state.inventory.items():
-            if not search_q or search_q in it:
-                st.markdown(f"<div style='border:1px solid #ddd; padding:10px; border-radius:10px;'><b>{it}</b> | {data['بيع']} ₪</div>", unsafe_allow_html=True)
-                mc1, mc2 = st.columns(2); mode = mc1.radio("بـ", ["₪", "كجم"], key=f"m_{it}", horizontal=True); val = clean_num(mc2.text_input("المقدار", key=f"v_{it}"))
+        
+        # عرض المنتجات في شبكة (Grid)
+        cols = st.columns(3) # عرض 3 منتجات في كل صف
+        
+        items_list = list(st.session_state.inventory.items())
+        filtered_items = [it for it in items_list if not search_q or search_q in it[0]]
+        
+        for idx, (it, data) in enumerate(filtered_items):
+            with cols[idx % 3]:
+                st.markdown(f"""
+                <div class="pos-card">
+                    <div class="pos-item-name">{it}</div>
+                    <div class="pos-item-price">{data['بيع']} ₪ <small>/ وحدة</small></div>
+                    <div class="pos-stock">المتوفر: {format_num(data['كمية'])}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # حقول الإدخال تحت كل كرت
+                mc1, mc2 = st.columns([1, 1])
+                mode = mc1.radio("البيع بـ", ["₪", "كجم"], key=f"m_{it}", horizontal=True)
+                val = clean_num(mc2.text_input("الكمية/المبلغ", key=f"v_{it}", placeholder="0.0"))
+                
                 if val > 0:
                     q = val if mode == "كجم" else val / data["بيع"]
-                    bill_items.append({"item": it, "qty": q, "amount": val if mode == "₪" else val * data["بيع"], "profit": (data["بيع"] - data["شراء"]) * q})
-        if bill_items and st.button("🚀 إتمام العملية"):
-            bid = str(uuid.uuid4())[:8]
-            for e in bill_items:
-                st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
-                new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': p_meth, 'bill_id': bid}
-                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
-            auto_save(); st.rerun()
+                    bill_items.append({
+                        "item": it, 
+                        "qty": q, 
+                        "amount": val if mode == "₪" else val * data["بيع"], 
+                        "profit": (data["بيع"] - data["شراء"]) * q
+                    })
+                st.markdown("<div style='margin-bottom:30px;'></div>", unsafe_allow_html=True)
+
+        # زر إتمام العملية (يظهر بشكل ثابت في الأسفل أو بعد المنتجات)
+        if bill_items:
+            st.divider()
+            total_bill = sum(item['amount'] for item in bill_items)
+            st.markdown(f"### 🧾 إجمالي الفاتورة: <span style='color:#27ae60'>{format_num(total_bill)} ₪</span>", unsafe_allow_html=True)
+            if st.button("🚀 إتمام عملية البيع وطباعة", use_container_width=True, type="primary"):
+                bid = str(uuid.uuid4())[:8]
+                for e in bill_items:
+                    st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
+                    new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': p_meth, 'bill_id': bid}
+                    st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
+                auto_save()
+                st.success("تم تسجيل العملية بنجاح!")
+                st.rerun()
 
     # --- 📦 المخزن والجرد ---
     elif menu == "📦 المخزن والجرد":
@@ -129,58 +183,36 @@ else:
                 auto_save(); st.rerun()
         st.dataframe(st.session_state.expenses_df)
 
-    # --- 📊 التقارير المالية (تعديل أبو عمر المطلوب) ---
+    # --- 📊 التقارير المالية ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التقارير المالية والتحليل الأسبوعي</h1>", unsafe_allow_html=True)
-        
-        # تجهيز البيانات والتواريخ
         today = datetime.now().strftime("%Y-%m-%d")
         last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-        
-        # تحويل تواريخ المبيعات والتالف لنوع تاريخ للمقارنة
         st.session_state.sales_df['date_only'] = pd.to_datetime(st.session_state.sales_df['date']).dt.strftime('%Y-%m-%d')
         st.session_state.waste_df['date_only'] = pd.to_datetime(st.session_state.waste_df['date']).dt.strftime('%Y-%m-%d')
-        
-        # 1. المبيعات اليومية والاسبوعية
         daily_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] == today]['amount'].sum()
         weekly_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]['amount'].sum()
-        
-        # 2. رأس المال الأساسي (قيمة البضاعة الموجودة حالياً بالمحل بسعر الشراء)
         capital_in_stock = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
-        
-        # 3. صافي الأرباح والتالف (الكلي)
         total_profit_raw = st.session_state.sales_df['profit'].sum()
         total_waste = st.session_state.waste_df['loss_value'].sum()
         total_exp = st.session_state.expenses_df['amount'].sum()
         net_profit = total_profit_raw - total_waste - total_exp
-
-        # 4. تحليل الأصناف (الأسبوعي)
         weekly_data = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]
         weekly_waste = st.session_state.waste_df[st.session_state.waste_df['date_only'] >= last_week]
-        
         best_item = weekly_data.groupby('item')['profit'].sum().idxmax() if not weekly_data.empty else "لا يوجد"
         worst_waste_item = weekly_waste.groupby('item')['qty'].sum().idxmax() if not weekly_waste.empty else "لا يوجد"
 
-        # عرض النتائج في بطاقات احترافية
         col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        with col2:
-            st.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        with col3:
-            st.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(capital_in_stock)} ₪</h2><small>قيمة البضاعة بالمحل</small></div>", unsafe_allow_html=True)
-
+        with col1: st.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
+        with col2: st.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
+        with col3: st.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(capital_in_stock)} ₪</h2><small>قيمة البضاعة بالمحل</small></div>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-
         col4, col5, col6 = st.columns(3)
         with col4:
             color = "#27ae60" if net_profit >= 0 else "#e74c3c"
             st.markdown(f"<div class='report-card' style='border-color:{color}'><h3>💵 صافي الأرباح</h3><h2 style='color:{color}'>{format_num(net_profit)} ₪</h2><small>بعد خصم التالف والمصروفات</small></div>", unsafe_allow_html=True)
-        with col5:
-            st.markdown(f"<div class='report-card' style='border-color:#e74c3c'><h3>🗑️ إجمالي التالف</h3><h2 style='color:#e74c3c'>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
-        with col6:
-            st.markdown(f"<div class='report-card'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
-
+        with col5: st.markdown(f"<div class='report-card' style='border-color:#e74c3c'><h3>🗑️ إجمالي التالف</h3><h2 style='color:#e74c3c'>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
+        with col6: st.markdown(f"<div class='report-card'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
         st.divider()
         st.markdown("### 🏆 تحليل الأسبوع (آخر 7 أيام)")
         c_a, c_b = st.columns(2)
