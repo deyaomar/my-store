@@ -344,25 +344,66 @@ elif menu in ["📊 التقارير العامة", "📊 التقارير"]:
 # ---------------------------------------------------------
 # الجزء المحدث: المخزن والجرد (نسخة آمنة من الأخطاء)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# الجزء المحدث: المخزن والجرد (التصميم الاحترافي + التالف + الجرد اليدوي)
+# ---------------------------------------------------------
 elif menu == "📦 المخزن والجرد":
-    # التأكد من وجود اسم الفرع لتجنب الخطأ
-    branch_name = st.session_state.get('my_branch', 'غير محدد')
-    
-    st.markdown(f"<h1 class='main-title'>📦 جرد مخزن: {branch_name}</h1>", unsafe_allow_html=True)
-    
-    # جلب بضاعة هذا الفرع فقط من المخزن العام
+    branch_name = st.session_state.get('my_branch', 'الفرع الحالي')
+    st.markdown(f"<h1 class='main-title'>📦 إدارة المخزون والجرد - {branch_name}</h1>", unsafe_allow_html=True)
+
+    # 1. إحصائيات سريعة (Dashboard مصغر)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == branch_name]
-    
     if my_inv:
         df_inv = pd.DataFrame(my_inv)
-        # ترتيب الأعمدة لشكل أفضل
-        cols = ['item', 'قسم', 'شراء', 'بيع', 'كمية']
-        st.dataframe(df_inv[cols] if all(c in df_inv.columns for c in cols) else df_inv, use_container_width=True)
-        
-        # ملخص سريع
-        st.info(f"عدد الأصناف المتوفرة: {len(my_inv)}")
+        total_items = len(df_inv)
+        stock_value = (df_inv['شراء'] * df_inv['كمية']).sum()
+        potential_profit = ((df_inv['بيع'] - df_inv['شراء']) * df_inv['كمية']).sum()
+
+        c1, c2, c3 = st.columns(3)
+        c1.markdown(f'<div class="rep-card" style="border-top-color: #3498db;"><div class="rep-label">📦 عدد الأصناف</div><div class="rep-value">{total_items}</div></div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="rep-card" style="border-top-color: #f1c40f;"><div class="rep-label">💰 قيمة المخزون (شراء)</div><div class="rep-value">{format_num(stock_value)} ₪</div></div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="rep-card" style="border-top-color: #2ecc71;"><div class="rep-label">📈 ربح متوقع</div><div class="rep-value">{format_num(potential_profit)} ₪</div></div>', unsafe_allow_html=True)
+
+        st.divider()
+
+        # 2. تبويبات العمليات الاحترافية
+        t_view, t_manual, t_damage = st.tabs(["🔍 استعراض المخزون", "📝 الجرد اليدوي", "⚠️ تسجيل التالف"])
+
+        with t_view:
+            st.markdown("### قائمة السلع المتوفرة")
+            st.dataframe(df_inv[['item', 'قسم', 'شراء', 'بيع', 'كمية']], use_container_width=True)
+
+        with t_manual:
+            st.markdown("### تحديث الكميات يدوياً")
+            with st.form("manual_update"):
+                selected_item = st.selectbox("اختر الصنف", df_inv['item'].tolist())
+                new_qty = st.number_input("الكمية الفعلية الموجودة الآن", min_value=0.0, step=1.0)
+                if st.form_submit_button("تعديل الكمية"):
+                    for i in st.session_state.inventory:
+                        if i['item'] == selected_item and i['branch'] == branch_name:
+                            i['كمية'] = new_qty
+                    auto_save(); st.success(f"تم تحديث كمية {selected_item}"); st.rerun()
+
+        with t_damage:
+            st.markdown("### تسجيل بضاعة تالفة / مفقودة")
+            with st.form("damage_form"):
+                d_item = st.selectbox("الصنف التالف", df_inv['item'].tolist())
+                d_qty = st.number_input("الكمية التالفة", min_value=0.1, step=1.0)
+                d_reason = st.text_input("السبب (كسر، انتهاء صلاحية، إلخ)")
+                if st.form_submit_button("تسجيل التالف"):
+                    for i in st.session_state.inventory:
+                        if i['item'] == d_item and i['branch'] == branch_name:
+                            if i['كمية'] >= d_qty:
+                                i['كمية'] -= d_qty
+                                # تسجيلها كمصروف بخسارة سعر الشراء
+                                loss = d_qty * i['شراء']
+                                new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': f"تالف: {d_item} ({d_reason})", 'amount': loss, 'branch': branch_name}
+                                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
+                                auto_save(); st.error(f"تم خصم {d_qty} من المخزن وتسجيل خسارة {loss} ₪"); st.rerun()
+                            else:
+                                st.warning("الكمية التالفة أكبر من الموجود في المخزن!")
     else:
-        st.warning("لا توجد بضاعة مسجلة لهذا الفرع حالياً.")
+        st.warning("المخزن فارغ تماماً، ابدأ بإضافة أصناف من صفحة 'إدارة الأصناف'.")
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 تسجيل المصروفات</h1>", unsafe_allow_html=True)
