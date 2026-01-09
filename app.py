@@ -130,7 +130,99 @@ if st.sidebar.button("🚪 خروج آمن"):
 # --- محتوى الأقسام (تم اختصار الأقسام الأخرى لبيان تعديل إدارة الأصناف) ---
 
 elif menu == "⚙️ إدارة الأصناف":
-    st.markdown("<h1 class='main-title'>⚙️ الإدارة المركزية للأصناف</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>⚙️ التحكم المركزي بالمخزون (للمدير العام)</h1>", unsafe_allow_html=True)
+
+    # --- 1. جلب قائمة الفروع الحقيقية للربط ---
+    try:
+        # الربط مع ملف الفروع المسجل عندك
+        df_branches = pd.read_csv('branches.csv')
+        list_of_branches = df_branches['branch_name'].unique().tolist()
+    except:
+        # حل احتياطي إذا الملف غير موجود أو لم يتم إضافة فروع بعد
+        list_of_branches = list(set([i.get('branch') for i in st.session_state.inventory if i.get('branch')]))
+
+    if not list_of_branches:
+        st.error("⚠️ لم يتم العثور على فروع مسجلة. يرجى إضافة الفروع من صفحة 'إدارة الفروع' أولاً.")
+    else:
+        # --- 2. فلتر التحكم العلوي ---
+        with st.container(border=True):
+            col_f1, col_f2 = st.columns([2, 1])
+            target_branch = col_f1.selectbox("🏗️ اختر الفرع المراد إدارته:", ["كل الفروع"] + list_of_branches)
+            search_item = col_f2.text_input("🔍 بحث عن صنف محدد...")
+
+        # تصفية البيانات بناءً على الاختيار
+        if target_branch == "كل الفروع":
+            display_inv = st.session_state.inventory
+        else:
+            display_inv = [i for i in st.session_state.inventory if i.get('branch') == target_branch]
+
+        if search_item:
+            display_inv = [i for i in display_inv if search_item.lower() in i['item'].lower()]
+
+        # --- 3. إضافة صنف جديد (مع تحديد الفرع) ---
+        with st.expander("➕ إضافة صنف جديد لأي فرع", expanded=False):
+            with st.form("admin_global_add"):
+                c1, c2, c3 = st.columns([2, 1, 1])
+                new_i_name = c1.text_input("اسم المنتج")
+                new_i_branch = c2.selectbox("تخصيص للفرع", list_of_branches)
+                new_i_cat = c3.selectbox("القسم", st.session_state.get('categories', ["عام"]))
+                
+                c4, c5, c6 = st.columns(3)
+                new_i_buy = c4.number_input("سعر الشراء", min_value=0.0, step=1.0, value=0.0)
+                new_i_sell = c5.number_input("سعر البيع", min_value=0.0, step=1.0, value=0.0)
+                new_i_qty = c6.number_input("الكمية المتاحة", min_value=0.0, step=1.0, value=0.0)
+                
+                if st.form_submit_button("🚀 اعتماد الإضافة المركزية"):
+                    if new_i_name:
+                        st.session_state.inventory.append({
+                            'item': new_i_name, 'قسم': new_i_cat, 'شراء': new_i_buy, 
+                            'بيع': new_i_sell, 'كمية': new_i_qty, 'branch': new_i_branch
+                        })
+                        auto_save()
+                        st.success(f"✅ تم إضافة {new_i_name} بنجاح إلى {new_i_branch}")
+                        st.rerun()
+
+        st.divider()
+
+        # --- 4. عرض وجدول الأصناف مع ميزة الحذف والتعديل ---
+        if display_inv:
+            st.markdown(f"### 📋 عرض الأصناف: ({target_branch})")
+            
+            # عرض البيانات في بطاقات احترافية
+            for idx, item in enumerate(display_inv):
+                with st.container(border=True):
+                    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
+                    
+                    # تفاصيل الصنف
+                    col1.markdown(f"**{item['item']}**\n<br><span style='color:gray; font-size:0.8em;'>📍 {item.get('branch', 'غير محدد')} | 📂 {item['قسم']}</span>", unsafe_allow_html=True)
+                    
+                    # الأسعار والكميات
+                    col2.write(f"💰 شراء: {item['شراء']}")
+                    col3.write(f"🏷️ بيع: {item['بيع']}")
+                    col4.write(f"📦 كمية: {item['كمية']}")
+                    
+                    # زر الحذف (محدد بالفرع والاسم لضمان الدقة)
+                    if col5.button("🗑️ حذف", key=f"global_del_{idx}_{item['item']}"):
+                        st.session_state.inventory = [i for i in st.session_state.inventory if not (i['item'] == item['item'] and i.get('branch') == item.get('branch'))]
+                        auto_save()
+                        st.warning(f"تم حذف {item['item']} من {item.get('branch')}")
+                        st.rerun()
+            
+            # ميزة التعديل الجماعي السريع للمدير
+            with st.expander("📝 محرر الجدول السريع (تعديل الكل دفعة واحدة)"):
+                df_all = pd.DataFrame(display_inv)
+                edited_all = st.data_editor(df_all, key="admin_global_editor", num_rows="dynamic")
+                if st.button("💾 حفظ كافة التعديلات"):
+                    # تحديث المخزن الرئيسي للمدير العام
+                    # نقوم باستبدال العناصر المعدلة في المخزن العام
+                    new_inv = [i for i in st.session_state.inventory if i not in display_inv]
+                    new_inv.extend(edited_all.to_dict('records'))
+                    st.session_state.inventory = new_inv
+                    auto_save()
+                    st.success("✅ تم تحديث المخزن المركزي بنجاح!")
+                    st.rerun()
+        else:
+            st.warning("لم يتم العثور على أصناف تطابق الفلتر المختار.")
     
     # 1. الربط الحقيقي مع قسم إدارة الفروع
     # بنحاول نجيب الفروع من ملف branches.csv اللي أنت بتديره
