@@ -129,60 +129,98 @@ if st.sidebar.button("🚪 خروج آمن"):
 
 # --- محتوى الأقسام (تم اختصار الأقسام الأخرى لبيان تعديل إدارة الأصناف) ---
 
-elif menu == "⚙️ إدارة الأصناف":
-    st.markdown("<h1 class='main-title'>⚙️ التحكم المركزي بالمخزون (للمدير العام)</h1>", unsafe_allow_html=True)
+elif menu == "إدارة الأصناف":
+    st.markdown("<h1 class='main-title'>📦 إدارة أصناف المتجر</h1>", unsafe_allow_html=True)
 
-    # --- 1. جلب قائمة الفروع الحقيقية للربط ---
-    try:
-        # الربط مع ملف الفروع المسجل عندك
-        df_branches = pd.read_csv('branches.csv')
-        list_of_branches = df_branches['branch_name'].unique().tolist()
-    except:
-        # حل احتياطي إذا الملف غير موجود أو لم يتم إضافة فروع بعد
-        list_of_branches = list(set([i.get('branch') for i in st.session_state.inventory if i.get('branch')]))
+    # تصفية الأصناف الخاصة بالفرع الحالي فقط
+    my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
 
-    if not list_of_branches:
-        st.error("⚠️ لم يتم العثور على فروع مسجلة. يرجى إضافة الفروع من صفحة 'إدارة الفروع' أولاً.")
+    # --- 1. قسم إضافة صنف جديد (تصميم مميز) ---
+    with st.expander("➕ إضافة صنف جديد للمخزن", expanded=False):
+        with st.form("add_new_item_form"):
+            c1, c2 = st.columns(2)
+            name = c1.text_input("اسم الصنف")
+            cat = c2.selectbox("القسم", st.session_state.get('categories', ["عام"]))
+            
+            c3, c4, c5 = st.columns(3)
+            buy = c3.number_input("سعر الشراء", min_value=0.0, step=1.0, value=0.0)
+            sell = c4.number_input("سعر البيع", min_value=0.0, step=1.0, value=0.0)
+            qty = c5.number_input("الكمية المتوفرة", min_value=0.0, step=1.0, value=0.0)
+            
+            if st.form_submit_button("🚀 حفظ الصنف الجديد"):
+                if name:
+                    new_item = {
+                        'item': name, 'قسم': cat, 'شراء': buy, 
+                        'بيع': sell, 'كمية': qty, 'branch': st.session_state.my_branch
+                    }
+                    st.session_state.inventory.append(new_item)
+                    auto_save()
+                    st.success(f"✅ تم إضافة {name} بنجاح!")
+                    st.rerun()
+                else:
+                    st.error("⚠️ يرجى كتابة اسم الصنف أولاً!")
+
+    st.divider()
+
+    # --- 2. عرض الأصناف وإدارتها (تعديل وحذف) ---
+    st.markdown("### 📋 قائمة الأصناف الحالية")
+    
+    if not my_inv:
+        st.info("المخزن فارغ حالياً، ابدأ بإضافة أصناف جديدة.")
     else:
-        # --- 2. فلتر التحكم العلوي ---
-        with st.container(border=True):
-            col_f1, col_f2 = st.columns([2, 1])
-            target_branch = col_f1.selectbox("🏗️ اختر الفرع المراد إدارته:", ["كل الفروع"] + list_of_branches)
-            search_item = col_f2.text_input("🔍 بحث عن صنف محدد...")
-
-        # تصفية البيانات بناءً على الاختيار
-        if target_branch == "كل الفروع":
-            display_inv = st.session_state.inventory
-        else:
-            display_inv = [i for i in st.session_state.inventory if i.get('branch') == target_branch]
-
-        if search_item:
-            display_inv = [i for i in display_inv if search_item.lower() in i['item'].lower()]
-
-        # --- 3. إضافة صنف جديد (مع تحديد الفرع) ---
-        with st.expander("➕ إضافة صنف جديد لأي فرع", expanded=False):
-            with st.form("admin_global_add"):
-                c1, c2, c3 = st.columns([2, 1, 1])
-                new_i_name = c1.text_input("اسم المنتج")
-                new_i_branch = c2.selectbox("تخصيص للفرع", list_of_branches)
-                new_i_cat = c3.selectbox("القسم", st.session_state.get('categories', ["عام"]))
+        for idx, item in enumerate(my_inv):
+            # كل صنف في حاوية (كارت) مستقلة
+            with st.container(border=True):
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
                 
-                c4, c5, c6 = st.columns(3)
-                new_i_buy = c4.number_input("سعر الشراء", min_value=0.0, step=1.0, value=0.0)
-                new_i_sell = c5.number_input("سعر البيع", min_value=0.0, step=1.0, value=0.0)
-                new_i_qty = c6.number_input("الكمية المتاحة", min_value=0.0, step=1.0, value=0.0)
+                with col1:
+                    st.markdown(f"**{item['item']}**")
+                    st.caption(f"القسم: {item['قسم']}")
                 
-                if st.form_submit_button("🚀 اعتماد الإضافة المركزية"):
-                    if new_i_name:
-                        st.session_state.inventory.append({
-                            'item': new_i_name, 'قسم': new_i_cat, 'شراء': new_i_buy, 
-                            'بيع': new_i_sell, 'كمية': new_i_qty, 'branch': new_i_branch
-                        })
+                with col2:
+                    st.markdown(f"<small>شراء: {item['شراء']} ₪</small>", unsafe_allow_html=True)
+                    st.markdown(f"<small>بيع: {item['بيع']} ₪</small>", unsafe_allow_html=True)
+                
+                with col3:
+                    # تلوين الكمية حسب التوفر
+                    q_color = "red" if item['كمية'] <= 5 else "green"
+                    st.markdown(f"الكمية: <b style='color:{q_color};'>{format_num(item['كمية'])}</b>", unsafe_allow_html=True)
+                
+                with col4:
+                    # أزرار التعديل والحذف
+                    sub_c1, sub_c2 = st.columns(2)
+                    if sub_c1.button("📝", key=f"edit_btn_{idx}"):
+                        st.session_state[f"editing_{idx}"] = True
+                    
+                    if sub_c2.button("🗑️", key=f"del_btn_{idx}"):
+                        st.session_state.inventory = [i for i in st.session_state.inventory if not (i['item'] == item['item'] and i['branch'] == st.session_state.my_branch)]
                         auto_save()
-                        st.success(f"✅ تم إضافة {new_i_name} بنجاح إلى {new_i_branch}")
+                        st.warning(f"تم حذف {item['item']}")
                         st.rerun()
 
-        st.divider()
+                # --- 3. نافذة التعديل (تظهر فقط عند الضغط على زر التعديل) ---
+                if st.session_state.get(f"editing_{idx}", False):
+                    with st.form(f"edit_form_{idx}"):
+                        st.write(f"⚙️ تعديل بيانات: {item['item']}")
+                        e_c1, e_c2, e_c3 = st.columns(3)
+                        new_buy = e_c1.number_input("تعديل الشراء", value=float(item['شراء']))
+                        new_sell = e_c2.number_input("تعديل البيع", value=float(item['بيع']))
+                        new_qty = e_c3.number_input("تعديل الكمية", value=float(item['كمية']))
+                        
+                        if st.form_submit_button("✅ حفظ التعديلات"):
+                            # تحديث البيانات في الذاكرة الرئيسية
+                            for i, main_item in enumerate(st.session_state.inventory):
+                                if main_item['item'] == item['item'] and main_item['branch'] == st.session_state.my_branch:
+                                    st.session_state.inventory[i].update({
+                                        'شراء': new_buy, 'بيع': new_sell, 'كمية': new_qty
+                                    })
+                            auto_save()
+                            st.session_state[f"editing_{idx}"] = False
+                            st.success("تم التحديث!"); st.rerun()
+                        
+                        if st.button("إلغاء", key=f"cancel_{idx}"):
+                            st.session_state[f"editing_{idx}"] = False
+                            st.rerun()
 
         # --- 4. عرض وجدول الأصناف مع ميزة الحذف والتعديل ---
         if display_inv:
