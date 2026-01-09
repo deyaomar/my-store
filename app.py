@@ -347,63 +347,85 @@ elif menu in ["📊 التقارير العامة", "📊 التقارير"]:
 # ---------------------------------------------------------
 # الجزء المحدث: المخزن والجرد (التصميم الاحترافي + التالف + الجرد اليدوي)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# القسم الاحترافي للمخزن والجرد (نسخة أبو عمر المعتمدة)
+# ---------------------------------------------------------
 elif menu == "📦 المخزن والجرد":
+    # 1. التحقق من اسم الفرع بشكل آمن
     branch_name = st.session_state.get('my_branch', 'الفرع الحالي')
     st.markdown(f"<h1 class='main-title'>📦 إدارة المخزون والجرد - {branch_name}</h1>", unsafe_allow_html=True)
 
-    # 1. إحصائيات سريعة (Dashboard مصغر)
+    # 2. تصفية البيانات (بضاعة هذا الفرع فقط)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == branch_name]
+    
     if my_inv:
         df_inv = pd.DataFrame(my_inv)
+        
+        # --- الإحصائيات الاحترافية (التنسيق الخرافي) ---
         total_items = len(df_inv)
         stock_value = (df_inv['شراء'] * df_inv['كمية']).sum()
         potential_profit = ((df_inv['بيع'] - df_inv['شراء']) * df_inv['كمية']).sum()
 
-        c1, c2, c3 = st.columns(3)
-        c1.markdown(f'<div class="rep-card" style="border-top-color: #3498db;"><div class="rep-label">📦 عدد الأصناف</div><div class="rep-value">{total_items}</div></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="rep-card" style="border-top-color: #f1c40f;"><div class="rep-label">💰 قيمة المخزون (شراء)</div><div class="rep-value">{format_num(stock_value)} ₪</div></div>', unsafe_allow_html=True)
-        c3.markdown(f'<div class="rep-card" style="border-top-color: #2ecc71;"><div class="rep-label">📈 ربح متوقع</div><div class="rep-value">{format_num(potential_profit)} ₪</div></div>', unsafe_allow_html=True)
+        col_stat1, col_stat2, col_stat3 = st.columns(3)
+        with col_stat1:
+            st.markdown(f'<div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-right: 5px solid #3498db; text-align: center;">'
+                        f'<p style="color: #555; margin-bottom: 5px;">📦 عدد الأصناف</p>'
+                        f'<h2 style="color: #3498db; margin: 0;">{total_items}</h2>'
+                        f'</div>', unsafe_allow_html=True)
+        with col_stat2:
+            st.markdown(f'<div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-right: 5px solid #f1c40f; text-align: center;">'
+                        f'<p style="color: #555; margin-bottom: 5px;">💰 قيمة المخزون</p>'
+                        f'<h2 style="color: #f1c40f; margin: 0;">{stock_value:,.1f} ₪</h2>'
+                        f'</div>', unsafe_allow_html=True)
+        with col_stat3:
+            st.markdown(f'<div style="background-color: #f0f2f6; padding: 20px; border-radius: 10px; border-right: 5px solid #2ecc71; text-align: center;">'
+                        f'<p style="color: #555; margin-bottom: 5px;">📈 ربح متوقع</p>'
+                        f'<h2 style="color: #2ecc71; margin: 0;">{potential_profit:,.1f} ₪</h2>'
+                        f'</div>', unsafe_allow_html=True)
 
-        st.divider()
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        # 2. تبويبات العمليات الاحترافية
-        t_view, t_manual, t_damage = st.tabs(["🔍 استعراض المخزون", "📝 الجرد اليدوي", "⚠️ تسجيل التالف"])
+        # --- تبويبات العمليات (الجرد، التالف، العرض) ---
+        tab_view, tab_manual, tab_damage = st.tabs(["🔍 عرض المخزن", "📝 جرد يدوي", "⚠️ تسجيل تالف"])
 
-        with t_view:
-            st.markdown("### قائمة السلع المتوفرة")
+        with tab_view:
+            st.markdown("### 📋 قائمة البضاعة الحالية")
             st.dataframe(df_inv[['item', 'قسم', 'شراء', 'بيع', 'كمية']], use_container_width=True)
 
-        with t_manual:
-            st.markdown("### تحديث الكميات يدوياً")
-            with st.form("manual_update"):
-                selected_item = st.selectbox("اختر الصنف", df_inv['item'].tolist())
-                new_qty = st.number_input("الكمية الفعلية الموجودة الآن", min_value=0.0, step=1.0)
-                if st.form_submit_button("تعديل الكمية"):
-                    for i in st.session_state.inventory:
-                        if i['item'] == selected_item and i['branch'] == branch_name:
-                            i['كمية'] = new_qty
-                    auto_save(); st.success(f"تم تحديث كمية {selected_item}"); st.rerun()
+        with tab_manual:
+            st.info("💡 استخدم هذا القسم لتصحيح كمية صنف موجود فعلياً في المحل.")
+            with st.form("manual_inventory"):
+                item_to_update = st.selectbox("اختر الصنف المراد جرده", df_inv['item'].tolist())
+                actual_qty = st.number_input("الكمية الموجودة على الرف حالياً", min_value=0.0)
+                if st.form_submit_button("✅ اعتماد الجرد الجديد"):
+                    for item in st.session_state.inventory:
+                        if item['item'] == item_to_update and item['branch'] == branch_name:
+                            item['كمية'] = actual_qty
+                    auto_save(); st.success(f"تم تحديث مخزون {item_to_update} بنجاح"); st.rerun()
 
-        with t_damage:
-            st.markdown("### تسجيل بضاعة تالفة / مفقودة")
-            with st.form("damage_form"):
-                d_item = st.selectbox("الصنف التالف", df_inv['item'].tolist())
-                d_qty = st.number_input("الكمية التالفة", min_value=0.1, step=1.0)
-                d_reason = st.text_input("السبب (كسر، انتهاء صلاحية، إلخ)")
-                if st.form_submit_button("تسجيل التالف"):
-                    for i in st.session_state.inventory:
-                        if i['item'] == d_item and i['branch'] == branch_name:
-                            if i['كمية'] >= d_qty:
-                                i['كمية'] -= d_qty
-                                # تسجيلها كمصروف بخسارة سعر الشراء
-                                loss = d_qty * i['شراء']
-                                new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': f"تالف: {d_item} ({d_reason})", 'amount': loss, 'branch': branch_name}
+        with tab_damage:
+            st.error("⚠️ تسجيل بضاعة تالفة سيخصم الكمية ويسجل خسارتها في المصاريف.")
+            with st.form("damage_report"):
+                dmg_item = st.selectbox("الصنف التالف/المفقود", df_inv['item'].tolist())
+                dmg_qty = st.number_input("الكمية التالفة", min_value=0.1)
+                reason = st.text_input("سبب التلف (كسر، ضياع، انتهاء صلاحية)")
+                if st.form_submit_button("🚑 تسجيل خسارة التالف"):
+                    for it in st.session_state.inventory:
+                        if it['item'] == dmg_item and it['branch'] == branch_name:
+                            if it['كمية'] >= dmg_qty:
+                                it['كمية'] -= dmg_qty
+                                loss_amount = dmg_qty * it['شراء']
+                                # تسجيل في المصاريف تلقائياً
+                                new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 
+                                          'reason': f"تالف: {dmg_item} ({reason})", 
+                                          'amount': loss_amount, 
+                                          'branch': branch_name}
                                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
-                                auto_save(); st.error(f"تم خصم {d_qty} من المخزن وتسجيل خسارة {loss} ₪"); st.rerun()
+                                auto_save(); st.warning(f"تم خصم {dmg_qty} قطعة وتسجيل خسارة {loss_amount} ₪"); st.rerun()
                             else:
-                                st.warning("الكمية التالفة أكبر من الموجود في المخزن!")
+                                st.error("الكمية المطلوبة أكبر من المتوفر!")
     else:
-        st.warning("المخزن فارغ تماماً، ابدأ بإضافة أصناف من صفحة 'إدارة الأصناف'.")
+        st.warning("⚠️ لا توجد بيانات في المخزن حالياً. قم بإضافة أصناف من صفحة 'إدارة الأصناف'.")
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 تسجيل المصروفات</h1>", unsafe_allow_html=True)
