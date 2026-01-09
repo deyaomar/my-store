@@ -128,58 +128,56 @@ else:
             if st.button("🔙 رجوع"): st.session_state.show_customer_form = False; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 📦 المخزن والجرد (التنسيق الجديد والمطابقة) ---
+    # --- 📦 المخزن والجرد (الجرد السريع والذكي) ---
     elif menu == "📦 المخزن والجرد":
-        st.markdown("<h1 class='main-title'>📦 إدارة المخزن والجرد</h1>", unsafe_allow_html=True)
-        tab1, tab2, tab3 = st.tabs(["📋 رصيد المخزن", "⚖️ الجرد اليدوي والمطابقة", "🗑️ تسجيل التالف"])
+        st.markdown("<h1 class='main-title'>📦 إدارة المخزن والجرد الذكي</h1>", unsafe_allow_html=True)
+        tab1, tab2, tab3 = st.tabs(["📋 رصيد المخزن", "⚖️ الجرد السريع والمطابقة", "🗑️ تسجيل التالف"])
 
         with tab1:
-            st.subheader("قائمة البضاعة الحالية")
-            inv_data = []
-            for k, v in st.session_state.inventory.items():
-                inv_data.append({"الصنف": k, "القسم": v['قسم'], "الكمية الحالية": format_num(v['كمية']), "سعر البيع": v['بيع']})
-            st.table(pd.DataFrame(inv_data))
+            inv_data = [{"الصنف": k, "القسم": v['قسم'], "الكمية المسجلة": format_num(v['كمية']), "سعر الشراء": v['شراء']} for k, v in st.session_state.inventory.items()]
+            st.dataframe(pd.DataFrame(inv_data), use_container_width=True)
 
         with tab2:
-            st.subheader("🔄 مطابقة الجرد الفعلي")
-            st.info("أدخل الكمية التي وجدتها فعلياً في المحل ليقوم النظام بتعديل الرصيد وحساب الفارق.")
-            with st.form("audit_form"):
-                target_item = st.selectbox("اختر الصنف للجرد", list(st.session_state.inventory.keys()))
-                actual_qty = st.number_input("الكمية الموجودة فعلياً في المحل", min_value=0.0, step=0.1)
-                submit_audit = st.form_submit_button("تحديث الرصيد وتسجيل الفارق")
-                
-                if submit_audit:
-                    current_qty = st.session_state.inventory[target_item]['كمية']
-                    diff = actual_qty - current_qty
-                    loss_v = abs(diff) * st.session_state.inventory[target_item]['شراء']
-                    
-                    # تحديث المخزن
-                    st.session_state.inventory[target_item]['كمية'] = actual_qty
-                    # تسجيل في سجل التسويات
-                    new_adj = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': target_item, 'diff_qty': diff, 'loss_value': loss_v}
-                    st.session_state.adjust_df = pd.concat([st.session_state.adjust_df, pd.DataFrame([new_adj])], ignore_index=True)
-                    
-                    auto_save()
-                    st.success(f"تم تحديث {target_item}. الفارق: {format_num(diff)} وحدات.")
-                    st.rerun()
-            
-            st.markdown("---")
-            st.write("📜 سجل آخر التسويات والجرد")
-            st.dataframe(st.session_state.adjust_df.tail(10), use_container_width=True)
+            st.info("أدخل الكميات الفعلية للمطابقة:")
+            h1, h2, h3, h4, h5 = st.columns([2, 1.5, 1.5, 1.5, 1.5])
+            h1.write("**الصنف**"); h2.write("**الكمية الفعلية**"); h3.write("**الحالة**"); h4.write("**الفرق (وحدة)**"); h5.write("**الفرق (₪)**")
+            st.divider()
+
+            audit_results = []
+            total_audit_loss = 0.0
+            for it, data in st.session_state.inventory.items():
+                c1, c2, c3, c4, c5 = st.columns([2, 1.5, 1.5, 1.5, 1.5])
+                c1.write(f"**{it}**")
+                actual = c2.text_input("الفعلية", key=f"audit_{it}", label_visibility="collapsed")
+                if actual:
+                    act_val = clean_num(actual)
+                    recorded_val = data['كمية']
+                    diff_qty = act_val - recorded_val
+                    diff_money = diff_qty * data['شراء']
+                    if abs(diff_qty) < 0.01: c3.success("مطابق ✅")
+                    else: c3.error("غير مطابق ⚠️")
+                    color = "green" if diff_qty > 0 else "red"
+                    c4.markdown(f"<span style='color:{color}'>{format_num(diff_qty)}</span>", unsafe_allow_html=True)
+                    c5.markdown(f"<span style='color:{color}'>{format_num(diff_money)} ₪</span>", unsafe_allow_html=True)
+                    audit_results.append({'item': it, 'new': act_val, 'diff': diff_qty, 'loss': diff_money})
+                    total_audit_loss += diff_money
+
+            st.divider()
+            st.metric("إجمالي فرق الجرد", f"{format_num(total_audit_loss)} ₪")
+            if audit_results and st.button("💾 اعتماد الجرد وتحديث المخزن", use_container_width=True, type="primary"):
+                for res in audit_results:
+                    st.session_state.inventory[res['item']]['كمية'] = res['new']
+                    st.session_state.adjust_df = pd.concat([st.session_state.adjust_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': res['item'], 'diff_qty': res['diff'], 'loss_value': abs(res['loss'])}])], ignore_index=True)
+                auto_save(); st.success("تم التحديث!"); st.rerun()
 
         with tab3:
-            st.subheader("🗑️ تسجيل بضاعة تالفة")
             with st.form("waste_form"):
                 w_item = st.selectbox("الصنف التالف", list(st.session_state.inventory.keys()))
-                w_qty = st.number_input("الكمية التالفة", min_value=0.0, step=0.1)
+                w_qty = st.number_input("الكمية التالفة", min_value=0.0)
                 if st.form_submit_button("تسجيل التالف"):
-                    loss_v = w_qty * st.session_state.inventory[w_item]['شراء']
                     st.session_state.inventory[w_item]['كمية'] -= w_qty
-                    new_w = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': loss_v}
-                    st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([new_w])], ignore_index=True)
-                    auto_save()
-                    st.warning(f"تم تسجيل {w_qty} تالف من {w_item}")
-                    st.rerun()
+                    st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': w_qty * st.session_state.inventory[w_item]['شراء']}])], ignore_index=True)
+                    auto_save(); st.rerun()
 
     # --- 💸 المصروفات ---
     elif menu == "💸 المصروفات":
@@ -205,12 +203,13 @@ else:
         total_waste = st.session_state.waste_df['loss_value'].sum()
         total_exp = st.session_state.expenses_df['amount'].sum()
         net_profit = total_profit_raw - total_waste - total_exp
+        weekly_data = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]
+        best_item = weekly_data.groupby('item')['profit'].sum().idxmax() if not weekly_data.empty else "لا يوجد"
         
         c1, c2, c3 = st.columns(3)
         c1.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
         c2.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
         c3.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(capital_in_stock)} ₪</h2></div>", unsafe_allow_html=True)
-        
         st.markdown("<br>", unsafe_allow_html=True)
         c4, c5, c6 = st.columns(3)
         color = "#27ae60" if net_profit >= 0 else "#e74c3c"
