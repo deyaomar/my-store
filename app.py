@@ -176,73 +176,56 @@ if menu == "⚙️ إدارة أصناف الفروع" and st.session_state.user
 # ---------------------------------------------------------
 # الجزء الثاني: إدارة الأصناف (خاص بمدير الفرع)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# القسم المطور: إدارة الأصناف (لضمان الظهور في نقطة البيع)
+# ---------------------------------------------------------
 elif menu == "⚙️ إدارة الأصناف":
     st.markdown("<h1 class='main-title'>📦 إدارة أصناف المحل</h1>", unsafe_allow_html=True)
     
-    # تصفية بضاعة فرعي فقط
-    my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
+    # التأكد من الفرع الحالي
+    my_branch = st.session_state.get('my_branch', 'الفرع الحالي')
 
-    # 1. إضافة
-    with st.expander("➕ إضافة صنف جديد"):
-        with st.form("shop_add_form"):
+    with st.expander("➕ إضافة صنف جديد لمحلّك", expanded=True):
+        with st.form("shop_add_form_fixed"):
             c1, c2 = st.columns(2)
-            name = c1.text_input("اسم الصنف")
-            cat = c2.selectbox("القسم", st.session_state.categories)
+            name = c1.text_input("اسم الصنف (مثلاً: شامبو)")
+            
+            # التأكد من اختيار قسم موجود أو "عام"
+            available_cats = st.session_state.categories if st.session_state.categories else ["عام"]
+            cat = c2.selectbox("القسم (تأكد أن القسم موجود ليظهر في نقطة البيع)", available_cats)
+            
             c3, c4, c5 = st.columns(3)
-            buy = c3.number_input("الشراء", min_value=0.0)
-            sell = c4.number_input("البيع", min_value=0.0)
-            qty = c5.number_input("الكمية", min_value=0.0)
-            if st.form_submit_button("حفظ"):
+            buy = c3.number_input("سعر الشراء", min_value=0.0, step=0.5)
+            sell = c4.number_input("سعر البيع للزبون", min_value=0.0, step=0.5)
+            qty = c5.number_input("الكمية المتوفرة", min_value=0.0, step=1.0)
+            
+            if st.form_submit_button("حفظ وتحديث المحل"):
                 if name:
-                    st.session_state.inventory.append({'item': name, 'قسم': cat, 'شراء': buy, 'بيع': sell, 'كمية': qty, 'branch': st.session_state.my_branch})
-                    auto_save(); st.success("تم الحفظ"); st.rerun()
+                    # إضافة الصنف مع التأكد من اسم الفرع بدقة
+                    new_item = {
+                        'item': name, 
+                        'قسم': cat, 
+                        'شراء': buy, 
+                        'بيع': sell, 
+                        'كمية': qty, 
+                        'branch': my_branch
+                    }
+                    st.session_state.inventory.append(new_item)
+                    auto_save() # حفظ في الملف الخارجي
+                    st.success(f"✅ تم إضافة {name} بنجاح ويظهر الآن في نقطة البيع تحت قسم {cat}")
+                    st.rerun() # إعادة تحميل الصفحة لتحديث القوائم
+                else:
+                    st.error("يرجى كتابة اسم الصنف أولاً!")
 
-    # 2. عرض وتعديل وحذف
-    for idx, item in enumerate(my_inv):
-        with st.container(border=True):
-            col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-            col1.write(f"**{item['item']}**")
-            col2.write(f"شراء: {item['شراء']} | بيع: {item['بيع']}")
-            col3.write(f"📦: {item['كمية']}")
-            
-            sub_c1, sub_c2 = col4.columns(2)
-            if sub_c1.button("📝", key=f"edit_{idx}"):
-                st.session_state[f"edit_mode_{idx}"] = True
-            if sub_c2.button("🗑️", key=f"del_{idx}"):
-                st.session_state.inventory = [i for i in st.session_state.inventory if not (i['item'] == item['item'] and i['branch'] == st.session_state.my_branch)]
-                auto_save(); st.rerun()
-            
-            # نافذة التعديل
-            if st.session_state.get(f"edit_mode_{idx}", False):
-                with st.form(f"f_edit_{idx}"):
-                    nb = st.number_input("شراء جديد", value=float(item['شراء']))
-                    ns = st.number_input("بيع جديد", value=float(item['بيع']))
-                    nq = st.number_input("كمية جديدة", value=float(item['كمية']))
-                    if st.form_submit_button("تحديث"):
-                        for i, it in enumerate(st.session_state.inventory):
-                            if it['item'] == item['item'] and it['branch'] == st.session_state.my_branch:
-                                st.session_state.inventory[i].update({'شراء': nb, 'بيع': ns, 'كمية': nq})
-                        auto_save(); st.session_state[f"edit_mode_{idx}"] = False; st.rerun()
-
-# ---------------------------------------------------------
-# الجزء الثالث: إدارة الأقسام (حل مشكلة with t_cats)
-# ---------------------------------------------------------
-elif menu == "📂 إدارة الأقسام":
-    st.markdown("<h1 class='main-title'>📂 إدارة أقسام المنتجات</h1>", unsafe_allow_html=True)
-    with st.form("new_cat"):
-        new_c = st.text_input("اسم القسم الجديد")
-        if st.form_submit_button("إضافة"):
-            if new_c and new_c not in st.session_state.categories:
-                st.session_state.categories.append(new_c); auto_save(); st.rerun()
-    
-    st.write("### الأقسام الحالية")
-    for c in st.session_state.categories:
-        c_col1, c_col2 = st.columns([4, 1])
-        c_col1.write(c)
-        if c_col2.button("❌", key=f"cat_del_{c}"):
-            st.session_state.categories.remove(c); auto_save(); st.rerun()
-
-# --- استكمال باقي الأقسام الأصلية كما هي ---
+    # عرض الأصناف الموجودة حالياً للتأكد منها
+    st.divider()
+    my_inv = [i for i in st.session_state.inventory if i.get('branch') == my_branch]
+    if my_inv:
+        st.write("### الأصناف المسجلة في عهدتك")
+        df_show = pd.DataFrame(my_inv)
+        st.dataframe(df_show[['item', 'قسم', 'شراء', 'بيع', 'كمية']], use_container_width=True)
+    else:
+        st.info("لا توجد أصناف مسجلة لهذا الفرع بعد.")
 elif menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع الاحترافية</h1>", unsafe_allow_html=True)
     my_inv = [i for i in st.session_state.inventory if i.get('branch') == st.session_state.my_branch]
