@@ -23,7 +23,6 @@ def format_num(val):
 def clean_num(text):
     try:
         if text is None or text == "" or pd.isna(text): return 0.0
-        # تنظيف الأرقام من الفواصل أو الرموز
         cleaned = str(text).replace(',', '').replace('₪', '').strip()
         return float(cleaned)
     except: return 0.0
@@ -33,11 +32,9 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_sheet_data(worksheet_name, columns):
     try:
-        # استخدام ttl=0 لضمان جلب بيانات حية دائماً
         df = conn.read(worksheet=worksheet_name, ttl=0)
         if df is None or df.empty: 
             return pd.DataFrame(columns=columns)
-        # تنظيف أسماء الأعمدة من أي فراغات مخفية
         df.columns = [str(c).strip() for c in df.columns]
         return df
     except Exception as e:
@@ -51,7 +48,6 @@ def sync_to_google():
         conn.update(worksheet="Sales", data=st.session_state.sales_df)
         conn.update(worksheet="Expenses", data=st.session_state.expenses_df)
         conn.update(worksheet="Waste", data=st.session_state.waste_df)
-        # مسح الكاش لضمان القراءة الحية في الخطوة القادمة
         st.cache_data.clear()
         st.session_state.offline_queue_count = 0
         return True
@@ -75,6 +71,7 @@ st.markdown("""
     .report-card { background: #ffffff; padding: 20px; border-radius: 15px; border-right: 5px solid #27ae60; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; margin-bottom:10px; }
     .stock-card { background: white; border-radius: 15px; padding: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); border: 1px solid #eee; margin-bottom: 15px; }
     .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-bottom: 5px solid #27ae60; padding-bottom: 5px; margin-bottom: 30px; display: inline-block; }
+    .del-btn { background-color: #ff4b4b !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -141,38 +138,58 @@ else:
                 sync_to_google()
                 st.session_state.show_customer_form = False; st.rerun()
 
-    # --- 📊 التقارير المالية (تم الإصلاح للعرض الفوري) ---
+    # --- 📊 التقارير المالية (تم إضافة ميزة حذف آخر عملية) ---
     elif menu == "📊 التقارير المالية":
-        st.markdown("<h1 class='main-title'>📊 التحليل المالي الشامل</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>📊 التحليل المالي والتحكم</h1>", unsafe_allow_html=True)
         
-        if st.button("🔄 تحديث التقارير الآن"):
-            st.cache_data.clear()
-            st.rerun()
+        col_ref, col_del = st.columns([1, 1])
+        with col_ref:
+            if st.button("🔄 تحديث التقارير الآن", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
+        
+        with col_del:
+            # ميزة حذف آخر فاتورة واستعادة المخزن
+            if not st.session_state.sales_df.empty:
+                if st.button("🗑️ إلغاء آخر عملية بيع", use_container_width=True, help="حذف الفاتورة الأخيرة واستعادة كميتها للمخزن"):
+                    last_row = st.session_state.sales_df.iloc[-1]
+                    item_name = last_row['item']
+                    sold_amount = clean_num(last_row['amount'])
+                    
+                    # استعادة الكمية للمخزن
+                    if item_name in st.session_state.inventory:
+                        sell_price = st.session_state.inventory[item_name]['بيع']
+                        if sell_price > 0:
+                            qty_to_return = sold_amount / sell_price
+                            st.session_state.inventory[item_name]['كمية'] += qty_to_return
+                    
+                    # حذف السجل
+                    st.session_state.sales_df = st.session_state.sales_df.iloc[:-1]
+                    
+                    # مزامنة وحفظ
+                    if sync_to_google():
+                        st.success(f"تم حذف عملية ({item_name}) وإعادة الكمية للمخزن بنجاح!")
+                        st.rerun()
+                    else:
+                        st.error("فشلت المزامنة مع جوجل.")
 
-        with st.spinner('جاري مزامنة المبيعات...'):
-            df_s = load_sheet_data("Sales", ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id'])
+        with st.spinner('جاري التحميل...'):
+            df_s = st.session_state.sales_df.copy()
         
         if not df_s.empty:
-            # معالجة الأرقام
             df_s['amount'] = pd.to_numeric(df_s['amount'], errors='coerce').fillna(0)
             df_s['profit'] = pd.to_numeric(df_s['profit'], errors='coerce').fillna(0)
-            
-            # معالجة التاريخ (تحويل ذكي)
-            df_s['date_dt'] = pd.to_datetime(df_s['date'], errors='coerce')
-            
-            # الفلترة لليوم
             today_str = datetime.now().strftime("%Y-%m-%d")
-            # الحسابات
+            
             d_sales = df_s[df_s['date'].astype(str).str.contains(today_str)]['amount'].sum()
             total_raw_profit = df_s['profit'].sum()
             
-            exp_df = load_sheet_data("Expenses", ['date', 'reason', 'amount'])
+            exp_df = st.session_state.expenses_df
             total_exp = pd.to_numeric(exp_df['amount'], errors='coerce').sum() if not exp_df.empty else 0
             
             net_profit = total_raw_profit - total_exp
             stock_val = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
 
-            # عرض الكروت
             c1, c2, c3, c4 = st.columns(4)
             c1.markdown(f"<div class='report-card'><h5>💰 مبيعات اليوم</h5><h2>{format_num(d_sales)} ₪</h2></div>", unsafe_allow_html=True)
             c2.markdown(f"<div class='report-card'><h5>💸 المصروفات</h5><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
@@ -182,10 +199,10 @@ else:
             c4.markdown(f"<div class='report-card' style='border-color:{p_color}'><h5>💵 صافي الربح</h5><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
 
             st.divider()
-            st.write("### 📈 آخر العمليات المسجلة في جوجل شيت")
+            st.write("### 📈 آخر العمليات المسجلة")
             st.dataframe(df_s.tail(15), use_container_width=True)
         else:
-            st.warning("لم يتم العثور على مبيعات بعد.")
+            st.warning("لا توجد مبيعات مسجلة حالياً.")
 
     # --- 📦 المخزن والجرد ---
     elif menu == "📦 المخزن والجرد":
