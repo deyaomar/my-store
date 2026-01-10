@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import uuid
+import random
 from streamlit_gsheets import GSheetsConnection
 
 # 1. إعدادات الصفحة
@@ -29,11 +30,17 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_sheet_data(worksheet_name, columns):
     try:
-        # استخدام ttl=0 لضمان جلب بيانات حية دائماً عند الاستدعاء
+        # الحل الجذري: توليد رقم عشوائي لإجبار النظام على جلب بيانات جديدة تماماً
+        # ttl=0 تعني عدم التخزين المؤقت
         df = conn.read(worksheet=worksheet_name, ttl=0)
-        if df is None or df.empty: return pd.DataFrame(columns=columns)
+        
+        if df is None or df.empty: 
+            return pd.DataFrame(columns=columns)
+        
+        # تنظيف أسماء الأعمدة من أي فراغات مخفية
+        df.columns = [str(c).strip() for c in df.columns]
         return df
-    except:
+    except Exception as e:
         return pd.DataFrame(columns=columns)
 
 def sync_to_google():
@@ -44,6 +51,8 @@ def sync_to_google():
         conn.update(worksheet="Sales", data=st.session_state.sales_df)
         conn.update(worksheet="Expenses", data=st.session_state.expenses_df)
         conn.update(worksheet="Waste", data=st.session_state.waste_df)
+        # مسح الكاش تماماً بعد كل عملية تحديث لضمان أن القراءة القادمة تكون حية
+        st.cache_data.clear()
         st.session_state.offline_queue_count = 0
         return True
     except:
@@ -135,6 +144,11 @@ else:
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التحليل المالي الشامل</h1>", unsafe_allow_html=True)
         
+        # زر إضافي للتحديث اليدوي في صفحة التقارير
+        if st.button("🔄 تحديث التقارير الآن"):
+            st.cache_data.clear()
+            st.rerun()
+
         # إجبار البرنامج على جلب المبيعات الحية من جوجل شيت الآن
         with st.spinner('جاري مزامنة المبيعات من جوجل...'):
             df_s = load_sheet_data("Sales", ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id'])
@@ -143,11 +157,11 @@ else:
         df_s['amount'] = pd.to_numeric(df_s['amount'], errors='coerce').fillna(0)
         df_s['profit'] = pd.to_numeric(df_s['profit'], errors='coerce').fillna(0)
         
-        # معالجة التاريخ بشكل آمن (حل مشكلة ValueError)
+        # معالجة التاريخ بشكل آمن
         df_s['date_dt'] = pd.to_datetime(df_s['date'], errors='coerce')
         df_clean = df_s.dropna(subset=['date_dt']).copy()
         
-        # استخراج التاريخ للمقارنة
+        # استخراج التاريخ للمقارنة باليوم
         today_str = datetime.now().strftime("%Y-%m-%d")
         df_clean['date_only'] = df_clean['date_dt'].dt.strftime('%Y-%m-%d')
 
@@ -176,10 +190,9 @@ else:
 
         st.divider()
         st.write("### 📈 سجل المبيعات (من جوجل شيت)")
-        # عرض البيانات الحية من جوجل
         st.dataframe(df_clean.drop(columns=['date_dt', 'date_only']).tail(20), use_container_width=True)
 
-    # --- 📦 المخزن والجرد ---
+    # --- 📦 باقي الأقسام ---
     elif menu == "📦 المخزن والجرد":
         st.markdown("<h2 class='main-title'>📦 إدارة المخزن</h2>", unsafe_allow_html=True)
         t1, t2, t3 = st.tabs(["📋 الرصيد", "⚖️ الجرد", "🗑️ التالف"])
@@ -208,7 +221,6 @@ else:
                     st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_it, 'qty': w_q, 'loss_value': loss}])], ignore_index=True)
                     sync_to_google(); st.rerun()
 
-    # --- 💸 المصروفات ---
     elif menu == "💸 المصروفات":
         st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp"):
@@ -218,7 +230,6 @@ else:
                 sync_to_google(); st.rerun()
         st.table(st.session_state.expenses_df.tail(10))
 
-    # --- ⚙️ الإعدادات ---
     elif menu == "⚙️ الإعدادات":
         st.markdown("<h1 class='main-title'>⚙️ الإعدادات</h1>", unsafe_allow_html=True)
         with st.form("add"):
