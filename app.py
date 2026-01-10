@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import uuid
 from streamlit_gsheets import GSheetsConnection
 
@@ -20,7 +20,7 @@ def format_num(val):
 
 def clean_num(text):
     try:
-        if text is None or text == "": return 0.0
+        if text is None or text == "" or pd.isna(text): return 0.0
         return float(str(text).replace(',', '.').replace('،', '.'))
     except: return 0.0
 
@@ -29,7 +29,8 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_sheet_data(worksheet_name, columns):
     try:
-        df = conn.read(worksheet=worksheet_name, ttl="0")
+        # استخدام ttl=0 لضمان جلب بيانات حية دائماً عند الاستدعاء
+        df = conn.read(worksheet=worksheet_name, ttl=0)
         if df is None or df.empty: return pd.DataFrame(columns=columns)
         return df
     except:
@@ -49,7 +50,7 @@ def sync_to_google():
         st.session_state.offline_queue_count += 1
         return False
 
-# 5. إدارة البيانات
+# 5. إدارة البيانات (التحميل الأولي)
 if 'inventory' not in st.session_state:
     inv_df = load_sheet_data("Inventory", ['item', 'شراء', 'بيع', 'كمية'])
     st.session_state.inventory = inv_df.set_index('item').to_dict('index') if not inv_df.empty else {}
@@ -80,6 +81,13 @@ else:
     with st.sidebar:
         st.markdown(f"<div style='text-align:center; padding:10px; background:#27ae60; color:white; border-radius:10px;'>أهلاً أبو عمر 👋<br>{datetime.now().strftime('%Y-%m-%d')}</div>", unsafe_allow_html=True)
         menu = st.radio("القائمة الرئيسية", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
+        
+        if st.button("🔄 تحديث شامل من جوجل"):
+            st.cache_data.clear()
+            for key in ['inventory', 'sales_df', 'expenses_df', 'waste_df']:
+                if key in st.session_state: del st.session_state[key]
+            st.rerun()
+
         if st.button("🚪 تسجيل خروج", use_container_width=True): st.session_state.logged_in = False; st.rerun()
 
     # --- 🛒 نقطة البيع ---
@@ -123,31 +131,36 @@ else:
                 sync_to_google()
                 st.session_state.show_customer_form = False; st.rerun()
 
-    # --- 📊 التقارير المالية (تمت إضافة حماية من أخطاء التاريخ هنا) ---
+    # --- 📊 التقارير المالية (معدلة لجلب البيانات حية من جوجل) ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التحليل المالي الشامل</h1>", unsafe_allow_html=True)
         
-        # 1. تجهيز نسخة البيانات وتحويل الأرقام بشكل آمن
-        df_s = st.session_state.sales_df.copy()
+        # إجبار البرنامج على جلب المبيعات الحية من جوجل شيت الآن
+        with st.spinner('جاري مزامنة المبيعات من جوجل...'):
+            df_s = load_sheet_data("Sales", ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id'])
+        
+        # تحويل الأرقام بشكل آمن
         df_s['amount'] = pd.to_numeric(df_s['amount'], errors='coerce').fillna(0)
         df_s['profit'] = pd.to_numeric(df_s['profit'], errors='coerce').fillna(0)
         
-        # 2. إصلاح مشكلة التاريخ: تحويل آمن مع تجاهل الأخطاء
+        # معالجة التاريخ بشكل آمن (حل مشكلة ValueError)
         df_s['date_dt'] = pd.to_datetime(df_s['date'], errors='coerce')
-        
-        # 3. حذف أي سطر فيه التاريخ غير قابل للقراءة لضمان استقرار البرنامج
         df_clean = df_s.dropna(subset=['date_dt']).copy()
         
-        # 4. مقارنة التاريخ باليوم
+        # استخراج التاريخ للمقارنة
         today_str = datetime.now().strftime("%Y-%m-%d")
         df_clean['date_only'] = df_clean['date_dt'].dt.strftime('%Y-%m-%d')
 
         # الحسابات المالية
         d_sales = df_clean[df_clean['date_only'] == today_str]['amount'].sum()
-        
         total_raw_profit = df_clean['profit'].sum()
-        total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum()
-        total_waste = pd.to_numeric(st.session_state.waste_df['loss_value'], errors='coerce').sum()
+        
+        # جلب المصاريف والتالف بشكل حي أيضاً
+        exp_df = load_sheet_data("Expenses", ['date', 'reason', 'amount'])
+        waste_df = load_sheet_data("Waste", ['date', 'item', 'qty', 'loss_value'])
+        
+        total_exp = pd.to_numeric(exp_df['amount'], errors='coerce').sum()
+        total_waste = pd.to_numeric(waste_df['loss_value'], errors='coerce').sum()
         net_profit = total_raw_profit - total_exp - total_waste
         
         stock_val = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
@@ -162,14 +175,9 @@ else:
         c4.markdown(f"<div class='report-card' style='border-color:{p_color}'><h5>💵 صافي الربح</h5><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
 
         st.divider()
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.write("### 📈 سجل آخر العمليات")
-            # عرض الجدول الأصلي بدون أعمدة المعالجة الإضافية
-            st.dataframe(df_clean.drop(columns=['date_dt', 'date_only']).tail(15), use_container_width=True)
-        with col2:
-            st.write("### 📉 ملخص الخصومات")
-            st.bar_chart({"مصروف": total_exp, "تالف": total_waste})
+        st.write("### 📈 سجل المبيعات (من جوجل شيت)")
+        # عرض البيانات الحية من جوجل
+        st.dataframe(df_clean.drop(columns=['date_dt', 'date_only']).tail(20), use_container_width=True)
 
     # --- 📦 المخزن والجرد ---
     elif menu == "📦 المخزن والجرد":
