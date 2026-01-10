@@ -50,16 +50,86 @@ def auto_save():
     st.session_state.waste_df.to_csv('waste_final.csv', index=False)
     st.session_state.adjust_df.to_csv('inventory_adjustments.csv', index=False)
 
-# 3. واجهة المستخدم والتنسيق
+# 3. واجهة المستخدم والتنسيق (اللمسة الاحترافية)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-    html, body, [class*="css"], .stMarkdown { font-family: 'Tajawal', sans-serif !important; direction: rtl !important; text-align: right !important; }
-    [data-testid="stSidebar"] { background-color: #000000 !important; border-left: 3px solid #27ae60; min-width: 300px !important; }
-    .sidebar-user { background-color: #1a1a1a; padding: 25px 10px; border-radius: 15px; margin: 15px 10px; border: 2px solid #27ae60; text-align: center; color: white !important; font-weight: 900; font-size: 24px; }
-    .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-bottom: 5px solid #27ae60; padding-bottom: 5px; margin-bottom: 30px; display: inline-block; }
-    .report-card { background: #f9f9f9; padding: 20px; border-radius: 15px; border-right: 5px solid #27ae60; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; }
-    .stock-card { background: white; border-radius: 15px; padding: 15px; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-right: 5px solid #27ae60; }
+    
+    /* تنسيق الخط والاتجاه */
+    html, body, [class*="css"], .stMarkdown { 
+        font-family: 'Tajawal', sans-serif !important; 
+        direction: rtl !important; 
+        text-align: right !important; 
+    }
+
+    /* القائمة الجانبية - خلفية داكنة ونصوص بيضاء عريضة */
+    [data-testid="stSidebar"] {
+        background-color: #0f172a !important; /* أسود أزرق داكن */
+        border-left: 3px solid #22c55e;
+    }
+
+    .sidebar-user {
+        color: #ffffff !important;
+        background: #22c55e;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: 900;
+        font-size: 22px;
+        margin-bottom: 20px;
+    }
+
+    /* تنسيق أزرار التنقل في القائمة */
+    div[data-testid="stSidebarUserContent"] .stRadio > div {
+        gap: 10px;
+    }
+
+    div[data-testid="stSidebarUserContent"] .stRadio label {
+        background-color: #1e293b !important;
+        color: #FFFFFF !important; /* نص أبيض ناصع */
+        padding: 12px 20px !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important; /* عريض */
+        font-size: 18px !important;
+        border: 1px solid #334155 !important;
+        transition: 0.3s;
+    }
+
+    div[data-testid="stSidebarUserContent"] .stRadio label[data-checked="true"] {
+        background-color: #22c55e !important;
+        border: 1px solid #22c55e !important;
+    }
+
+    /* تنسيق البطاقات المالية */
+    .report-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border-top: 5px solid #22c55e;
+        margin-bottom: 20px;
+    }
+    .report-card h3 { color: #64748b; font-size: 1.1rem; margin-bottom: 10px; }
+    .report-card h2 { color: #1e293b; font-size: 2rem; font-weight: 900; margin: 0; }
+
+    .main-title { 
+        color: #1e293b; 
+        text-align: center; 
+        border-bottom: 5px solid #22c55e; 
+        padding-bottom: 10px; 
+        font-weight: 900; 
+        margin-bottom: 30px; 
+    }
+
+    .stock-card {
+        background: #f8fafc;
+        padding: 15px;
+        border-radius: 10px;
+        border-right: 5px solid #22c55e;
+        margin-bottom: 10px;
+        text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -75,9 +145,12 @@ else:
     with st.sidebar:
         st.markdown("<div class='sidebar-user'>أهلاً أبو عمر 👋</div>", unsafe_allow_html=True)
         menu = st.radio("القائمة", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"], label_visibility="collapsed")
-        if st.button("🚪 تسجيل خروج", use_container_width=True): st.session_state.logged_in = False; st.rerun()
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚪 تسجيل خروج", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
 
-    # --- 🛒 نقطة البيع ---
+    # --- 🛒 نقطة البيع (كما كانت) ---
     if menu == "🛒 نقطة البيع":
         st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
         if 'show_customer_form' not in st.session_state:
@@ -93,7 +166,7 @@ else:
             filtered_items = [(k, v) for k, v in st.session_state.inventory.items() if not search_q or search_q in k]
             for idx, (it, data) in enumerate(filtered_items):
                 with cols[idx % 3]:
-                    st.markdown(f'<div style="background:white; padding:10px; border-radius:10px; border:1px solid #eee; text-align:center;"><b>{it}</b><br><span style="color:#27ae60">{data["بيع"]} ₪</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background:white; padding:10px; border-radius:10px; border:1px solid #eee; text-align:center;"><b>{it}</b><br><span style="color:#22c55e">{data["بيع"]} ₪</span></div>', unsafe_allow_html=True)
                     mc1, mc2 = st.columns(2)
                     mode = mc1.radio("بـ", ["₪", "كجم"], key=f"m_{it}", horizontal=True)
                     val = clean_num(mc2.text_input("المقدار", key=f"v_{it}"))
@@ -106,7 +179,7 @@ else:
         else:
             c_n = st.text_input("اسم الزبون")
             c_p = st.text_input("رقم الهاتف")
-            if st.button("✅ تأكيد"):
+            if st.button("✅ تأكيد وحفظ"):
                 bid = str(uuid.uuid4())[:8]
                 for e in st.session_state.current_bill_items:
                     st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
@@ -114,17 +187,15 @@ else:
                     st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
                 auto_save(); st.session_state.show_customer_form = False; st.rerun()
 
-    # --- 📦 المخزن والجرد (تمت استعادة القوائم هنا) ---
+    # --- 📦 المخزن والجرد (كما كانت) ---
     elif menu == "📦 المخزن والجرد":
         st.markdown("<h1 class='main-title'>📦 إدارة المخزن والجرد</h1>", unsafe_allow_html=True)
         tab1, tab2, tab3 = st.tabs(["📋 رصيد المخزن", "⚖️ الجرد والمطابقة", "🗑️ التالف"])
-        
         with tab1:
             cols = st.columns(3)
             for idx, (it, data) in enumerate(st.session_state.inventory.items()):
                 with cols[idx % 3]:
                     st.markdown(f'<div class="stock-card"><b>{it}</b><br>{format_num(data["كمية"])} كجم</div>', unsafe_allow_html=True)
-        
         with tab2:
             st.info("نظام مطابقة الجرد الفعلي")
             audit_results = []
@@ -138,10 +209,8 @@ else:
                     c3.write(f"الفرق: {format_num(diff)} | قيمة: {format_num(diff * data['شراء'])} ₪")
                     audit_results.append({'item': it, 'new': act_val})
             if audit_results and st.button("💾 اعتماد الجرد المكتمل"):
-                for r in audit_results:
-                    st.session_state.inventory[r['item']]['كمية'] = r['new']
+                for r in audit_results: st.session_state.inventory[r['item']]['كمية'] = r['new']
                 auto_save(); st.success("تم تحديث المخزن!"); st.rerun()
-
         with tab3:
             st.subheader("تسجيل التالف")
             with st.form("waste_form"):
@@ -153,7 +222,7 @@ else:
                     st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([new_w])], ignore_index=True)
                     auto_save(); st.success("تم تسجيل التالف"); st.rerun()
 
-    # --- 📊 التقارير المالية ---
+    # --- 📊 التقارير المالية (كما كانت) ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التقارير المالية الشاملة</h1>", unsafe_allow_html=True)
         st.session_state.sales_df['date_only'] = pd.to_datetime(st.session_state.sales_df['date']).dt.strftime('%Y-%m-%d')
@@ -173,12 +242,11 @@ else:
         c2.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
         c3.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(cap_stock)} ₪</h2></div>", unsafe_allow_html=True)
         
-        st.markdown("<br>", unsafe_allow_html=True)
         c4, c5, c6 = st.columns(3)
-        p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
-        c4.markdown(f"<div class='report-card' style='border-color:{p_color}'><h3>💵 صافي الأرباح</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
-        c5.markdown(f"<div class='report-card' style='border-color:#e74c3c'><h3>🗑️ إجمالي التالف</h3><h2>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
-        c6.markdown(f"<div class='report-card'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
+        p_color = "#22c55e" if net_profit >= 0 else "#ef4444"
+        c4.markdown(f"<div class='report-card' style='border-top-color:{p_color}'><h3>💵 صافي الأرباح</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+        c5.markdown(f"<div class='report-card' style='border-top-color:#ef4444'><h3>🗑️ إجمالي التالف</h3><h2>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
+        c6.markdown(f"<div class='report-card' style='border-top-color:#64748b'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
 
         st.divider()
         st.subheader("👥 سجل الزبائن اليومي")
@@ -192,7 +260,7 @@ else:
         st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
         with st.form("exp"):
             r = st.text_input("البيان"); a = st.number_input("المبلغ")
-            if st.form_submit_button("حفظ"):
+            if st.form_submit_button("حفظ المصروف"):
                 new_e = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'reason': r, 'amount': a}
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_e])], ignore_index=True)
                 auto_save(); st.rerun()
@@ -200,9 +268,9 @@ else:
 
     # --- ⚙️ الإعدادات ---
     elif menu == "⚙️ الإعدادات":
-        st.markdown("<h1 class='main-title'>⚙️ الإعدادات</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>⚙️ الإعدادات وإضافة الأصناف</h1>", unsafe_allow_html=True)
         with st.form("add"):
-            n = st.text_input("الصنف"); b = st.text_input("شراء"); s = st.text_input("بيع"); q = st.text_input("كمية")
-            if st.form_submit_button("حفظ"):
+            n = st.text_input("اسم الصنف الجديد"); b = st.text_input("سعر الشراء (كجم)"); s = st.text_input("سعر البيع (كجم)"); q = st.text_input("الكمية الحالية")
+            if st.form_submit_button("إضافة للمخزن"):
                 st.session_state.inventory[n] = {"شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q)}
                 auto_save(); st.rerun()
