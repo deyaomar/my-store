@@ -82,29 +82,40 @@ else:
                 if key in st.session_state: del st.session_state[key]
             st.rerun()
 
-    # --- 📊 التقارير المالية (النسخة الكاملة مع الحذف) ---
+    # --- 📊 التقارير المالية ---
     if menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التحليل المالي والتحكم</h1>", unsafe_allow_html=True)
         
-        # ميزة الحذف الذكي في الأعلى
-        with st.expander("🛠️ إدارة العمليات (تعديل/حذف خطأ)"):
-            if not st.session_state.sales_df.empty:
-                st.warning("تنبيه: حذف آخر عملية سيعيد الكمية للمخزن ويمسح الفاتورة من التقارير.")
-                if st.button("🗑️ إلغاء آخر عملية بيع مسجلة"):
-                    last_row = st.session_state.sales_df.iloc[-1]
-                    item_name = last_row['item']
-                    # استعادة المخزن
-                    if item_name in st.session_state.inventory:
-                        sell_price = st.session_state.inventory[item_name]['بيع']
-                        qty_ret = clean_num(last_row['amount']) / sell_price
-                        st.session_state.inventory[item_name]['كمية'] += qty_ret
-                    # حذف السطر
-                    st.session_state.sales_df = st.session_state.sales_df.iloc[:-1]
-                    sync_to_google()
-                    st.success(f"تم بنجاح إلغاء مبيعات {item_name} وتحديث المخزن.")
-                    st.rerun()
-            else:
-                st.info("لا توجد مبيعات حالية للحذف.")
+        # ميزات التحكم (حذف / تصفير)
+        col_ctrl1, col_ctrl2 = st.columns(2)
+        
+        with col_ctrl1:
+            with st.expander("🛠️ إدارة الأخطاء (حذف آخر بيع)"):
+                if not st.session_state.sales_df.empty:
+                    if st.button("🗑️ إلغاء آخر عملية بيع"):
+                        last_row = st.session_state.sales_df.iloc[-1]
+                        item_name = last_row['item']
+                        if item_name in st.session_state.inventory:
+                            sell_price = st.session_state.inventory[item_name]['بيع']
+                            qty_ret = clean_num(last_row['amount']) / sell_price
+                            st.session_state.inventory[item_name]['كمية'] += qty_ret
+                        st.session_state.sales_df = st.session_state.sales_df.iloc[:-1]
+                        sync_to_google()
+                        st.success(f"تم إلغاء مبيعات {item_name}")
+                        st.rerun()
+        
+        with col_ctrl2:
+            with st.expander("🏁 إقفال الدورة (تصفير الأرباح)"):
+                st.warning("سيتم مسح سجل المبيعات والمصاريف لبدء حساب جديد.")
+                confirm = st.text_input("اكتب 'تصفير' للتأكيد")
+                if st.button("🚀 تنفيذ الإقفال المالي"):
+                    if confirm == "تصفير":
+                        st.session_state.sales_df = st.session_state.sales_df.iloc[0:0]
+                        st.session_state.expenses_df = st.session_state.expenses_df.iloc[0:0]
+                        st.session_state.waste_df = st.session_state.waste_df.iloc[0:0]
+                        sync_to_google()
+                        st.success("تم تصفير الدورة المالية بنجاح!")
+                        st.rerun()
 
         # معالجة البيانات للتقارير
         df_s = st.session_state.sales_df.copy()
@@ -114,10 +125,9 @@ else:
         
         now = datetime.now()
         today = now.date()
-        this_week = today - timedelta(days=now.weekday() + 1) # بداية الأسبوع
-        this_month = today.replace(day=1) # بداية الشهر
+        this_week = today - timedelta(days=now.weekday() + 1)
+        this_month = today.replace(day=1)
 
-        # الحسابات
         d_sales = df_s[df_s['date_dt'].dt.date == today]['amount'].sum()
         w_sales = df_s[df_s['date_dt'].dt.date >= this_week]['amount'].sum()
         m_sales = df_s[df_s['date_dt'].dt.date >= this_month]['amount'].sum()
@@ -127,23 +137,21 @@ else:
         net_profit = total_raw_profit - total_exp
         stock_val = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
 
-        # العرض (كروت المبيعات)
-        st.write("### 💰 إحصائيات المبيعات")
+        st.write("### 💰 المبيعات والأرباح")
         c1, c2, c3 = st.columns(3)
         c1.markdown(f"<div class='report-card'><h5>مبيعات اليوم</h5><h2>{format_num(d_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        c2.markdown(f"<div class='report-card'><h5>مبيعات الأسبوع</h5><h2>{format_num(w_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        c3.markdown(f"<div class='report-card'><h5>مبيعات الشهر</h5><h2>{format_num(m_sales)} ₪</h2></div>", unsafe_allow_html=True)
+        c2.markdown(f"<div class='report-card'><h5>إجمالي الأرباح</h5><h2>{format_num(total_raw_profit)} ₪</h2></div>", unsafe_allow_html=True)
+        p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
+        c3.markdown(f"<div class='report-card' style='border-color:{p_color}'><h5>صافي الربح (بعد المصاريف)</h5><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
 
-        # العرض (كروت الأرباح والمخزن)
-        st.write("### 💵 الأرباح والمخزون")
+        st.write("### 📦 إحصائيات عامة")
         c4, c5, c6 = st.columns(3)
         c4.markdown(f"<div class='report-card'><h5>قيمة المخزن (شراء)</h5><h2>{format_num(stock_val)} ₪</h2></div>", unsafe_allow_html=True)
-        c5.markdown(f"<div class='report-card'><h5>إجمالي المصروفات</h5><h2 style='color:#e74c3c'>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
-        p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
-        c6.markdown(f"<div class='report-card' style='border-color:{p_color}'><h5>صافي الربح العام</h5><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+        c5.markdown(f"<div class='report-card'><h5>مبيعات الأسبوع</h5><h2>{format_num(w_sales)} ₪</h2></div>", unsafe_allow_html=True)
+        c6.markdown(f"<div class='report-card'><h5>مبيعات الشهر</h5><h2>{format_num(m_sales)} ₪</h2></div>", unsafe_allow_html=True)
 
         st.divider()
-        st.write("### 📈 آخر العمليات")
+        st.write("### 📈 سجل العمليات الحالية")
         st.dataframe(df_s.sort_values(by='date_dt', ascending=False).drop(columns=['date_dt']), use_container_width=True)
 
     # --- 🛒 نقطة البيع ---
