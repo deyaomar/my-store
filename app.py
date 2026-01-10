@@ -82,7 +82,7 @@ else:
         menu = st.radio("القائمة الرئيسية", ["🛒 نقطة البيع", "📦 المخزن والجرد", "💸 المصروفات", "📊 التقارير المالية", "⚙️ الإعدادات"])
         if st.button("🚪 تسجيل خروج", use_container_width=True): st.session_state.logged_in = False; st.rerun()
 
-    # --- 🛒 نقطة البيع (تم تعديل حفظ التاريخ هنا) ---
+    # --- 🛒 نقطة البيع ---
     if menu == "🛒 نقطة البيع":
         st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
         if 'show_customer_form' not in st.session_state:
@@ -115,35 +115,34 @@ else:
             c_p = st.text_input("رقم الهاتف")
             if st.button("✅ تأكيد"):
                 bid = str(uuid.uuid4())[:8]
-                # التعديل: حفظ التاريخ والوقت بدقة لضمان ظهوره في التقارير
-                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # حفظ التاريخ بشكل موحد للمقارنة
+                date_str = datetime.now().strftime("%Y-%m-%d")
                 for e in st.session_state.current_bill_items:
                     st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
-                    new_s = {'date': now_str, 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': e['method'], 'customer_name': c_n, 'customer_phone': c_p, 'bill_id': bid}
+                    new_s = {'date': date_str, 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': e['method'], 'customer_name': c_n, 'customer_phone': c_p, 'bill_id': bid}
                     st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
                 sync_to_google()
                 st.session_state.show_customer_form = False; st.rerun()
 
-    # --- 📊 التقارير المالية (تمت استعادة التقارير الكاملة) ---
+    # --- 📊 التقارير المالية (تم إصلاح الفلاتر هنا) ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التحليل المالي الشامل</h1>", unsafe_allow_html=True)
         
+        # تحويل البيانات لأرقام حقيقية لضمان الجمع الصحيح
         df_s = st.session_state.sales_df.copy()
-        df_s['date'] = pd.to_datetime(df_s['date'], errors='coerce')
-        df_s = df_s.dropna(subset=['date'])
+        df_s['amount'] = pd.to_numeric(df_s['amount'], errors='coerce').fillna(0)
+        df_s['profit'] = pd.to_numeric(df_s['profit'], errors='coerce').fillna(0)
         
-        today = datetime.now().date()
-        week_ago = today - timedelta(days=7)
-        month_ago = today - timedelta(days=30)
+        # التأكد من تنسيق التاريخ
+        df_s['date_only'] = pd.to_datetime(df_s['date']).dt.strftime('%Y-%m-%d')
+        today_str = datetime.now().strftime("%Y-%m-%d")
 
         # الحسابات المالية
-        d_sales = df_s[df_s['date'].dt.date == today]['amount'].sum()
-        w_sales = df_s[df_s['date'].dt.date >= week_ago]['amount'].sum()
-        m_sales = df_s[df_s['date'].dt.date >= month_ago]['amount'].sum()
+        d_sales = df_s[df_s['date_only'] == today_str]['amount'].sum()
         
         total_raw_profit = df_s['profit'].sum()
-        total_exp = st.session_state.expenses_df['amount'].sum()
-        total_waste = st.session_state.waste_df['loss_value'].sum()
+        total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum()
+        total_waste = pd.to_numeric(st.session_state.waste_df['loss_value'], errors='coerce').sum()
         net_profit = total_raw_profit - total_exp - total_waste
         
         stock_val = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
@@ -151,7 +150,7 @@ else:
         # عرض الكروت العلوية
         c1, c2, c3, c4 = st.columns(4)
         c1.markdown(f"<div class='report-card'><h5>💰 مبيعات اليوم</h5><h2>{format_num(d_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        c2.markdown(f"<div class='report-card'><h5>📅 مبيعات الشهر</h5><h2>{format_num(m_sales)} ₪</h2></div>", unsafe_allow_html=True)
+        c2.markdown(f"<div class='report-card'><h5>💸 المصروفات</h5><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
         c3.markdown(f"<div class='report-card'><h5>🏗️ قيمة المخزن</h5><h2>{format_num(stock_val)} ₪</h2></div>", unsafe_allow_html=True)
         
         p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
@@ -161,11 +160,9 @@ else:
         col1, col2 = st.columns([2, 1])
         with col1:
             st.write("### 📈 سجل آخر العمليات")
-            st.dataframe(df_s.tail(15), use_container_width=True)
+            st.dataframe(df_s.drop(columns=['date_only']).tail(15), use_container_width=True)
         with col2:
             st.write("### 📉 ملخص الخصومات")
-            st.write(f"**المصروفات:** {format_num(total_exp)} ₪")
-            st.write(f"**التالف:** {format_num(total_waste)} ₪")
             st.bar_chart({"مصروف": total_exp, "تالف": total_waste})
 
     # --- 📦 المخزن والجرد ---
