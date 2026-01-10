@@ -115,7 +115,6 @@ else:
             c_p = st.text_input("رقم الهاتف")
             if st.button("✅ تأكيد"):
                 bid = str(uuid.uuid4())[:8]
-                # حفظ التاريخ بشكل موحد للمقارنة
                 date_str = datetime.now().strftime("%Y-%m-%d")
                 for e in st.session_state.current_bill_items:
                     st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
@@ -124,23 +123,29 @@ else:
                 sync_to_google()
                 st.session_state.show_customer_form = False; st.rerun()
 
-    # --- 📊 التقارير المالية (تم إصلاح الفلاتر هنا) ---
+    # --- 📊 التقارير المالية (تمت إضافة حماية من أخطاء التاريخ هنا) ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التحليل المالي الشامل</h1>", unsafe_allow_html=True)
         
-        # تحويل البيانات لأرقام حقيقية لضمان الجمع الصحيح
+        # 1. تجهيز نسخة البيانات وتحويل الأرقام بشكل آمن
         df_s = st.session_state.sales_df.copy()
         df_s['amount'] = pd.to_numeric(df_s['amount'], errors='coerce').fillna(0)
         df_s['profit'] = pd.to_numeric(df_s['profit'], errors='coerce').fillna(0)
         
-        # التأكد من تنسيق التاريخ
-        df_s['date_only'] = pd.to_datetime(df_s['date']).dt.strftime('%Y-%m-%d')
+        # 2. إصلاح مشكلة التاريخ: تحويل آمن مع تجاهل الأخطاء
+        df_s['date_dt'] = pd.to_datetime(df_s['date'], errors='coerce')
+        
+        # 3. حذف أي سطر فيه التاريخ غير قابل للقراءة لضمان استقرار البرنامج
+        df_clean = df_s.dropna(subset=['date_dt']).copy()
+        
+        # 4. مقارنة التاريخ باليوم
         today_str = datetime.now().strftime("%Y-%m-%d")
+        df_clean['date_only'] = df_clean['date_dt'].dt.strftime('%Y-%m-%d')
 
         # الحسابات المالية
-        d_sales = df_s[df_s['date_only'] == today_str]['amount'].sum()
+        d_sales = df_clean[df_clean['date_only'] == today_str]['amount'].sum()
         
-        total_raw_profit = df_s['profit'].sum()
+        total_raw_profit = df_clean['profit'].sum()
         total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum()
         total_waste = pd.to_numeric(st.session_state.waste_df['loss_value'], errors='coerce').sum()
         net_profit = total_raw_profit - total_exp - total_waste
@@ -160,7 +165,8 @@ else:
         col1, col2 = st.columns([2, 1])
         with col1:
             st.write("### 📈 سجل آخر العمليات")
-            st.dataframe(df_s.drop(columns=['date_only']).tail(15), use_container_width=True)
+            # عرض الجدول الأصلي بدون أعمدة المعالجة الإضافية
+            st.dataframe(df_clean.drop(columns=['date_dt', 'date_only']).tail(15), use_container_width=True)
         with col2:
             st.write("### 📉 ملخص الخصومات")
             st.bar_chart({"مصروف": total_exp, "تالف": total_waste})
