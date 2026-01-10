@@ -189,13 +189,39 @@ elif menu == "📊 التقارير المالية":
     st.subheader("📝 تفاصيل العمليات")
     st.dataframe(sales.sort_index(ascending=False), use_container_width=True)
 
+# --- 💸 المصروفات (المعدل مع السجل) ---
 elif menu == "💸 المصروفات":
-    st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
+    
+    # 1. إحصائية سريعة
+    total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum()
+    st.markdown(f"<div class='report-card'><h5>إجمالي المصروفات الحالية</h5><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
+    
+    # 2. نموذج إضافة مصروف
+    st.write("### ➕ إضافة مصروف جديد")
     with st.form("exp_form"):
-        r = st.text_input("البيان"); a = st.number_input("المبلغ", min_value=0.0)
+        r = st.text_input("البيان (مثلاً: إيجار، كهرباء، كرتون)")
+        a = st.number_input("المبلغ (₪)", min_value=0.0, step=1.0)
         if st.form_submit_button("حفظ المصروف"):
-            st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([{'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}])], ignore_index=True)
-            sync_to_google(); st.rerun()
+            if r and a > 0:
+                new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}
+                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
+                sync_to_google()
+                st.success("تم حفظ المصروف بنجاح")
+                st.rerun()
+            else:
+                st.error("يرجى إدخال البيان والمبلغ بشكل صحيح")
+
+    # 3. سجل المصروفات
+    st.write("---")
+    st.write("### 📋 سجل المصروفات السابقة")
+    if not st.session_state.expenses_df.empty:
+        # ترتيب المصاريف من الأحدث للأقدم
+        display_exp = st.session_state.expenses_df.copy()
+        display_exp.columns = ['التاريخ', 'البيان', 'المبلغ']
+        st.dataframe(display_exp.sort_index(ascending=False), use_container_width=True)
+    else:
+        st.info("لا يوجد مصروفات مسجلة بعد.")
 
 elif menu == "⚙️ الإعدادات":
     st.markdown("<h1 class='main-title'>⚙️ إضافة أصناف جديدة</h1>", unsafe_allow_html=True)
