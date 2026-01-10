@@ -30,7 +30,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_sheet_data(worksheet_name, columns):
     try:
         df = conn.read(worksheet=worksheet_name, ttl="0")
-        if df.empty: return pd.DataFrame(columns=columns)
+        if df is None or df.empty: return pd.DataFrame(columns=columns)
         return df
     except:
         return pd.DataFrame(columns=columns)
@@ -99,7 +99,7 @@ else:
 
         if not st.session_state.show_customer_form:
             c1, c2 = st.columns([1, 2])
-            p_meth = c1.selectbox("💳 طريقة الدفع", ["نقداً", "تطبيق"])
+            p_meth = c1.selectbox("💳 طريقة الدفع", ["تطبيق", "نقداً"])
             search_q = c2.text_input("🔍 ابحث عن صنف...")
             temp_bill = []
             cols = st.columns(3)
@@ -119,24 +119,28 @@ else:
                 st.session_state.current_bill_items = temp_bill
                 st.session_state.show_customer_form = True; st.rerun()
         else:
-            c_n = st.text_input("اسم الزبون (اختياري)")
+            c_n = st.text_input("اسم الزبون")
             c_p = st.text_input("رقم الهاتف")
             if st.button("✅ تأكيد"):
                 bid = str(uuid.uuid4())[:8]
                 for e in st.session_state.current_bill_items:
                     st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
-                    new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': e['method'], 'customer_name': c_n, 'customer_phone': c_p, 'bill_id': bid}
+                    new_s = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': e['method'], 'customer_name': c_n, 'customer_phone': c_p, 'bill_id': bid}
                     st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
                 sync_to_google()
                 st.session_state.show_customer_form = False; st.rerun()
 
-    # --- 📊 التقارير المالية (المطورة) ---
+    # --- 📊 التقارير المالية (المعدلة لمنع الخطأ) ---
     elif menu == "📊 التقارير المالية":
         st.markdown("<h1 class='main-title'>📊 التحليل المالي الشامل</h1>", unsafe_allow_html=True)
         
-        # معالجة بيانات الوقت
+        # --- التعديل الجوهري هنا ---
         df_s = st.session_state.sales_df.copy()
-        df_s['date'] = pd.to_datetime(df_s['date'])
+        # تحويل التاريخ مع تجاهل الأخطاء (errors='coerce')
+        df_s['date'] = pd.to_datetime(df_s['date'], errors='coerce')
+        # حذف الأسطر التي فشل تحويل تاريخها (التي كانت بالعربي مثلاً)
+        df_s = df_s.dropna(subset=['date'])
+        
         today = datetime.now().date()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
