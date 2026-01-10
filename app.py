@@ -3,38 +3,12 @@ import pandas as pd
 import os
 from datetime import datetime, timedelta
 import uuid
+from streamlit_gsheets import GSheetsConnection
 
-# --- 1. إعدادات الصفحة والتصميم المريح ---
+# 1. إعدادات الصفحة
 st.set_page_config(page_title="نظام أبو عمر المتكامل 2026", layout="wide", page_icon="📊")
 
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-    html, body, [class*="css"], .stMarkdown { font-family: 'Tajawal', sans-serif !important; direction: rtl !important; text-align: right !important; }
-    
-    /* القائمة الجانبية - سواد ملكي ونص أبيض عريض */
-    [data-testid="stSidebar"] { background-color: #000000 !important; border-left: 3px solid #27ae60; min-width: 300px !important; }
-    .sidebar-user { background-color: #1a1a1a; padding: 25px 10px; border-radius: 15px; margin: 15px 10px; border: 2px solid #27ae60; text-align: center; color: white !important; font-weight: 900; font-size: 24px; }
-    
-    /* نصوص القائمة الجانبية */
-    div[data-testid="stSidebarUserContent"] .stRadio > div { gap: 10px; }
-    div[data-testid="stSidebarUserContent"] .stRadio label { 
-        background-color: #1a1a1a !important; color: white !important; 
-        font-weight: 700 !important; font-size: 18px !important; 
-        padding: 12px !important; border-radius: 10px !important; border: 1px solid #333 !important;
-    }
-    div[data-testid="stSidebarUserContent"] .stRadio label[data-checked="true"] { background-color: #27ae60 !important; }
-
-    .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-bottom: 5px solid #27ae60; padding-bottom: 5px; margin-bottom: 30px; display: inline-block; }
-    .report-card { background: #f9f9f9; padding: 20px; border-radius: 15px; border-right: 5px solid #27ae60; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; text-align: center; }
-    .stock-card { background: white; border-radius: 15px; padding: 15px; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-right: 5px solid #27ae60; text-align: center; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 2. إدارة البيانات (الربط مع جوجل شيتس) ---
-# رابط ملف جوجل بصيغة التصدير CSV
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1JbJ7gW3VNV3F2KDYBPIPKGf8mTGgVz_4e3JA9TjqQRs/export?format=csv"
-
+# 2. الدوال المساعدة
 def format_num(val):
     try:
         if val == int(val): return str(int(val))
@@ -47,42 +21,59 @@ def clean_num(text):
         return float(str(text).replace(',', '.').replace('،', '.'))
     except: return 0.0
 
-# تحميل البيانات وحفظها (نستخدم CSV محلي كنسخة احتياطية وجوجل شيتس كمصدر أمان)
-FILES = {
-    'sales': ('sales_final.csv', ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id']),
-    'expenses': ('expenses_final.csv', ['date', 'reason', 'amount', 'category']),
-    'waste': ('waste_final.csv', ['date', 'item', 'qty', 'loss_value']),
-    'inventory_file': ('inventory_final.csv', ['item', 'شراء', 'بيع', 'كمية'])
-}
+# 3. الربط مع جداول بيانات جوجل
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-for key, (file, cols) in FILES.items():
-    state_key = f"{key}_df" if "file" not in key else "inventory_df"
-    if state_key not in st.session_state:
-        if os.path.exists(file):
-            st.session_state[state_key] = pd.read_csv(file)
-        else:
-            st.session_state[state_key] = pd.DataFrame(columns=cols)
+def load_sheet_data(worksheet_name, columns):
+    try:
+        df = conn.read(worksheet=worksheet_name, ttl="0")
+        if df.empty: return pd.DataFrame(columns=columns)
+        return df
+    except:
+        return pd.DataFrame(columns=columns)
 
-# تحويل Inventory لقاموس للسرعة
+def sync_to_google():
+    # تحديث المخزن في جوجل
+    if st.session_state.inventory:
+        inv_df = pd.DataFrame.from_dict(st.session_state.inventory, orient='index').reset_index().rename(columns={'index':'item'})
+        conn.update(worksheet="Inventory", data=inv_df)
+    
+    # تحديث باقي الجداول
+    conn.update(worksheet="Sales", data=st.session_state.sales_df)
+    conn.update(worksheet="Expenses", data=st.session_state.expenses_df)
+    conn.update(worksheet="Waste", data=st.session_state.waste_df)
+
+# 4. إدارة البيانات وتحميلها
 if 'inventory' not in st.session_state:
-    df = st.session_state.inventory_df
-    if not df.empty:
-        st.session_state.inventory = df.set_index('item').to_dict('index')
+    inv_df = load_sheet_data("Inventory", ['item', 'شراء', 'بيع', 'كمية'])
+    if not inv_df.empty:
+        st.session_state.inventory = inv_df.set_index('item').to_dict('index')
     else:
         st.session_state.inventory = {}
 
-def auto_save():
-    # حفظ محلي
-    if st.session_state.inventory:
-        inv_df = pd.DataFrame.from_dict(st.session_state.inventory, orient='index').reset_index().rename(columns={'index':'item'})
-        inv_df.to_csv('inventory_final.csv', index=False)
-    st.session_state.sales_df.to_csv('sales_final.csv', index=False)
-    st.session_state.expenses_df.to_csv('expenses_final.csv', index=False)
-    st.session_state.waste_df.to_csv('waste_final.csv', index=False)
-    # تنبيه: الرفع التلقائي لجوجل شيتس يتطلب إعدادات API متقدمة،
-    # حالياً الكود يحفظ محلياً لضمان السرعة، ويستخدم الرابط للقراءة.
+if 'sales_df' not in st.session_state:
+    st.session_state.sales_df = load_sheet_data("Sales", ['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'customer_phone', 'bill_id'])
 
-# --- 3. نظام الدخول ---
+if 'expenses_df' not in st.session_state:
+    st.session_state.expenses_df = load_sheet_data("Expenses", ['date', 'reason', 'amount', 'category'])
+
+if 'waste_df' not in st.session_state:
+    st.session_state.waste_df = load_sheet_data("Waste", ['date', 'item', 'qty', 'loss_value'])
+
+# 5. واجهة المستخدم والتنسيق (CSS)
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+    html, body, [class*="css"], .stMarkdown { font-family: 'Tajawal', sans-serif !important; direction: rtl !important; text-align: right !important; }
+    [data-testid="stSidebar"] { background-color: #000000 !important; border-left: 3px solid #27ae60; min-width: 300px !important; }
+    .sidebar-user { background-color: #1a1a1a; padding: 25px 10px; border-radius: 15px; margin: 15px 10px; border: 2px solid #27ae60; text-align: center; color: white !important; font-weight: 900; font-size: 24px; }
+    .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-bottom: 5px solid #27ae60; padding-bottom: 5px; margin-bottom: 30px; display: inline-block; }
+    .report-card { background: #f9f9f9; padding: 20px; border-radius: 15px; border-right: 5px solid #27ae60; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; text-align: center; }
+    .stock-card { background: white; border-radius: 15px; padding: 15px; border: 1px solid #eee; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-right: 5px solid #27ae60; text-align: center; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 6. نظام الدخول
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
@@ -131,7 +122,8 @@ else:
                     st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
                     new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': e['method'], 'customer_name': c_n, 'customer_phone': c_p, 'bill_id': bid}
                     st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
-                auto_save(); st.session_state.show_customer_form = False; st.rerun()
+                sync_to_google() # حفظ فوري في جوجل
+                st.session_state.show_customer_form = False; st.rerun()
 
     # --- 📦 المخزن والجرد ---
     elif menu == "📦 المخزن والجرد":
@@ -153,7 +145,7 @@ else:
                     audit_results.append({'item': it, 'new': act_val})
             if audit_results and st.button("💾 اعتماد الجرد المكتمل"):
                 for r in audit_results: st.session_state.inventory[r['item']]['كمية'] = r['new']
-                auto_save(); st.rerun()
+                sync_to_google(); st.success("تم تحديث المخزن في جوجل!"); st.rerun()
         with tab3:
             with st.form("waste_form"):
                 w_it = st.selectbox("الصنف التالف", list(st.session_state.inventory.keys()))
@@ -162,7 +154,7 @@ else:
                     st.session_state.inventory[w_it]['كمية'] -= w_q
                     new_w = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_it, 'qty': w_q, 'loss_value': w_q * st.session_state.inventory[w_it]['شراء']}
                     st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([new_w])], ignore_index=True)
-                    auto_save(); st.rerun()
+                    sync_to_google(); st.success("تم تسجيل التالف في جوجل"); st.rerun()
 
     # --- 📊 التقارير المالية ---
     elif menu == "📊 التقارير المالية":
@@ -198,7 +190,7 @@ else:
             if st.form_submit_button("حفظ"):
                 new_e = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'reason': r, 'amount': a}
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_e])], ignore_index=True)
-                auto_save(); st.rerun()
+                sync_to_google(); st.rerun()
         st.table(st.session_state.expenses_df.sort_values(by='date', ascending=False))
 
     # --- ⚙️ الإعدادات ---
@@ -208,4 +200,4 @@ else:
             n = st.text_input("الصنف"); b = st.text_input("شراء"); s = st.text_input("بيع"); q = st.text_input("كمية")
             if st.form_submit_button("حفظ"):
                 st.session_state.inventory[n] = {"شراء": clean_num(b), "بيع": clean_num(s), "كمية": clean_num(q)}
-                auto_save(); st.rerun()
+                sync_to_google(); st.success("تم التحديث في جوجل!"); st.rerun()
