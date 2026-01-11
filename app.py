@@ -163,52 +163,100 @@ if menu == "🛒 نقطة البيع":
             st.success("تم الحفظ بنجاح، والآن الربح سيظهر بشكل صحيح!")
             st.rerun()
 
-elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 تفاصيل وإدارة المخزن</h1>", unsafe_allow_html=True)
+# --- 📦 المخزن والجرد ---
+if menu == "📦 المخزن والجرد":
+    st.markdown("<h1 class='main-title'>📦 إدارة المخزن الذكية</h1>", unsafe_allow_html=True)
     
     if st.session_state.inventory:
-        items_list = []
-        for it, data in st.session_state.inventory.items():
-            items_list.append({
-                'الصنف': it,
-                'القسم': data.get('قسم', 'أخرى'),
-                'سعر الشراء': data['شراء'],
-                'سعر البيع': data['بيع'],
-                'الكمية الحالية': data['كمية'],
-                'ربح القطعة': data['بيع'] - data['شراء'],
-                'إجمالي قيمة المخزن': data['شراء'] * data['كمية']
-            })
-        
-        df_inv = pd.DataFrame(items_list)
-        stock_value = df_inv['إجمالي قيمة المخزن'].sum()
-        st.markdown(f"<div class='report-card'><h5>إجمالي قيمة رأس المال في المخزن حالياً</h5><h2>{format_num(stock_value)} ₪</h2></div><br>", unsafe_allow_html=True)
-        
-        st.subheader("📋 كشف تفصيلي بالأصناف")
-        st.dataframe(df_inv, use_container_width=True, hide_index=True)
+        # 1. إحصائيات سريعة للمخزن (البطاقات العلوية)
+        total_items = len(st.session_state.inventory)
+        low_stock = sum(1 for v in st.session_state.inventory.values() if 0 < float(v.get('كمية', 0)) <= 5)
+        out_of_stock = sum(1 for v in st.session_state.inventory.values() if float(v.get('كمية', 0)) <= 0)
+        stock_value = sum(float(v.get('شراء', 0)) * float(v.get('كمية', 0)) for v in st.session_state.inventory.values())
 
-        st.markdown("---")
-        st.subheader("🔍 الجرد السريع وتعديل الكميات")
-        c1, c2 = st.columns([1, 2])
-        f_cat = c1.selectbox("📂 تصفية حسب القسم", ["الكل"] + st.session_state.CATEGORIES)
-        search_st = c2.text_input("🔍 ابحث في الأصناف...")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.markdown(f"<div class='report-card'><h5>إجمالي الأصناف</h5><h2>{total_items}</h2></div>", unsafe_allow_html=True)
+        c2.markdown(f"<div class='report-card'><h5>أصناف قاربت تنفد</h5><h2 style='color:orange;'>{low_stock}</h2></div>", unsafe_allow_html=True)
+        c3.markdown(f"<div class='report-card'><h5>أصناف نافدة</h5><h2 style='color:red;'>{out_of_stock}</h2></div>", unsafe_allow_html=True)
+        c4.markdown(f"<div class='report-card'><h5>قيمة المخزن (شراء)</h5><h2>{format_num(stock_value)} ₪</h2></div>", unsafe_allow_html=True)
+
+        st.write("---")
         
-        cols = st.columns(3); display_idx = 0
-        for it, data in st.session_state.inventory.items():
-            item_cat = data.get('قسم', 'أخرى')
-            if (f_cat == "الكل" or item_cat == f_cat) and (search_st.lower() in it.lower()):
+        # 2. البحث والفلترة
+        search_stock = st.text_input("🔍 ابحث عن صنف في المخزن لسرعة الوصول...")
+        
+        # 3. عرض الأصناف كبطاقات تفاعلية
+        cols = st.columns(3)
+        display_idx = 0
+        
+        # ترتيب الأصناف بحيث يظهر الناقص أولاً (اختياري)
+        sorted_inventory = dict(sorted(st.session_state.inventory.items(), key=lambda x: float(x[1].get('كمية', 0))))
+
+        for it, data in sorted_inventory.items():
+            if search_stock.lower() in it.lower():
+                qty = float(data.get('كمية', 0))
+                buy_p = float(data.get('شراء', 0))
+                sell_p = float(data.get('بيع', 0))
+                
                 with cols[display_idx % 3]:
-                    card_color = "#27ae60" if data['كمية'] > 5 else ("#f39c12" if data['كمية'] > 0 else "#e74c3c")
-                    st.markdown(f"<div class='stock-card' style='border-top: 6px solid {card_color};'><small>{item_cat}</small><h3>{it}</h3><p>المتبقي: {data['كمية']:.2f}</p><h4>{data['بيع']} ₪</h4></div>", unsafe_allow_html=True)
-                    with st.expander(f"⚙️ جرد/تعديل كمية {it}"):
-                        new_q = st.number_input("الكمية الفعلية", value=float(data['كمية']), key=f"inv_q_{it}")
-                        if st.button("تحديث الكمية", key=f"inv_btn_{it}"):
-                            st.session_state.inventory[it]['كمية'] = new_q
-                            st.session_state.inventory[it]['أصلي'] = new_q
-                            sync_to_google(); st.rerun()
+                    # تحديد الحالة واللون
+                    if qty <= 0:
+                        status, color, bg = "ناقص ❌", "#e74c3c", "#fdeaea"
+                    elif qty <= 5:
+                        status, color, bg = "قارب على النفاذ ⚠️", "#f39c12", "#fff5e6"
+                    else:
+                        status, color, bg = "متوفر ✅", "#27ae60", "#ebf9f1"
+
+                    # تصميم بطاقة الصنف
+                    st.markdown(f"""
+                        <div class="stock-card" style="background-color: {bg}; border-right: 6px solid {color}; padding: 15px; border-radius: 10px; margin-bottom: 10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <b style="font-size: 1.1rem;">{it}</b>
+                                <span style="background:{color}; color:white; padding:2px 8px; border-radius:15px; font-size:12px;">{status}</span>
+                            </div>
+                            <hr style="margin: 8px 0; border: 0.5px solid #ddd;">
+                            <div style="display:flex; justify-content:space-between; font-size: 14px;">
+                                <span>شراء: <b>{buy_p} ₪</b></span>
+                                <span>الكمية: <b style="font-size: 1.1rem;">{qty}</b></span>
+                            </div>
+                            <div style="margin-top:5px; font-size: 14px;">بيع: <b style="color:green;">{sell_p} ₪</b></div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # أزرار الإدارة داخل Expander
+                    with st.expander(f"⚙️ إدارة {it}"):
+                        tab_edit, tab_waste = st.tabs(["✏️ تعديل سريع", "⚠️ تسجيل تالف"])
+                        
+                        with tab_edit:
+                            nb = st.number_input("سعر الشراء", value=buy_p, key=f"nb_{it}")
+                            ns = st.number_input("سعر البيع", value=sell_p, key=f"ns_{it}")
+                            nq = st.number_input("الكمية الفعلية", value=qty, key=f"nq_{it}")
+                            if st.button("حفظ التعديلات", key=f"btn_{it}", use_container_width=True):
+                                st.session_state.inventory[it].update({'شراء': nb, 'بيع': ns, 'كمية': nq})
+                                sync_to_google()
+                                st.success(f"تم تحديث {it}")
+                                st.rerun()
+                        
+                        with tab_waste:
+                            w_qty = st.number_input("الكمية التالفة", min_value=0.0, max_value=qty, key=f"wq_{it}")
+                            if st.button("تأكيد التالف", key=f"wb_{it}", use_container_width=True, type="secondary"):
+                                if w_qty > 0:
+                                    loss = w_qty * buy_p
+                                    st.session_state.inventory[it]['كمية'] -= w_qty
+                                    new_w = {
+                                        'date': datetime.now().strftime("%Y-%m-%d"), 
+                                        'item': it, 
+                                        'qty': w_qty, 
+                                        'loss_value': loss
+                                    }
+                                    st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([new_w])], ignore_index=True)
+                                    sync_to_google()
+                                    st.warning(f"تم تسجيل {w_qty} تالف من {it}")
+                                    st.rerun()
+                    
                 display_idx += 1
     else:
-        st.info("المخزن فارغ.")
-
+        st.info("المخزن فارغ حالياً! قم بإضافة الأصناف من شاشة الإعدادات.")
 # --- 📊 التقارير المالية ---
 elif menu == "📊 التقارير المالية":
     from datetime import timedelta # تأكد من وجود هذا الاستيراد في أعلى الملف
