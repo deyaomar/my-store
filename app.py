@@ -751,7 +751,7 @@ elif menu == "📊 التقارير المالية":
 
 
 
-            sync_to_google(); st.success("تم الحذف بنجاح!"); st.rerun()
+        sync_to_google(); st.success("تم الحذف بنجاح!"); st.rerun()
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
     with st.form("exp_form"):
