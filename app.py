@@ -4,46 +4,41 @@ from datetime import datetime
 import uuid
 from streamlit_gsheets import GSheetsConnection
 
-# 1. إعدادات الصفحة
+# 1. إعدادات الصفحة والتصميم
 st.set_page_config(page_title="نظام أبو عمر المتكامل 2026", layout="wide", page_icon="📦")
 
-# تصفير الكاش لضمان تحديث البيانات فوراً
-if 'needs_refresh' not in st.session_state:
-    st.session_state.needs_refresh = False
-
-# 2. تصميم الواجهة
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
     html, body, [class*="css"], .stMarkdown { font-family: 'Tajawal', sans-serif !important; direction: rtl !important; text-align: right !important; }
     .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-right: 8px solid #27ae60; padding-right: 15px; margin-bottom: 25px; }
     .report-card { background: white; padding: 20px; border-radius: 15px; border-top: 5px solid #27ae60; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .stock-card { background: white; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
+
+# 2. الدوال المساعدة
+def format_num(val):
+    return f"{val:,.2f}"
 
 # 3. الاتصال والمزامنة
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def sync_to_google():
     try:
-        # تحويل القاموس إلى DataFrame للمخزن
         inv_data = [{'item': k, **v} for k, v in st.session_state.inventory.items()]
-        
-        # تحديث كل الجداول في جوجل شيت
         conn.update(worksheet="Inventory", data=pd.DataFrame(inv_data))
         conn.update(worksheet="Sales", data=st.session_state.sales_df)
         conn.update(worksheet="Expenses", data=st.session_state.expenses_df)
         conn.update(worksheet="Waste", data=st.session_state.waste_df)
-        
-        # أهم خطوة: تنظيف الذاكرة المؤقتة تماماً
         st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"خطأ في المزامنة: {e}")
         return False
 
-# 4. تحميل البيانات (مع ضمان عدم استخدام كاش قديم)
-def load_data():
+# 4. تحميل البيانات
+if 'inventory' not in st.session_state:
     try:
         inv_df = conn.read(worksheet="Inventory", ttl=0)
         st.session_state.inventory = inv_df.set_index('item').to_dict('index') if not inv_df.empty else {}
@@ -51,10 +46,10 @@ def load_data():
         st.session_state.expenses_df = conn.read(worksheet="Expenses", ttl=0)
         st.session_state.waste_df = conn.read(worksheet="Waste", ttl=0)
     except:
-        pass
-
-if 'inventory' not in st.session_state:
-    load_data()
+        st.session_state.inventory = {}
+        st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
+        st.session_state.expenses_df = pd.DataFrame(columns=['date', 'reason', 'amount'])
+        st.session_state.waste_df = pd.DataFrame(columns=['date', 'item', 'qty', 'loss_value'])
 
 if 'CATEGORIES' not in st.session_state:
     st.session_state.CATEGORIES = ["مواد غذائية", "منظفات", "أدوات منزلية", "أخرى"]
@@ -62,76 +57,100 @@ if 'CATEGORIES' not in st.session_state:
 # 5. القائمة الجانبية
 with st.sidebar:
     st.markdown(f"<h2 style='text-align:center;'>أهلاً أبو عمر 👋</h2>", unsafe_allow_html=True)
-    menu = st.radio("انتقل إلى:", ["🛒 نقطة البيع", "📊 التقارير المالية", "💸 المصروفات", "📦 المخزن والجرد", "⚙️ الإعدادات"])
-    if st.button("🔄 تحديث شامل للبيانات"): 
-        st.cache_data.clear()
-        load_data()
-        st.rerun()
+    menu = st.radio("انتقل إلى:", ["🛒 نقطة البيع", "📦 المخزن والجرد", "📊 التقارير المالية", "💸 المصروفات", "⚙️ الإعدادات"])
+    if st.button("🔄 تحديث البيانات"): st.rerun()
 
 # --- المنطق الرئيسي ---
 
-if menu == "💸 المصروفات":
+if menu == "🛒 نقطة البيع":
+    st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>", unsafe_allow_html=True)
+    c1, c2 = st.columns([1, 2])
+    cat_sel = c1.selectbox("📂 القسم", ["الكل"] + st.session_state.CATEGORIES)
+    search = c2.text_input("🔍 ابحث عن صنف لبيعه...")
+    
+    items_to_sell = st.session_state.inventory.items()
+    if cat_sel != "الكل":
+        items_to_sell = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat_sel}.items()
+    
+    items = {k: v for k, v in items_to_sell if search.lower() in k.lower()}
+    cols = st.columns(4)
+    temp_bill = []
+    
+    for idx, (it, data) in enumerate(items.items()):
+        with cols[idx % 4]:
+            st.markdown(f"<div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'><b>{it}</b><br><span style='color:green;'>{data['بيع']} ₪</span><br><small>متوفر: {data['كمية']}</small></div>", unsafe_allow_html=True)
+            val = st.number_input(f"الكمية ({it})", key=f"v_{it}", min_value=0.0, step=0.1)
+            if val > 0:
+                temp_bill.append({'item': it, 'qty': val, 'amount': val * data['بيع'], 'profit': (data['بيع'] - data['شراء']) * val})
+    
+    if temp_bill and st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
+        bid = str(uuid.uuid4())[:8]
+        for row in temp_bill:
+            st.session_state.inventory[row['item']]['كمية'] -= row['qty']
+            new_row = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': row['item'], 'amount': row['amount'], 'profit': row['profit'], 'method': 'نقدي', 'customer_name': 'زبون محل', 'bill_id': bid}
+            st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
+        sync_to_google(); st.success("تمت العملية بنجاح!"); st.rerun()
+
+elif menu == "📊 التقارير المالية":
+    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل</h1>", unsafe_allow_html=True)
+    
+    # تحويل التواريخ إلى تاريخ فقط (بدون وقت) لضمان دقة المقارنة
+    def get_clean_df(df, date_col):
+        temp = df.copy()
+        if not temp.empty:
+            temp[date_col] = pd.to_datetime(temp[date_col]).dt.date
+        return temp
+
+    df_sales = get_clean_df(st.session_state.sales_df, 'date')
+    df_exp = get_clean_df(st.session_state.expenses_df, 'date')
+    df_waste = get_clean_df(st.session_state.waste_df, 'date')
+
+    today = datetime.now().date()
+    
+    # حسابات اليوم
+    day_sales = df_sales[df_sales['date'] == today]
+    t_sales = day_sales['amount'].sum()
+    t_gross_profit = day_sales['profit'].sum()
+    t_exp = df_exp[df_exp['date'] == today]['amount'].sum() if not df_exp.empty else 0
+    t_waste = df_waste[df_waste['date'] == today]['loss_value'].sum() if not df_waste.empty else 0
+    t_net_profit = t_gross_profit - t_exp - t_waste
+
+    # عرض كروت التقارير
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"<div class='report-card'><h5>مبيعات اليوم</h5><h2>{format_num(t_sales)} ₪</h2></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='report-card' style='border-top-color: #e74c3c;'><h5>مصروفات وتوالف اليوم</h5><h2>{format_num(t_exp + t_waste)} ₪</h2></div>", unsafe_allow_html=True)
+    with col3:
+        color = "#27ae60" if t_net_profit >= 0 else "#e74c3c"
+        st.markdown(f"<div class='report-card' style='border-top-color: {color};'><h5>صافي ربح اليوم</h5><h2>{format_num(t_net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+
+    st.divider()
+    t1, t2, t3 = st.tabs(["📄 مبيعات اليوم", "📉 مصروفات اليوم", "🗑️ توالف اليوم"])
+    with t1: st.dataframe(day_sales, use_container_width=True)
+    with t2: st.dataframe(df_exp[df_exp['date'] == today], use_container_width=True)
+    with t3: st.dataframe(df_waste[df_waste['date'] == today], use_container_width=True)
+
+elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
     
-    # نموذج الإضافة
     with st.form("exp_form"):
-        col1, col2 = st.columns(2)
-        r = col1.text_input("البيان")
-        a = col2.number_input("المبلغ", min_value=0.0)
-        if st.form_submit_button("حفظ"):
+        r = st.text_input("البيان")
+        a = st.number_input("المبلغ (₪)", min_value=0.0)
+        if st.form_submit_button("حفظ المصروف"):
             if r and a > 0:
                 new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
-                sync_to_google()
-                st.rerun()
+                sync_to_google(); st.rerun()
 
-    st.markdown("### سجل المصروفات")
+    st.subheader("سجل المصروفات (يمكنك الحذف من هنا)")
     if not st.session_state.expenses_df.empty:
-        # عرض المصروفات مع زر حذف حقيقي
-        for index, row in st.session_state.expenses_df.iterrows():
-            c1, c2, c3, c4 = st.columns([2, 3, 2, 1])
-            c1.write(row['date'])
-            c2.write(row['reason'])
-            c3.write(f"{row['amount']} ₪")
-            if c4.button("🗑️", key=f"del_{index}"):
-                # حذف من الذاكرة
-                st.session_state.expenses_df = st.session_state.expenses_df.drop(index).reset_index(drop=True)
-                # مزامنة فورية ومسح الكاش
-                sync_to_google()
-                st.success("تم الحذف وتحديث التقارير")
-                st.rerun()
-    else:
-        st.info("لا توجد مصروفات.")
+        for idx, row in st.session_state.expenses_df.iterrows():
+            colx, coly, colz = st.columns([3, 2, 1])
+            colx.write(f"📌 {row['reason']}")
+            coly.write(f"💰 {row['amount']} ₪")
+            if colz.button("حذف", key=f"del_exp_{idx}"):
+                st.session_state.expenses_df = st.session_state.expenses_df.drop(idx)
+                sync_to_google(); st.rerun()
 
-elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقارير المالية المحدثة</h1>", unsafe_allow_html=True)
-    
-    # قراءة البيانات مباشرة من session_state لضمان أنها النسخة الأخيرة بعد الحذف
-    df_sales = st.session_state.sales_df.copy()
-    df_exp = st.session_state.expenses_df.copy()
-    
-    # تحويل التواريخ والأرقام
-    df_sales['date'] = pd.to_datetime(df_sales['date']).dt.date
-    df_sales['profit'] = pd.to_numeric(df_sales['profit'], errors='coerce').fillna(0)
-    
-    if not df_exp.empty:
-        df_exp['date'] = pd.to_datetime(df_exp['date']).dt.date
-        df_exp['amount'] = pd.to_numeric(df_exp['amount'], errors='coerce').fillna(0)
-    
-    today = datetime.now().date()
-    
-    # الحسابات
-    t_gross_profit = df_sales[df_sales['date'] == today]['profit'].sum()
-    t_exp = df_exp[df_exp['date'] == today]['amount'].sum() if not df_exp.empty else 0
-    t_net_profit = t_gross_profit - t_exp
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("إجمالي ربح المبيعات (اليوم)", f"{t_gross_profit} ₪")
-    col2.metric("إجمالي المصروفات (اليوم)", f"- {t_exp} ₪", delta_color="inverse")
-    col3.metric("صافي الربح النهائي", f"{t_net_profit} ₪")
-
-    st.divider()
-    st.write("### فحص جدول المصروفات الحالي في التقارير:")
-    st.table(df_exp[df_exp['date'] == today])
-
-# (بقية الأقسام تظل كما هي في كودك الأصلي)
+# (بقية الأقسام: المخزن والإعدادات تظل كما هي في كودك)
