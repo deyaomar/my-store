@@ -449,16 +449,26 @@ elif menu == "📦 المخزن والجرد":
 
 
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقارير المالية</h1>", unsafe_allow_html=True)
-    # تبسيط عرض التقارير للموبايل
+    st.markdown("<h1 class='main-title'>📊 تقارير أبو عمر</h1>", unsafe_allow_html=True)
+    
+    # حسابات سريعة
     df_sales = st.session_state.sales_df.copy()
-    if not df_sales.empty:
-        df_sales['date'] = pd.to_datetime(df_sales['date'])
-        today_sales = df_sales[df_sales['date'].dt.date == datetime.now().date()]['amount'].sum()
-        st.metric("مبيعات اليوم", f"{format_num(today_sales)} ₪")
-        st.divider()
-        st.write("سجل المبيعات:")
-        st.dataframe(df_sales, use_container_width=True)
+    df_sales['date'] = pd.to_datetime(df_sales['date'])
+    today = pd.Timestamp(datetime.now().date())
+    
+    t_sales = df_sales[df_sales['date'] == today]['amount'].sum()
+    
+    # عرض البطاقات واحدة تلو الأخرى للموبايل
+    st.metric("مبيعات اليوم", f"{format_num(t_sales)} ₪")
+    
+    # استخدام Tabs بدلاً من أعمدة كثيرة
+    t1, t2 = st.tabs(["💰 الأرباح", "📋 السجلات"])
+    with t1:
+        cap_now = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
+        st.write(f"رأس المال الحالي: **{format_num(cap_now)} ₪**")
+    with t2:
+        st.dataframe(df_sales.sort_values(by='date', ascending=False), use_container_width=True)
+       
         st.subheader("🛠️ إدارة العمليات الأخيرة")
 
 
