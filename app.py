@@ -57,6 +57,8 @@ def sync_to_google():
 if 'inventory' not in st.session_state:
     try:
         inv_df = conn.read(worksheet="Inventory", ttl=0)
+        # التأكد من وجود عمود 'أصلي' لحساب المبيعات
+        if not inv_df.empty and 'أصلي' not in inv_df.columns: inv_df['أصلي'] = inv_df['كمية']
         st.session_state.inventory = inv_df.set_index('item').to_dict('index') if not inv_df.empty else {}
         st.session_state.sales_df = conn.read(worksheet="Sales", ttl=0)
         st.session_state.expenses_df = conn.read(worksheet="Expenses", ttl=0)
@@ -73,7 +75,7 @@ with st.sidebar:
     menu = st.radio("انتقل إلى:", ["🛒 نقطة البيع", "📦 المخزن والجرد", "📊 التقارير المالية", "💸 المصروفات", "⚙️ الإعدادات"])
     if st.button("🔄 تحديث البيانات"): st.rerun()
 
-# --- بداية المنطق الرئيسي (الشرط الأول يجب أن يكون IF) ---
+# --- المنطق الرئيسي ---
 
 if menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>", unsafe_allow_html=True)
@@ -97,24 +99,27 @@ if menu == "🛒 نقطة البيع":
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 إدارة ومطابقة المخزن</h1>", unsafe_allow_html=True)
-    tab_view, tab_match = st.tabs(["📋 عرض المخزن الحالي", "🎯 مطابقة وجرد الكميات"])
+    tab_view, tab_match = st.tabs(["📋 عرض المخزن والمبيعات", "🎯 مطابقة وجرد الكميات"])
     
     with tab_view:
         if st.session_state.inventory:
+            # حساب قيمة المخزن الحالية
             stock_value = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
-            st.markdown(f"<div class='report-card'><h5>إجمالي قيمة البضاعة (رأس المال)</h5><h2>{format_num(stock_value)} ₪</h2></div>", unsafe_allow_html=True)
-            search_stock = st.text_input("🔍 ابحث في الأصناف...")
-            cols = st.columns(3)
-            for idx, (it, data) in enumerate(st.session_state.inventory.items()):
-                if search_stock.lower() in it.lower():
-                    with cols[idx % 3]:
-                        color = "#27ae60" if data['كمية'] > 5 else ("#f39c12" if data['كمية'] > 0 else "#e74c3c")
-                        st.markdown(f"<div class='stock-card' style='border-right: 6px solid {color};'><b>{it}</b><br>البيع: {data['بيع']} ₪ | المتوفر: <b>{data['كمية']}</b></div>", unsafe_allow_html=True)
-                        with st.expander(f"⚙️ تعديل سريع"):
-                            nq = st.number_input("الكمية الفعلية", value=float(data['كمية']), key=f"q_edit_{it}")
-                            if st.button("تحديث", key=f"btn_edit_{it}"):
-                                st.session_state.inventory[it]['كمية'] = nq
-                                sync_to_google(); st.rerun()
+            st.markdown(f"<div class='report-card'><h5>إجمالي قيمة البضاعة (رأس المال الحالي)</h5><h2>{format_num(stock_value)} ₪</h2></div>", unsafe_allow_html=True)
+            
+            # عرض الجدول مع ميزة (الأصلي والمباع)
+            inv_display = []
+            for it, d in st.session_state.inventory.items():
+                orig = d.get('أصلي', d['كمية'])
+                sold = orig - d['كمية']
+                inv_display.append({
+                    'الصنف': it,
+                    'الكمية الأصلية (الفاتورة)': orig,
+                    'المباع': sold,
+                    'المتبقي حالياً': d['كمية'],
+                    'سعر البيع': d['بيع']
+                })
+            st.dataframe(pd.DataFrame(inv_display), use_container_width=True)
         else:
             st.info("المخزن فارغ.")
 
@@ -134,8 +139,8 @@ elif menu == "📦 المخزن والجرد":
                 if st.button("💾 اعتماد الجرد وتصحيح المخزن", use_container_width=True):
                     for _, row in ed_df.iterrows():
                         st.session_state.inventory[row['الصنف']]['كمية'] = row['الكمية الفعلية']
+                        st.session_state.inventory[row['الصنف']]['أصلي'] = row['الكمية الفعلية'] # تصفير المباع بعد الجرد
                     sync_to_google(); st.success("تم التحديث!"); st.rerun()
-                st.dataframe(ed_df[['الصنف', 'الكمية في النظام', 'الكمية الفعلية', 'الفارق', 'قيمة الفارق (₪)']], use_container_width=True)
 
 elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقارير والتحليل المالي</h1>", unsafe_allow_html=True)
@@ -165,9 +170,29 @@ elif menu == "💸 المصروفات":
     st.dataframe(st.session_state.expenses_df.sort_index(ascending=False), use_container_width=True)
 
 elif menu == "⚙️ الإعدادات":
-    st.markdown("<h1 class='main-title'>⚙️ إضافة أصناف جديدة</h1>", unsafe_allow_html=True)
-    with st.form("add_form"):
-        n = st.text_input("اسم الصنف"); b = st.number_input("شراء"); s = st.number_input("بيع"); q = st.number_input("الكمية")
-        if st.form_submit_button("إضافة للمخزن"):
-            st.session_state.inventory[n] = {'شراء': b, 'بيع': s, 'كمية': q}
-            sync_to_google(); st.success("تمت الإضافة!"); st.rerun()
+    st.markdown("<h1 class='main-title'>⚙️ إدارة البضاعة والمشتريات</h1>", unsafe_allow_html=True)
+    
+    t1, t2 = st.tabs(["📥 إضافة فاتورة شراء (بضاعة موجودة)", "✨ إضافة صنف جديد كلياً"])
+    
+    with t1:
+        if st.session_state.inventory:
+            with st.form("add_stock_form"):
+                item_name = st.selectbox("اختر الصنف الذي جلبته", list(st.session_state.inventory.keys()))
+                plus_q = st.number_input("الكمية الجديدة المضافة", min_value=0.0, step=1.0)
+                if st.form_submit_button("إضافة للمخزن"):
+                    # العملية: جمع الكمية الجديدة مع الحالية وتحديث 'أصلي'
+                    st.session_state.inventory[item_name]['كمية'] += plus_q
+                    st.session_state.inventory[item_name]['أصلي'] = st.session_state.inventory[item_name]['كمية']
+                    sync_to_google(); st.success(f"تمت إضافة {plus_q} لـ {item_name} بنجاح!"); st.rerun()
+        else: st.info("لا توجد أصناف حالياً.")
+
+    with t2:
+        with st.form("add_form"):
+            n = st.text_input("اسم الصنف الجديد")
+            b = st.number_input("سعر الشراء")
+            s = st.number_input("سعر البيع")
+            q = st.number_input("الكمية الابتدائية")
+            if st.form_submit_button("إضافة صنف جديد"):
+                if n:
+                    st.session_state.inventory[n] = {'شراء': b, 'بيع': s, 'كمية': q, 'أصلي': q}
+                    sync_to_google(); st.success("تمت الإضافة!"); st.rerun()
