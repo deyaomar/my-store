@@ -449,154 +449,30 @@ elif menu == "📦 المخزن والجرد":
 
 
 elif menu == "📊 التقارير المالية":
-
-    st.markdown("<h1 class='main-title'>📊 التقرير المالي الدقيق - أبو عمر</h1>", unsafe_allow_html=True)
-
-
-
-    # 1. تحضير البيانات وتوحيد أنواعها
-
+    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>")
     df_sales = st.session_state.sales_df.copy()
-
-    df_sales['date'] = pd.to_datetime(df_sales['date']).dt.date
-
-    df_sales['amount'] = pd.to_numeric(df_sales['amount'], errors='coerce').fillna(0)
-
-    df_sales['profit'] = pd.to_numeric(df_sales['profit'], errors='coerce').fillna(0)
-
-
-
-    df_exp = st.session_state.expenses_df.copy()
-
-    if not df_exp.empty:
-
-        df_exp['date'] = pd.to_datetime(df_exp['date']).dt.date
-
-        df_exp['amount'] = pd.to_numeric(df_exp['amount'], errors='coerce').fillna(0)
-
-
-
-    df_waste = st.session_state.waste_df.copy()
-
-    if not df_waste.empty:
-
-        df_waste['date'] = pd.to_datetime(df_waste['date']).dt.date
-
-        df_waste['loss_value'] = pd.to_numeric(df_waste['loss_value'], errors='coerce').fillna(0)
-
-
-
-    # تواريخ المقارنة
-
-    today = datetime.now().date()
-
-    last_7_days = today - pd.Timedelta(days=7)
-
-
-
-    # 2. حسابات رأس المال
-
-    current_stock_cap = sum(float(v['شراء']) * float(v['كمية']) for v in st.session_state.inventory.values())
-
+    if not df_sales.empty:
+        st.dataframe(df_sales.iloc[::-1], use_container_width=True)
     
-
-    # 3. حسابات اليوم (فلترة دقيقة)
-
-    daily_sales_df = df_sales[df_sales['date'] == today]
-
-    t_sales = daily_sales_df['amount'].sum()
-
-    t_gross_profit = daily_sales_df['profit'].sum()
-
-    
-
-    t_exp = df_exp[df_exp['date'] == today]['amount'].sum() if not df_exp.empty else 0
-
-    t_waste = df_waste[df_waste['date'] == today]['loss_value'].sum() if not df_waste.empty else 0
-
-    
-
-    # صافي الربح الحقيقي (الربح من المبيعات - المصاريف - التوالف)
-
-    t_net_profit = t_gross_profit - t_exp - t_waste
-
-
-
-    # 4. حسابات الأسبوع
-
-    weekly_sales_df = df_sales[df_sales['date'] >= last_7_days]
-
-    w_sales = weekly_sales_df['amount'].sum()
-
-    w_gross_profit = weekly_sales_df['profit'].sum()
-
-    w_exp = df_exp[df_exp['date'] >= last_7_days]['amount'].sum() if not df_exp.empty else 0
-
-    w_waste = df_waste[df_waste['date'] >= last_7_days]['loss_value'].sum() if not df_waste.empty else 0
-
-    w_net_profit = w_gross_profit - w_exp - w_waste
-
-
-
-    # --- العرض المرئي ---
-
-    st.markdown("### 🏦 حالة السيولة والمخزن")
-
-    c_cap1, c_cap2 = st.columns(2)
-
-    c_cap1.metric("رأس المال الموجود (بضاعة)", f"{format_num(current_stock_cap)} ₪")
-
-    # إجمالي المبيعات المسجلة نقداً (تقديري)
-
-    total_cash = df_sales[df_sales['method'] == "نقدي"]['amount'].sum()
-
-    c_cap2.metric("إجمالي المبيعات النقدية (الكاش)", f"{format_num(total_cash)} ₪")
-
-
-
-    st.markdown("---")
-
-    st.markdown("### 💰 الأداء المالي")
-
-    
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-
-        st.markdown(f"<div class='report-card' style='border-top-color:#27ae60'><h4>مبيعات اليوم</h4><h2>{format_num(t_sales)} ₪</h2></div>", unsafe_allow_html=True)
-
-    with col2:
-
-        # تلوين الربح (أحمر لو خسارة، أخضر لو ربح)
-
-        p_color = "#27ae60" if t_net_profit >= 0 else "#e74c3c"
-
-        st.markdown(f"<div class='report-card' style='border-top-color:{p_color}'><h4>صافي ربح اليوم</h4><h2>{format_num(t_net_profit)} ₪</h2></div>", unsafe_allow_html=True)
-
-    with col3:
-
-        st.markdown(f"<div class='report-card' style='border-top-color:#f39c12'><h4>مصاريف وتوالف اليوم</h4><h2>{format_num(t_exp + t_waste)} ₪</h2></div>", unsafe_allow_html=True)
-
-
-
-    # جداول البيانات
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    tab1, tab2, tab3 = st.tabs(["📊 سجل المبيعات", "💸 المصروفات", "⚠️ التوالف"])
-
-    with tab1:
-
-        st.dataframe(df_sales.sort_values(by='date', ascending=False), use_container_width=True)
-
-    with tab2:
-
-        st.dataframe(df_exp, use_container_width=True)
-
-    with tab3:
-
-        st.dataframe(df_waste, use_container_width=True)
+    if not st.session_state.sales_df.empty:
+        st.subheader("🛠️ إدارة العمليات الأخيرة")
+        last_bill_id = st.session_state.sales_df.iloc[-1]['bill_id']
+        if st.button(f"🗑️ حذف آخر فاتورة (رقم: {last_bill_id})", use_container_width=True):
+            last_bill_items = st.session_state.sales_df[st.session_state.sales_df['bill_id'] == last_bill_id]
+            for index, row in last_bill_items.iterrows():
+                item_name = row['item']
+                # نرجع الكمية للمخزن
+                qty_to_return = row['amount'] / st.session_state.inventory[item_name]['بيع']
+                if item_name in st.session_state.inventory:
+                    st.session_state.inventory[item_name]['كمية'] += qty_to_return
+            
+            # نحذف الفاتورة من السجل
+            st.session_state.sales_df = st.session_state.sales_df[st.session_state.sales_df['bill_id'] != last_bill_id]
+            
+            # المزامنة مع جوجل شيت (تأكد أن هذا السطر تحت نفس مستوى المسافة للي قبله)
+            sync_to_google()
+            st.success("تم الحذف بنجاح!")
+            st.rerun()
 
 elif menu == "💸 المصروفات":
 
