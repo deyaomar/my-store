@@ -705,113 +705,43 @@ elif menu == "📊 التقارير المالية":
 
 
 elif menu == "💸 المصروفات":
-
     st.markdown("<h1 class='main-title'>💸 إدارة وسجل المصروفات</h1>", unsafe_allow_html=True)
-
-    df_exp = st.session_state.expenses_df.copy()
-
-    total_exp = pd.to_numeric(df_exp['amount'], errors='coerce').sum() if not df_exp.empty else 0
-
-    st.markdown(f"<div class='report-card'><h5>إجمالي كافة المصروفات</h5><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
-
     
-
+    # حساب إجمالي المصروفات
+    df_exp = st.session_state.expenses_df.copy()
+    total_exp = pd.to_numeric(df_exp['amount'], errors='coerce').sum() if not df_exp.empty else 0
+    st.markdown(f"<div class='report-card'><h5>إجمالي كافة المصروفات</h5><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
+    
+    # نموذج إضافة مصروف جديد
     with st.expander("➕ تسجيل مصروف جديد", expanded=True):
-
         with st.form("exp_form", clear_on_submit=True):
-
             r = st.text_input("بيان المصروف")
-
             a = st.number_input("المبلغ (₪)", min_value=0.0, value=None, placeholder="0.0")
-
             if st.form_submit_button("حفظ المصروف"):
-
                 if r and a:
-
-                    new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': float(a), 'id': str(uuid.uuid4())[:6]}
-
-                    st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
-
-                    sync_to_google(); st.rerun()
-
-
-
-    if not st.session_state.expenses_df.empty:
-
-        for index, row in st.session_state.expenses_df.iterrows():
-
-            c1, c2, c3, c4 = st.columns([2, 3, 2, 1])
-
-            c1.write(row['date'])
-
-            c2.write(f"**{row['reason']}**")
-
-            c3.write(f"{row['amount']} ₪")
-
-            if c4.button("❌", key=f"del_{index}"):
-
-                st.session_state.expenses_df = st.session_state.expenses_df.drop(index)
-
-                sync_to_google(); st.rerun()
-
-
-
-# 1. إضافة صنف جديد (خانات فارغة لسهولة الإدخال)
-
-    with tab_add:
-
-        st.subheader("📦 إضافة صنف جديد للمخزن")
-
-        with st.form("add_form", clear_on_submit=True):
-
-            name = st.text_input("اسم الصنف", placeholder="مثال: سكر 1 كيلو")
-
-            
-
-            c1, c2, c3 = st.columns(3)
-
-            # استخدام value=None يجعل الخانة فارغة عند البدء
-
-            b_p = c1.number_input("سعر الشراء", min_value=0.0, step=0.1, value=None, placeholder="0.0")
-
-            s_p = c2.number_input("سعر البيع", min_value=0.0, step=0.1, value=None, placeholder="0.0")
-
-            qty = c3.number_input("الكمية المتوفرة", min_value=0.0, step=1.0, value=None, placeholder="0.0")
-
-            
-
-            cat = st.selectbox("القسم", st.session_state.CATEGORIES)
-
-            
-
-            if st.form_submit_button("➕ إضافة للمخزن"):
-
-                if name and b_p is not None and s_p is not None and qty is not None:
-
-                    st.session_state.inventory[name] = {
-
-                        'شراء': float(b_p), 
-
-                        'بيع': float(s_p), 
-
-                        'كمية': float(qty), 
-
-                        'قسم': cat, 
-
-                        'أصلي': float(qty)
-
+                    new_exp = {
+                        'date': datetime.now().strftime("%Y-%m-%d"), 
+                        'reason': r, 
+                        'amount': float(a), 
+                        'id': str(uuid.uuid4())[:6]
                     }
+                    st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
+                    sync_to_google()
+                    st.success("تم تسجيل المصروف بنجاح")
+                    st.rerun()
 
-                    if sync_to_google():
-
-                        st.success(f"✅ تم إضافة {name} بنجاح!")
-
-                        st.rerun()
-
-                else:
-
-                    st.error("⚠️ يرجى تعبئة جميع الخانات (الاسم، الشراء، البيع، والكمية)")
-
+    # عرض سجل المصروفات مع إمكانية الحذف
+    if not st.session_state.expenses_df.empty:
+        st.markdown("### 📋 سجل المصروفات الأخير")
+        for index, row in st.session_state.expenses_df.iterrows():
+            c1, c2, c3, c4 = st.columns([2, 3, 2, 1])
+            c1.write(row['date'])
+            c2.write(f"**{row['reason']}**")
+            c3.write(f"{row['amount']} ₪")
+            if c4.button("❌", key=f"del_exp_{index}"): # تأكد من تغيير المفتاح key ليكون فريداً
+                st.session_state.expenses_df = st.session_state.expenses_df.drop(index)
+                sync_to_google()
+                st.rerun()
 
 
 # --- ⚙️ الإعدادات (الكود الكامل والشغال) ---
