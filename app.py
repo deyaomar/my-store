@@ -181,7 +181,7 @@ with st.sidebar:
                     st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
                 auto_save(); st.session_state.show_customer_form = False; st.rerun()
 
-elif menu == "📦 المخزن والجرد":
+    elif menu == "📦 المخزن والجرد":
 
     st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
 
