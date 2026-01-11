@@ -143,10 +143,10 @@ elif menu == "📦 المخزن والجرد":
     else:
         st.info("لا يوجد بضاعة مسجلة في المخزن حالياً.")
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقارير المالية والأرشيف</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>📊 لوحة التحكم والأداء المالي</h1>", unsafe_allow_html=True)
     
     if not st.session_state.sales_df.empty:
-        # تحويل التاريخ لنوع تاريخ حقيقي للحسابات
+        # تجهيز البيانات
         df_sales = st.session_state.sales_df.copy()
         df_sales['date'] = pd.to_datetime(df_sales['date'])
         df_sales['amount'] = pd.to_numeric(df_sales['amount'])
@@ -155,58 +155,74 @@ elif menu == "📊 التقارير المالية":
         today = pd.Timestamp(datetime.now().date())
         last_7_days = today - pd.Timedelta(days=7)
         
-        # --- 1. ملخص اليوم والأسبوع ---
-        st.subheader("🗓️ الملخص السريع")
-        today_sales = df_sales[df_sales['date'] == today]
-        week_sales = df_sales[df_sales['date'] >= last_7_days]
+        # --- الصف الأول: بطاقات الأداء الملونة ---
+        today_data = df_sales[df_sales['date'] == today]
+        week_data = df_sales[df_sales['date'] >= last_7_days]
+
+        col1, col2, col3, col4 = st.columns(4)
         
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("مبيعات اليوم", f"{format_num(today_sales['amount'].sum())} ₪")
-        c2.metric("أرباح اليوم", f"{format_num(today_sales['profit'].sum())} ₪")
-        c3.metric("مبيعات الأسبوع", f"{format_num(week_sales['amount'].sum())} ₪")
-        c4.metric("أرباح الأسبوع", f"{format_num(week_sales['profit'].sum())} ₪")
-        
-        st.markdown("---")
-        
-        # --- 2. البحث المتقدم (من - إلى) ---
-        st.subheader("🔍 استخراج تقرير لفترة محددة")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            date_from = st.date_input("من تاريخ", value=last_7_days)
-        with col_b:
-            date_to = st.date_input("إلى تاريخ", value=today)
+        with col1:
+            st.markdown(f"""<div style='background: linear-gradient(135deg, #27ae60, #2ecc71); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(39,174,96,0.3);'>
+                <p style='margin:0; font-size:16px;'>مبيعات اليوم</p>
+                <h2 style='margin:0;'>{format_num(today_data['amount'].sum())} ₪</h2>
+            </div>""", unsafe_allow_html=True)
+
+        with col2:
+            st.markdown(f"""<div style='background: linear-gradient(135deg, #2980b9, #3498db); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(41,128,185,0.3);'>
+                <p style='margin:0; font-size:16px;'>أرباح اليوم</p>
+                <h2 style='margin:0;'>{format_num(today_data['profit'].sum())} ₪</h2>
+            </div>""", unsafe_allow_html=True)
+
+        with col3:
+            st.markdown(f"""<div style='background: linear-gradient(135deg, #8e44ad, #9b59b6); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(142,68,173,0.3);'>
+                <p style='margin:0; font-size:16px;'>مبيعات الأسبوع</p>
+                <h2 style='margin:0;'>{format_num(week_data['amount'].sum())} ₪</h2>
+            </div>""", unsafe_allow_html=True)
+
+        with col4:
+            st.markdown(f"""<div style='background: linear-gradient(135deg, #f39c12, #f1c40f); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(243,156,18,0.3);'>
+                <p style='margin:0; font-size:16px;'>أرباح الأسبوع</p>
+                <h2 style='margin:0;'>{format_num(week_data['profit'].sum())} ₪</h2>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # --- الصف الثاني: البحث المتقدم بتصميم أنيق ---
+        with st.expander("🔍 استعلام متقدم عن فترة محددة", expanded=False):
+            c_a, c_b = st.columns(2)
+            d_from = c_a.date_input("من تاريخ", value=last_7_days, key="rep_from")
+            d_to = c_b.date_input("إلى تاريخ", value=today, key="rep_to")
             
-        mask = (df_sales['date'] >= pd.Timestamp(date_from)) & (df_sales['date'] <= pd.Timestamp(date_to))
-        filtered_df = df_sales.loc[mask]
-        
-        if not filtered_df.empty:
-            st.success(f"تقرير من {date_from} إلى {date_to}")
-            st.write(f"**إجمالي مبيعات الفترة:** {format_num(filtered_df['amount'].sum())} ₪ | **إجمالي الأرباح:** {format_num(filtered_df['profit'].sum())} ₪")
-            st.dataframe(filtered_df.sort_values(by='date', ascending=False), use_container_width=True)
-        else:
-            st.warning("لا يوجد مبيعات في هذه الفترة.")
+            mask = (df_sales['date'] >= pd.Timestamp(d_from)) & (df_sales['date'] <= pd.Timestamp(d_to))
+            f_df = df_sales.loc[mask]
             
-        st.markdown("---")
+            if not f_df.empty:
+                st.info(f"إحصائية الفترة المختارة: مبيعات ({format_num(f_df['amount'].sum())} ₪) | أرباح ({format_num(f_df['profit'].sum())} ₪)")
+                st.dataframe(f_df.sort_values(by='date', ascending=False), use_container_width=True)
+
+        # --- الصف الثالث: الأرشيف الأسبوعي بتنسيق احترافي ---
+        st.markdown("### 📅 الأرشيف اليومي (آخر 7 أيام)")
         
-        # --- 3. أرشيف مبيعات الأسبوع (جدول لكل يوم) ---
-        st.subheader("📅 أرشيف مبيعات آخر 7 أيام")
-        # تجميع البيانات حسب اليوم
-        daily_summary = week_sales.groupby(week_sales['date'].dt.date).agg({
+        # تجميع البيانات
+        daily_summary = week_data.groupby(week_data['date'].dt.date).agg({
             'amount': 'sum',
             'profit': 'sum'
         }).reset_index()
-        daily_summary.columns = ['التاريخ', 'إجمالي المبيعات', 'صافي الربح']
         
-        # إضافة عمود لاسم اليوم باللغة العربية
         days_ara = {"Monday":"الاثنين", "Tuesday":"الثلاثاء", "Wednesday":"الأربعاء", "Thursday":"الخميس", "Friday":"الجمعة", "Saturday":"السبت", "Sunday":"الأحد"}
-        daily_summary['اليوم'] = pd.to_datetime(daily_summary['التاريخ']).dt.day_name().map(days_ara)
-        
-        # إعادة ترتيب الأعمدة وعرضها
+        daily_summary['اليوم'] = pd.to_datetime(daily_summary['date']).dt.day_name().map(days_ara)
+        daily_summary = daily_summary.rename(columns={'date': 'التاريخ', 'amount': 'إجمالي المبيعات', 'profit': 'صافي الربح'})
         daily_summary = daily_summary[['اليوم', 'التاريخ', 'إجمالي المبيعات', 'صافي الربح']]
+        
+        # عرض الجدول بتصميم Stripe (أبيض ورمادي)
         st.table(daily_summary.sort_values(by='التاريخ', ascending=False))
         
+        # رسم بياني بسيط (اختياري)
+        st.markdown("### 📈 نمو المبيعات الأسبوعي")
+        st.line_chart(daily_summary.set_index('التاريخ')['إجمالي المبيعات'])
+
     else:
-        st.info("لا توجد مبيعات مسجلة للبدء في تحليل البيانات.")
+        st.info("لا توجد مبيعات مسجلة لعرض التقارير.")
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
