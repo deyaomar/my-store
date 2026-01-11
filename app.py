@@ -760,7 +760,8 @@ elif menu == "💸 المصروفات":
         with st.form("new_exp_form"):
             col1, col2 = st.columns(2)
             reason = col1.text_input("البيان (صُرف في ماذا؟)")
-            amount = col2.number_input("المبلغ", min_value=0.0, step=1.0, value=None, placeholder="0.0")
+            # تعديل: استخدام min_value=0 و step=1 لجعل الرقم صحيحاً
+            amount = col2.number_input("المبلغ", min_value=0, step=1, value=None, placeholder="0")
             date_exp = st.date_input("التاريخ", datetime.now())
             if st.form_submit_button("حفظ المصروف"):
                 if reason and amount is not None and amount > 0:
@@ -778,32 +779,31 @@ elif menu == "💸 المصروفات":
     if not st.session_state.expenses_df.empty:
         st.subheader("📋 سجل المصروفات المسجلة")
         
-        # تحويل التاريخ لنوع تاريخ لترتيبه
         df_display = st.session_state.expenses_df.copy()
         
         for index, row in df_display.iloc[::-1].iterrows():
             with st.container():
-                # تصميم السطر الخاص بكل مصروف
                 c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
                 c1.markdown(f"**📝 {row['reason']}**")
-                c2.markdown(f"💰 {row['amount']} ₪ | 📅 {row['date']}")
                 
-                # زر التعديل
+                # تعديل: تحويل المبلغ لـ int عند العرض لإخفاء الأصفار
+                display_amt = int(row['amount']) if float(row['amount']).is_integer() else row['amount']
+                c2.markdown(f"💰 {display_amt} ₪ | 📅 {row['date']}")
+                
                 if c3.button("📝 تعديل", key=f"edit_btn_{index}"):
                     st.session_state[f"edit_mode_{index}"] = True
                 
-                # زر الحذف
                 if c4.button("🗑️ حذف", key=f"del_btn_{index}"):
                     st.session_state.expenses_df = st.session_state.expenses_df.drop(index).reset_index(drop=True)
                     sync_to_google()
                     st.rerun()
                 
-                # نافذة التعديل (تظهر فقط عند الضغط على زر تعديل)
                 if st.session_state.get(f"edit_mode_{index}", False):
                     with st.form(f"edit_form_{index}"):
                         st.markdown(f"### تعديل: {row['reason']}")
                         edit_reason = st.text_input("البيان الجديد", value=row['reason'])
-                        edit_amount = st.number_input("المبلغ الجديد", value=float(row['amount']))
+                        # تعديل: الرقم في الفورم يظهر كصحيح
+                        edit_amount = st.number_input("المبلغ الجديد", min_value=0, step=1, value=int(row['amount']))
                         edit_date = st.text_input("التاريخ (YYYY-MM-DD)", value=row['date'])
                         
                         col_save, col_cancel = st.columns(2)
