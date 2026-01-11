@@ -753,16 +753,74 @@ elif menu == "📊 التقارير المالية":
 
         sync_to_google(); st.success("تم الحذف بنجاح!"); st.rerun()
 elif menu == "💸 المصروفات":
-    st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
-    with st.form("exp_form"):
-        r = st.text_input("البيان")
-        a = st.number_input("المبلغ", min_value=0.0, value=None, placeholder="0.0")
-        if st.form_submit_button("حفظ"):
-            if r and a is not None and a > 0:
-                new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}
-                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
-                sync_to_google(); st.rerun()
+    st.markdown("<h1 class='main-title'>💸 إدارة وتحكم المصروفات</h1>", unsafe_allow_html=True)
+    
+    # 1. نموذج إضافة مصروف جديد
+    with st.expander("➕ إضافة مصروف جديد", expanded=True):
+        with st.form("new_exp_form"):
+            col1, col2 = st.columns(2)
+            reason = col1.text_input("البيان (صُرف في ماذا؟)")
+            amount = col2.number_input("المبلغ", min_value=0.0, step=1.0, value=None, placeholder="0.0")
+            date_exp = st.date_input("التاريخ", datetime.now())
+            if st.form_submit_button("حفظ المصروف"):
+                if reason and amount is not None and amount > 0:
+                    new_row = {'date': date_exp.strftime("%Y-%m-%d"), 'reason': reason, 'amount': amount}
+                    st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_row])], ignore_index=True)
+                    if sync_to_google():
+                        st.success("✅ تم حفظ المصروف بنجاح")
+                        st.rerun()
+                else:
+                    st.error("⚠️ يرجى إدخال البيان والمبلغ بشكل صحيح")
 
+    st.markdown("---")
+    
+    # 2. عرض سجل المصروفات مع الحذف والتعديل
+    if not st.session_state.expenses_df.empty:
+        st.subheader("📋 سجل المصروفات المسجلة")
+        
+        # تحويل التاريخ لنوع تاريخ لترتيبه
+        df_display = st.session_state.expenses_df.copy()
+        
+        for index, row in df_display.iloc[::-1].iterrows():
+            with st.container():
+                # تصميم السطر الخاص بكل مصروف
+                c1, c2, c3, c4 = st.columns([3, 2, 1, 1])
+                c1.markdown(f"**📝 {row['reason']}**")
+                c2.markdown(f"💰 {row['amount']} ₪ | 📅 {row['date']}")
+                
+                # زر التعديل
+                if c3.button("📝 تعديل", key=f"edit_btn_{index}"):
+                    st.session_state[f"edit_mode_{index}"] = True
+                
+                # زر الحذف
+                if c4.button("🗑️ حذف", key=f"del_btn_{index}"):
+                    st.session_state.expenses_df = st.session_state.expenses_df.drop(index).reset_index(drop=True)
+                    sync_to_google()
+                    st.rerun()
+                
+                # نافذة التعديل (تظهر فقط عند الضغط على زر تعديل)
+                if st.session_state.get(f"edit_mode_{index}", False):
+                    with st.form(f"edit_form_{index}"):
+                        st.markdown(f"### تعديل: {row['reason']}")
+                        edit_reason = st.text_input("البيان الجديد", value=row['reason'])
+                        edit_amount = st.number_input("المبلغ الجديد", value=float(row['amount']))
+                        edit_date = st.text_input("التاريخ (YYYY-MM-DD)", value=row['date'])
+                        
+                        col_save, col_cancel = st.columns(2)
+                        if col_save.form_submit_button("💾 حفظ التعديلات"):
+                            st.session_state.expenses_df.at[index, 'reason'] = edit_reason
+                            st.session_state.expenses_df.at[index, 'amount'] = edit_amount
+                            st.session_state.expenses_df.at[index, 'date'] = edit_date
+                            del st.session_state[f"edit_mode_{index}"]
+                            sync_to_google()
+                            st.rerun()
+                        if col_cancel.form_submit_button("❌ إلغاء"):
+                            del st.session_state[f"edit_mode_{index}"]
+                            st.rerun()
+                            
+            st.markdown("<hr style='margin:5px 0; border-top:1px solid #eee;'>", unsafe_allow_html=True)
+    else:
+        st.info("لا توجد مصروفات مسجلة حالياً.")
 elif menu == "⚙️ الإعدادات":
     st.markdown("<h1 class='main-title'>⚙️ إدارة البضاعة والمشتريات</h1>", unsafe_allow_html=True)
     t1, t2, t3 = st.tabs(["📥 تزويد كمية", "✨ صنف جديد", "📂 إدارة الأقسام"])
