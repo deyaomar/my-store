@@ -183,7 +183,7 @@ with st.sidebar:
 
     elif menu == "📦 المخزن والجرد":
 
-    st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
 
     with st.expander("⚠️ تسجيل بضاعة تالفة (فاقد)"):
 
