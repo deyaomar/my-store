@@ -78,6 +78,7 @@ with st.sidebar:
 
 # --- المنطق الرئيسي ---
 
+# --- 🛒 نقطة البيع (معدلة لتشمل طريقة الدفع) ---
 if menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع بالمبلغ (شيكل)</h1>", unsafe_allow_html=True)
     c1, c2 = st.columns([1, 2])
@@ -94,16 +95,12 @@ if menu == "🛒 نقطة البيع":
     
     for idx, (it, data) in enumerate(items.items()):
         with cols[idx % 4]:
-            # تنظيف البيانات قسرياً لضمان عدم وجود "ماينوس" تقني
             try:
-                # تحويل كل القيم لأرقام مع تنظيفها من أي فراغات أو رموز
                 curr_sell_price = float(str(data.get('بيع', 0)).replace('₪', '').strip())
                 curr_buy_price = float(str(data.get('شراء', 0)).replace('₪', '').strip())
                 curr_qty = float(data.get('كمية', 0))
             except:
-                curr_sell_price = 0.0
-                curr_buy_price = 0.0
-                curr_qty = 0.0
+                curr_sell_price = 0.0; curr_buy_price = 0.0; curr_qty = 0.0
 
             st.markdown(f"""
                 <div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'>
@@ -117,15 +114,12 @@ if menu == "🛒 نقطة البيع":
             
             if money_val and money_val > 0:
                 if curr_sell_price > 0:
-                    # الحسبة الدقيقة
                     calc_qty = float(money_val) / curr_sell_price
-                    # الربح = (سعر البيع - سعر الشراء) * الكمية
                     single_profit = curr_sell_price - curr_buy_price
                     calc_profit = round(single_profit * calc_qty, 2)
                     
-                    # تنبيه إذا كان هناك خسارة قبل الحفظ
                     if calc_profit < 0:
-                        st.error(f"انتبه! سعر الشراء ({curr_buy_price}) أعلى من البيع!")
+                        st.error(f"انتبه! خسارة في {it}!")
                     
                     temp_bill.append({
                         'item': it, 
@@ -133,12 +127,19 @@ if menu == "🛒 نقطة البيع":
                         'amount': float(money_val), 
                         'profit': calc_profit
                     })
-                else:
-                    st.warning("سعر البيع مسجل 0!")
 
     st.markdown("---")
+    
     if temp_bill:
         total_cash = sum(row['amount'] for row in temp_bill)
+        
+        # --- الإضافة الجديدة: اختيار طريقة الدفع واسم الزبون ---
+        col_pay1, col_pay2 = st.columns(2)
+        with col_pay1:
+            pay_method = st.radio("💳 طريقة الدفع:", ["نقدي 💵", "تطبيق 📱"], horizontal=True)
+        with col_pay2:
+            cust_name = st.text_input("👤 اسم الزبون (اختياري)", value="زبون محل")
+
         st.subheader(f"💰 إجمالي المبلغ المطلوب: {total_cash:.2f} ₪")
         
         if st.button("✅ إتمام البيع وحفظ العملية", use_container_width=True):
@@ -147,20 +148,20 @@ if menu == "🛒 نقطة البيع":
                 # تحديث المخزن
                 st.session_state.inventory[row['item']]['كمية'] -= row['qty']
                 
-                # إضافة لسجل المبيعات
+                # إضافة لسجل المبيعات مع الطريقة الجديدة
                 new_row = {
-                    'date': datetime.now().strftime("%Y-%m-%d"), 
+                    'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # أضفت الوقت ليكون أدق
                     'item': row['item'], 
                     'amount': row['amount'], 
                     'profit': row['profit'], 
-                    'method': 'نقدي', 
-                    'customer_name': 'زبون محل', 
+                    'method': pay_method, # هنا يتم حفظ نقدي أو تطبيق
+                    'customer_name': cust_name, 
                     'bill_id': bid
                 }
                 st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
             
             sync_to_google()
-            st.success("تم الحفظ بنجاح، والآن الربح سيظهر بشكل صحيح!")
+            st.success(f"تمت عملية البيع ({pay_method}) بنجاح!")
             st.rerun()
 
 # --- 📦 المخزن والجرد ---
