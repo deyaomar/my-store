@@ -782,7 +782,7 @@ if menu == "🛒 نقطة البيع":
 
 
 
-            val = st.number_input(f"الكمية ({it})", key=f"v_{it}", min_value=0.0, step=0.1)
+            val = st.number_input("الكمية", min_value=0.0, value=None, placeholder="اكتب الرقم هنا...")
 
 
 
@@ -1822,7 +1822,7 @@ elif menu == "💸 المصروفات":
 
 
 
-        r = st.text_input("البيان"); a = st.number_input("المبلغ (₪)", min_value=0.0)
+        r = st.text_input("البيان"); a = val = st.number_input("المبلغ", min_value=0.0, value=None, placeholder="اكتب الرقم هنا...")
 
 
 
@@ -1942,7 +1942,7 @@ elif menu == "⚙️ الإعدادات":
 
 
 
-                plus_q = st.number_input("الكمية المضافة", min_value=0.0)
+                plus_q = val = st.number_input(" الكمية المضافة", min_value=0.0, value=None, placeholder="اكتب الرقم هنا...")
 
 
 
