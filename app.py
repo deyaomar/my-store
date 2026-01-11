@@ -94,66 +94,64 @@ if menu == "🛒 نقطة البيع":
 elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقرير المالي الدقيق - أبو عمر</h1>", unsafe_allow_html=True)
     
-    # --- معالجة البيانات لضمان دقة الحسابات ---
-    # 1. المبيعات
-    df_sales = st.session_state.sales_df.copy()
-    df_sales['date'] = pd.to_datetime(df_sales['date']).dt.date
-    df_sales['profit'] = pd.to_numeric(df_sales['profit'], errors='coerce').fillna(0)
-    df_sales['amount'] = pd.to_numeric(df_sales['amount'], errors='coerce').fillna(0)
-    
-    # 2. المصروفات
-    df_exp = st.session_state.expenses_df.copy()
-    if not df_exp.empty:
-        df_exp['date'] = pd.to_datetime(df_exp['date']).dt.date
-        df_exp['amount'] = pd.to_numeric(df_exp['amount'], errors='coerce').fillna(0)
-    
-    # 3. التوالف
-    df_waste = st.session_state.waste_df.copy()
-    if not df_waste.empty:
-        df_waste['date'] = pd.to_datetime(df_waste['date']).dt.date
-        df_waste['loss_value'] = pd.to_numeric(df_waste['loss_value'], errors='coerce').fillna(0)
-
-    # تحديد تاريخ اليوم
+    # تحديد تاريخ اليوم بشكل دقيق
     today = datetime.now().date()
 
-    # --- حسابات اليوم (حصرياً لهذا التاريخ) ---
-    today_sales_df = df_sales[df_sales['date'] == today]
-    today_exp_df = df_exp[df_exp['date'] == today] if not df_exp.empty else pd.DataFrame()
-    today_waste_df = df_waste[df_waste['date'] == today] if not df_waste.empty else pd.DataFrame()
-
-    total_sales_today = today_sales_df['amount'].sum()
-    total_gross_profit_today = today_sales_df['profit'].sum() # ربح المبيعات فقط
-    total_expenses_today = today_exp_df['amount'].sum()
-    total_waste_today = today_waste_df['loss_value'].sum()
+    # --- 1. حساب أرباح المبيعات ---
+    df_sales = st.session_state.sales_df.copy()
+    total_sales_today = 0
+    total_gross_profit_today = 0
     
-    # المعادلة الذهبية
+    if not df_sales.empty:
+        df_sales['date'] = pd.to_datetime(df_sales['date']).dt.date
+        # التأكد من تحويل الأعمدة لأرقام، وإذا لم توجد نضع 0
+        s_amount_col = 'amount' if 'amount' in df_sales.columns else df_sales.columns[2] # محاولة تخمين العمود
+        s_profit_col = 'profit' if 'profit' in df_sales.columns else df_sales.columns[3]
+        
+        day_sales = df_sales[df_sales['date'] == today]
+        total_sales_today = pd.to_numeric(day_sales[s_amount_col], errors='coerce').sum()
+        total_gross_profit_today = pd.to_numeric(day_sales[s_profit_col], errors='coerce').sum()
+
+    # --- 2. حساب المصروفات (حل مشكلة الخطأ هنا) ---
+    df_exp = st.session_state.expenses_df.copy()
+    total_expenses_today = 0
+    
+    if not df_exp.empty:
+        # التأكد من تحويل التاريخ
+        df_exp['date'] = pd.to_datetime(df_exp['date']).dt.date
+        # التحقق هل العمود موجود فعلاً؟
+        if 'amount' in df_exp.columns:
+            today_exp = df_exp[df_exp['date'] == today]
+            total_expenses_today = pd.to_numeric(today_exp['amount'], errors='coerce').sum()
+        else:
+            # إذا كان العمود مفقوداً، نبحث عن أول عمود يحتوي على أرقام
+            st.warning("تنبيه: لم يتم العثور على عمود باسم 'amount' في المصروفات.")
+    
+    # --- 3. حساب التوالف ---
+    df_waste = st.session_state.waste_df.copy()
+    total_waste_today = 0
+    if not df_waste.empty:
+        df_waste['date'] = pd.to_datetime(df_waste['date']).dt.date
+        w_col = 'loss_value' if 'loss_value' in df_waste.columns else df_waste.columns[-1]
+        today_waste = df_waste[df_waste['date'] == today]
+        total_waste_today = pd.to_numeric(today_waste[w_col], errors='coerce').sum()
+
+    # --- 4. الحسبة النهائية ---
     net_profit_today = total_gross_profit_today - total_expenses_today - total_waste_today
 
-    # --- عرض النتائج في كروت واضحة ---
+    # عرض النتائج
     st.markdown(f"### 📅 تقرير يوم: {today}")
-    
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("إجمالي المبيعات", f"{format_num(total_sales_today)} ₪")
-    c2.metric("ربح المبيعات (قبل الخصم)", f"{format_num(total_gross_profit_today)} ₪")
-    c3.metric("المصروفات والتوالف", f"{format_num(total_expenses_today + total_waste_today)} ₪", delta_color="inverse")
-    
-    # تلوين صافي الربح (أخضر إذا موجب، أحمر إذا سالب)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("إجمالي مبيعات اليوم", f"{format_num(total_sales_today)} ₪")
+    c2.metric("ربح المبيعات", f"{format_num(total_gross_profit_today)} ₪")
+    c3.metric("مصاريف وتوالف اليوم", f"{format_num(total_expenses_today + total_waste_today)} ₪")
+
     st.markdown(f"""
-        <div style="background: {'#d4edda' if net_profit_today >= 0 else '#f8d7da'}; 
-                    padding: 20px; border-radius: 10px; text-align: center; border: 2px solid {'#28a745' if net_profit_today >= 0 else '#dc3545'};">
-            <h3 style="margin:0; color: #333;">صافي ربح اليوم النهائي</h3>
-            <h1 style="margin:0; color: {'#155724' if net_profit_today >= 0 else '#721c24'};">{format_num(net_profit_today)} ₪</h1>
+        <div style="background: #f0f2f6; padding: 20px; border-radius: 15px; text-align: center; border: 2px solid #27ae60;">
+            <h2 style="margin:0; color: #1a1a1a;">صافي الربح النهائي لليوم</h2>
+            <h1 style="margin:0; color: #27ae60;">{format_num(net_profit_today)} ₪</h1>
         </div>
     """, unsafe_allow_html=True)
-
-    st.divider()
-    
-    # أرباح الأسبوع (اختياري)
-    last_7_days = today - pd.Timedelta(days=7)
-    week_profit = df_sales[df_sales['date'] >= last_7_days]['profit'].sum() - \
-                  (df_exp[df_exp['date'] >= last_7_days]['amount'].sum() if not df_exp.empty else 0)
-    
-    st.write(f"📈 **صافي أرباح آخر 7 أيام:** {format_num(week_profit)} ₪")
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
