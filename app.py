@@ -163,24 +163,86 @@ elif menu == "📦 المخزن والجرد":
     else: st.info("المخزن فارغ.")
 
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>")
-    df_sales = st.session_state.sales_df.copy()
-    if not df_sales.empty:
-        st.dataframe(df_sales.iloc[::-1], use_container_width=True)
-    
-    if not st.session_state.sales_df.empty:
-        st.subheader("🛠️ إدارة العمليات الأخيرة")
-        last_bill_id = st.session_state.sales_df.iloc[-1]['bill_id']
-        if st.button(f"🗑️ حذف آخر فاتورة (رقم: {last_bill_id})", use_container_width=True):
-            last_bill_items = st.session_state.sales_df[st.session_state.sales_df['bill_id'] == last_bill_id]
-            for index, row in last_bill_items.iterrows():
-                item_name = row['item']
-                qty_to_return = row['amount'] / st.session_state.inventory[item_name]['بيع']
-                if item_name in st.session_state.inventory:
-                    st.session_state.inventory[item_name]['كمية'] += qty_to_return
-            st.session_state.sales_df = st.session_state.sales_df[st.session_state.sales_df['bill_id'] != last_bill_id]
-            sync_to_google(); st.success("تم الحذف بنجاح!"); st.rerun()
 
+
+
+    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>")
+
+
+
+    # ... (بقية قسم التقارير يبقى كما هو لأنه يعتمد على البيانات المسجلة مسبقاً)
+
+
+
+    df_sales = st.session_state.sales_df.copy()
+
+
+
+    if not df_sales.empty:
+
+
+
+        df_sales['date'] = pd.to_datetime(df_sales['date'])
+
+
+
+        st.dataframe(df_sales.sort_values(by='date', ascending=False), use_container_width=True)
+
+
+
+    
+
+
+
+    if not st.session_state.sales_df.empty:
+
+
+
+        st.subheader("🛠️ إدارة العمليات الأخيرة")
+
+
+
+        last_bill_id = st.session_state.sales_df.iloc[-1]['bill_id']
+
+
+
+        if st.button(f"🗑️ حذف آخر فاتورة (رقم: {last_bill_id})", use_container_width=True):
+
+
+
+            last_bill_items = st.session_state.sales_df[st.session_state.sales_df['bill_id'] == last_bill_id]
+
+
+
+            for index, row in last_bill_items.iterrows():
+
+
+
+                item_name = row['item']
+
+
+
+                item_price = st.session_state.inventory[item_name]['بيع']
+
+
+
+                qty_to_return = row['amount'] / item_price
+
+
+
+                if item_name in st.session_state.inventory:
+
+
+
+                    st.session_state.inventory[item_name]['كمية'] += qty_to_return
+
+
+
+            st.session_state.sales_df = st.session_state.sales_df[st.session_state.sales_df['bill_id'] != last_bill_id]
+
+
+
+            sync_to_google(); st.success("تم الحذف بنجاح!"); st.rerun()
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
     with st.form("exp_form"):
