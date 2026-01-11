@@ -405,3 +405,90 @@ elif menu == "💸 المصروفات":
                         st.rerun()
                 else:
                     st.error("⚠️ يرجى تعبئة جميع الخانات (الاسم، الشراء، البيع، والكمية)")
+
+# --- ⚙️ الإعدادات (الكود الكامل والشغال) ---
+if menu == "⚙️ الإعدادات":
+    st.markdown("<h1 class='main-title'>⚙️ الإعدادات وإدارة النظام</h1>", unsafe_allow_html=True)
+    
+    # إنشاء التبويبات
+    tab_add, tab_cats, tab_fix, tab_danger = st.tabs([
+        "➕ إضافة صنف جديد", "📂 إدارة الأقسام", "🛠️ إصلاح البيانات", "🗑️ حذف أصناف"
+    ])
+
+    # 1. تبويبة إضافة صنف جديد (بخانة فارغة كما طلبت)
+    with tab_add:
+        st.subheader("📦 إضافة صنف جديد للمخزن")
+        with st.form("add_form", clear_on_submit=True):
+            name = st.text_input("اسم الصنف", placeholder="مثال: أرز شقحة 5 كيلو")
+            
+            c1, c2, c3 = st.columns(3)
+            # value=None لجعل الخانات فارغة
+            b_p = c1.number_input("سعر الشراء", min_value=0.0, step=0.5, value=None, placeholder="0.0")
+            s_p = c2.number_input("سعر البيع", min_value=0.0, step=0.5, value=None, placeholder="0.0")
+            qty = c3.number_input("الكمية المتوفرة", min_value=0.0, step=1.0, value=None, placeholder="0.0")
+            
+            cat = st.selectbox("القسم", st.session_state.CATEGORIES)
+            
+            if st.form_submit_button("➕ حفظ الصنف في المخزن"):
+                if name and b_p is not None and s_p is not None and qty is not None:
+                    st.session_state.inventory[name] = {
+                        'شراء': float(b_p), 
+                        'بيع': float(s_p), 
+                        'كمية': float(qty), 
+                        'قسم': cat, 
+                        'أصلي': float(qty)
+                    }
+                    sync_to_google()
+                    st.success(f"✅ تم إضافة ({name}) للمخزن بنجاح!")
+                    st.rerun()
+                else:
+                    st.error("⚠️ يرجى ملء جميع الخانات (الاسم، السعر، والكمية) قبل الحفظ")
+
+    # 2. تبويبة إدارة الأقسام
+    with tab_cats:
+        st.subheader("📂 إدارة أقسام المحل")
+        st.write("الأقسام المضافة حالياً:")
+        st.info(", ".join(st.session_state.CATEGORIES))
+        
+        new_cat = st.text_input("اكتب اسم القسم الجديد هنا")
+        if st.button("➕ إضافة القسم"):
+            if new_cat and new_cat not in st.session_state.CATEGORIES:
+                st.session_state.CATEGORIES.append(new_cat)
+                st.success(f"تم إضافة قسم {new_cat}")
+                st.rerun()
+
+    # 3. تبويبة إصلاح الأرباح
+    with tab_fix:
+        st.subheader("🛠️ صيانة بيانات الأرباح")
+        st.warning("هذا الإجراء يعيد حساب أرباح المبيعات القديمة بناءً على الأسعار الحالية لتصحيح الأرقام في التقارير.")
+        if st.button("🔄 بدء عملية الإصلاح الآن"):
+            with st.spinner("جاري الإصلاح..."):
+                fixed_sales = st.session_state.sales_df.copy()
+                for index, row in fixed_sales.iterrows():
+                    item_name = row['item']
+                    if item_name in st.session_state.inventory:
+                        inv = st.session_state.inventory[item_name]
+                        s_p = float(inv.get('بيع', 0))
+                        b_p = float(inv.get('شراء', 0))
+                        if s_p > 0:
+                            actual_qty = float(row['amount']) / s_p
+                            fixed_sales.at[index, 'profit'] = round((s_p - b_p) * actual_qty, 2)
+                st.session_state.sales_df = fixed_sales
+                sync_to_google()
+                st.success("✅ تم تحديث كافة الأرباح بنجاح!")
+
+    # 4. تبويبة حذف الأصناف (منطقة الخطر)
+    with tab_danger:
+        st.subheader("⚠️ حذف صنف من النظام")
+        st.error("انتبه! الحذف سيقوم بإزالة الصنف تماماً من المخزن.")
+        all_items = list(st.session_state.inventory.keys())
+        item_to_del = st.selectbox("اختر الصنف المراد حذفه", [""] + all_items)
+        
+        if st.button("🗑️ حذف نهائي"):
+            if item_to_del:
+                del st.session_state.inventory[item_to_del]
+                sync_to_google()
+                st.success(f"تم حذف {item_to_del} بنجاح.")
+                st.rerun()
+            else:
+                st.info("يرجى اختيار صنف أولاً")
