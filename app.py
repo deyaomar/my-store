@@ -81,19 +81,13 @@ with st.sidebar:
 
 if menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>", unsafe_allow_html=True)
-    
-    # فلترة المبيعات حسب القسم
     c1, c2 = st.columns([1, 2])
     cat_sel = c1.selectbox("📂 القسم", ["الكل"] + CATEGORIES)
     search = c2.text_input("🔍 ابحث عن صنف لبيعه...")
-    
-    # تصفية الأصناف
     items_to_sell = st.session_state.inventory.items()
     if cat_sel != "الكل":
         items_to_sell = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat_sel}.items()
-    
     items = {k: v for k, v in items_to_sell if search.lower() in k.lower()}
-    
     cols = st.columns(4)
     temp_bill = []
     for idx, (it, data) in enumerate(items.items()):
@@ -112,8 +106,6 @@ if menu == "🛒 نقطة البيع":
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
-    
-    # --- إضافة قسم تسجيل التالف (دمج جديد) ---
     with st.expander("⚠️ تسجيل بضاعة تالفة (فاقد)"):
         with st.form("waste_form"):
             col_w1, col_w2 = st.columns(2)
@@ -121,103 +113,87 @@ elif menu == "📦 المخزن والجرد":
             w_qty = col_w2.number_input("الكمية التالفة", min_value=0.0, step=0.1)
             if st.form_submit_button("تسجيل التالف وخصمه من المخزن"):
                 if w_qty > 0 and w_qty <= st.session_state.inventory[w_item]['كمية']:
-                    # 1. خصم من المخزن
                     st.session_state.inventory[w_item]['كمية'] -= w_qty
-                    # 2. حساب قيمة الخسارة (بسعر الشراء)
                     loss = w_qty * st.session_state.inventory[w_item]['شراء']
-                    # 3. إضافة لسجل التالف
-                    new_waste = {
-                        'date': datetime.now().strftime("%Y-%m-%d"),
-                        'item': w_item,
-                        'qty': w_qty,
-                        'loss_value': loss
-                    }
+                    new_waste = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': loss}
                     st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([new_waste])], ignore_index=True)
-                    sync_to_google()
-                    st.success(f"تم تسجيل {w_qty} من {w_item} كتالف بنجاح")
-                    st.rerun()
-                else:
-                    st.error("الكمية غير كافية في المخزن أو القيمة غير صحيحة!")
+                    sync_to_google(); st.success(f"تم تسجيل {w_qty} من {w_item} كتالف"); st.rerun()
+                else: st.error("الكمية غير كافية!")
 
     st.markdown("---")
-    
     if st.session_state.inventory:
         stock_value = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
         st.markdown(f"<div class='report-card'><h5>إجمالي قيمة البضاعة الحالية (رأس المال)</h5><h2>{format_num(stock_value)} ₪</h2></div><br>", unsafe_allow_html=True)
-        
-        # فلترة المخزن
         c1, c2 = st.columns([1, 2])
         f_cat = c1.selectbox("📂 تصفية حسب القسم", ["الكل"] + CATEGORIES)
         search_st = c2.text_input("🔍 ابحث في الأصناف...")
-        
-        cols = st.columns(3)
-        display_idx = 0
+        cols = st.columns(3); display_idx = 0
         for it, data in st.session_state.inventory.items():
             item_cat = data.get('قسم', 'أخرى')
             if (f_cat == "الكل" or item_cat == f_cat) and (search_st.lower() in it.lower()):
-                orig = data.get('أصلي', data['كمية'])
-                sold = orig - data['كمية']
+                orig = data.get('أصلي', data['كمية']); sold = orig - data['كمية']
                 with cols[display_idx % 3]:
                     card_color = "#27ae60" if data['كمية'] > 5 else ("#f39c12" if data['كمية'] > 0 else "#e74c3c")
-                    st.markdown(f"""
-                        <div class='stock-card' style='border-top: 6px solid {card_color};'>
-                            <small style='color:gray;'>{item_cat}</small>
-                            <h3 style='margin-bottom:10px; color:#1a1a1a;'>{it}</h3>
-                            <div style='display: flex; justify-content: center; gap: 10px; margin-bottom:15px;'>
-                                <span style='background:#e74c3c; color:white; padding:3px 10px; border-radius:15px; font-size:13px;'>المباع: {sold}</span>
-                                <span style='background:#27ae60; color:white; padding:3px 10px; border-radius:15px; font-size:13px;'>المتبقي: {data['كمية']}</span>
-                            </div>
-                            <p style='margin:0; color:#7f8c8d; font-size:14px;'>الكمية الأصلية: {orig}</p>
-                            <h4 style='margin-top:10px; color:#2c3e50;'>سعر البيع: {data['بيع']} ₪</h4>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    with st.expander(f"⚙️ جرد سريع لـ {it}"):
-                        new_q = st.number_input("الكمية الفعلية حالياً", value=float(data['كمية']), key=f"inv_q_{it}")
-                        if st.button("تحديث الكمية", key=f"inv_btn_{it}"):
-                            st.session_state.inventory[it]['كمية'] = new_q
-                            st.session_state.inventory[it]['أصلي'] = new_q
+                    st.markdown(f"<div class='stock-card' style='border-top: 6px solid {card_color};'><small>{item_cat}</small><h3>{it}</h3><p>المباع: {sold} | المتبقي: {data['كمية']}</p><h4>{data['بيع']} ₪</h4></div>", unsafe_allow_html=True)
+                    with st.expander(f"⚙️ جرد {it}"):
+                        new_q = st.number_input("الكمية الفعلية", value=float(data['كمية']), key=f"inv_q_{it}")
+                        if st.button("تحديث", key=f"inv_btn_{it}"):
+                            st.session_state.inventory[it]['كمية'] = new_q; st.session_state.inventory[it]['أصلي'] = new_q
                             sync_to_google(); st.rerun()
                 display_idx += 1
-        
-        # عرض سجل التالف في نهاية صفحة المخزن للتوثيق
-        if not st.session_state.waste_df.empty:
-            st.markdown("### 📋 سجل التالف الأخير")
-            st.dataframe(st.session_state.waste_df.tail(5), use_container_width=True)
-    else:
-        st.info("لا يوجد بضاعة مسجلة.")
+    else: st.info("المخزن فارغ.")
 
-# --- إضافة قسم أرشيف التالف في نهاية التقارير ---
-        st.markdown("---")
-        st.markdown("### ⚠️ أرشيف البضاعة التالفة (خسائر المخزن)")
-        
+elif menu == "📊 التقارير المالية":
+    st.markdown("<h1 class='main-title'>📊 لوحة التحكم والأداء المالي الصافي</h1>", unsafe_allow_html=True)
+    if not st.session_state.sales_df.empty:
+        # تجهيز البيانات
+        df_sales = st.session_state.sales_df.copy()
+        df_sales['date'] = pd.to_datetime(df_sales['date'])
+        df_exp = st.session_state.expenses_df.copy()
+        if not df_exp.empty: df_exp['date'] = pd.to_datetime(df_exp['date'])
+        df_waste = st.session_state.waste_df.copy()
+        if not df_waste.empty: df_waste['date'] = pd.to_datetime(df_waste['date'])
+
+        today = pd.Timestamp(datetime.now().date())
+        last_7_days = today - pd.Timedelta(days=7)
+
+        # حساب اليومي والاسبوعي
+        t_sales = df_sales[df_sales['date'] == today]['amount'].sum()
+        t_profit = df_sales[df_sales['date'] == today]['profit'].sum()
+        t_exp = df_exp[df_exp['date'] == today]['amount'].sum() if not df_exp.empty else 0
+        t_waste = df_waste[df_waste['date'] == today]['loss_value'].sum() if not df_waste.empty else 0
+        t_net = t_profit - t_exp - t_waste
+
+        w_sales = df_sales[df_sales['date'] >= last_7_days]['amount'].sum()
+        w_profit = df_sales[df_sales['date'] >= last_7_days]['profit'].sum()
+        w_exp = df_exp[df_exp['date'] >= last_7_days]['amount'].sum() if not df_exp.empty else 0
+        w_waste = df_waste[df_waste['date'] >= last_7_days]['loss_value'].sum() if not df_waste.empty else 0
+        w_net = w_profit - w_exp - w_waste
+
+        # عرض البطاقات
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("مبيعات اليوم", f"{format_num(t_sales)} ₪")
+        c2.metric("صافي ربح اليوم", f"{format_num(t_net)} ₪", f"-{t_exp+t_waste} خسائر", delta_color="inverse")
+        c3.metric("مبيعات الأسبوع", f"{format_num(w_sales)} ₪")
+        c4.metric("صافي ربح الأسبوع", f"{format_num(w_net)} ₪")
+
+        # أرشيف التالف (الذي طلبته)
+        st.markdown("### ⚠️ أرشيف البضاعة التالفة (آخر 7 أيام)")
         if not st.session_state.waste_df.empty:
-            # تجهيز بيانات التالف للعرض
-            df_w_display = st.session_state.waste_df.copy()
-            df_w_display['date'] = pd.to_datetime(df_w_display['date'])
-            
-            # فلترة التالف لآخر 7 أيام فقط أو حسب الرغبة
-            w_mask = (df_w_display['date'] >= last_7_days)
-            f_waste = df_w_display.loc[w_mask].sort_values(by='date', ascending=False)
-            
+            w_mask = (pd.to_datetime(st.session_state.waste_df['date']) >= last_7_days)
+            f_waste = st.session_state.waste_df.loc[w_mask]
             if not f_waste.empty:
-                # تحويل التاريخ لشكل مقروء
-                f_waste['التاريخ'] = f_waste['date'].dt.strftime('%Y-%m-%d')
-                f_waste = f_waste.rename(columns={
-                    'item': 'الصنف التالف',
-                    'qty': 'الكمية',
-                    'loss_value': 'قيمة الخسارة (₪)'
-                })
-                
-                # عرض الجدول
-                st.dataframe(f_waste[['التاريخ', 'الصنف التالف', 'الكمية', 'قيمة الخسارة (₪)']], use_container_width=True)
-                
-                # إجمالي خسارة التالف
-                total_w_loss = f_waste['قيمة الخسارة (₪)'].sum()
-                st.warning(f"إجمالي خسارة البضاعة التالفة في هذه الفترة: {format_num(total_w_loss)} ₪")
-            else:
-                st.success("لا توجد بضاعة تالفة مسجلة في آخر 7 أيام.")
-        else:
-            st.info("سجل التالف فارغ تماماً.")
+                st.dataframe(f_waste, use_container_width=True)
+                st.warning(f"إجمالي خسارة التالف: {format_num(f_waste['loss_value'].sum())} ₪")
+            else: st.success("لا يوجد تالف هذا الأسبوع.")
+        else: st.info("سجل التالف فارغ.")
+        
+        # الأرشيف اليومي
+        st.markdown("### 📅 الأرشيف اليومي")
+        daily = df_sales[df_sales['date'] >= last_7_days].groupby(df_sales['date'].dt.date).agg({'amount':'sum', 'profit':'sum'}).reset_index()
+        st.table(daily.sort_values(by='date', ascending=False))
+    else: st.info("لا توجد مبيعات.")
+
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
     total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum()
@@ -245,11 +221,11 @@ elif menu == "⚙️ الإعدادات":
     with t2:
         with st.form("add_form"):
             n = st.text_input("اسم الصنف")
-            cat = st.selectbox("القسم", CATEGORIES) # ميزة الأقسام هنا
+            cat = st.selectbox("القسم", CATEGORIES)
             b = st.number_input("سعر الشراء")
             s = st.number_input("سعر البيع")
             q = st.number_input("الكمية")
             if st.form_submit_button("إضافة صنف جديد"):
                 if n:
                     st.session_state.inventory[n] = {'قسم': cat, 'شراء': b, 'بيع': s, 'كمية': q, 'أصلي': q}
-                    sync_to_google(); st.success(f"تمت إضافة {n} بنجاح!"); st.rerun()
+                    sync_to_google(); st.success(f"تمت إضافة {n}!"); st.rerun()
