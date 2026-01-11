@@ -107,48 +107,41 @@ if menu == "🛒 نقطة البيع":
             if st.button(f"➕ إضافة", key=f"add_{it}", use_container_width=True):
                 if q_val > 0:
                     if it not in st.session_state.cart:
+                        # نفترض الكمية 1 دائماً عند الإضافة وتركيزنا على السعر
                         st.session_state.cart[it] = {'qty': 1, 'price': float(data['بيع']), 'cost': float(data['شراء'])}
                     st.rerun()
 
-    # --- منطقة السلة وفاتورة البيع ---
+    # --- منطقة السلة وفاتورة البيع (بدون عمود كمية) ---
     if st.session_state.cart:
         st.markdown("---")
         st.markdown("### 📄 الفاتورة الحالية")
         
-        # العناوين باستخدام Markdown عادي لتجنب الأخطاء
-        h1, h2, h3, h4 = st.columns([2.5, 1.5, 2, 0.5])
+        h1, h2, h3 = st.columns([4, 3, 1])
         h1.caption("الصنف")
-        h2.caption("الكمية")
-        h3.caption("المبلغ (شيكل)")
+        h2.caption("المبلغ المطلوب (شيكل)")
         
         total_bill = 0.0
         
         for item_name, info in list(st.session_state.cart.items()):
-            col_name, col_qty, col_price, col_del = st.columns([2.5, 1.5, 2, 0.5])
+            col_name, col_price, col_del = st.columns([4, 3, 1])
             
             # 1. اسم الصنف
             col_name.markdown(f"**{item_name}**")
             
-            # 2. إدخال الكمية
-            max_stock = int(st.session_state.inventory[item_name]['كمية'])
-            q = col_qty.number_input("", min_value=1, max_value=max_stock, 
-                                     value=int(info['qty']), key=f"q_{item_name}", step=1, label_visibility="collapsed")
-            st.session_state.cart[item_name]['qty'] = q
-            
-            # 3. إدخال السعر يدوياً (المبلغ الذي تريده)
+            # 2. إدخال السعر/المبلغ يدوياً (هذا ما سيكتبه أبو عمر)
             p = col_price.number_input("", min_value=0, 
                                        value=int(info['price']), key=f"p_{item_name}", step=1, label_visibility="collapsed")
             st.session_state.cart[item_name]['price'] = p
             
-            # الحساب الرياضي الصحيح
-            total_bill += (q * p)
+            # المجموع (بما أن الكمية مخفية فهي 1 لكل سطر)
+            total_bill += p
             
-            # 4. زر الحذف
+            # 3. زر الحذف
             if col_del.button("❌", key=f"del_{item_name}"):
                 del st.session_state.cart[item_name]
                 st.rerun()
 
-        # عرض المجموع النهائي بشكل واضح جداً
+        # عرض المجموع النهائي
         st.markdown(f"""
             <div style="background-color: #f1f8e9; padding: 20px; border-radius: 15px; border: 2px solid #2e7d32; text-align: center; margin: 20px 0;">
                 <p style="margin: 0; color: #333; font-size: 20px;">إجمالي الحساب</p>
@@ -157,40 +150,38 @@ if menu == "🛒 نقطة البيع":
         """, unsafe_allow_html=True)
 
         # خيارات الدفع والزبون
-        pay_method = st.radio("💰 طريقة الدفع (الأولوية للتطبيق):", ["تطبيق", "نقدي"], horizontal=True)
+        pay_method = st.radio("💰 طريقة الدفع:", ["تطبيق", "نقدي"], horizontal=True)
         
         st.markdown("#### 👤 بيانات الزبون")
         c_n, c_p = st.columns(2)
-        cust_name = c_n.text_input("الاسم", placeholder="اختياري للنقدي، مطلوب للتطبيق")
+        cust_name = c_n.text_input("الاسم")
         cust_phone = c_p.text_input("رقم الجوال")
 
         if st.button("🚀 حفظ الفاتورة وإنهاء", use_container_width=True, type="primary"):
             if pay_method == "تطبيق" and (not cust_name or not cust_phone):
-                st.error("❌ للدفع بالتطبيق يجب تسجيل اسم الزبون وجواله")
+                st.error("❌ للدفع بالتطبيق يجب تسجيل بيانات الزبون")
             else:
                 bid = str(uuid.uuid4())[:8]
                 sales_list = []
                 for name, details in st.session_state.cart.items():
-                    # خصم الكمية من المخزن
-                    st.session_state.inventory[name]['كمية'] -= details['qty']
+                    # خصم كمية واحدة من المخزن لكل ضغطة
+                    st.session_state.inventory[name]['كمية'] -= 1
                     
-                    # تسجيل المبيعات
                     sales_list.append({
                         'date': datetime.now().strftime("%Y-%m-%d"),
                         'item': name,
-                        'amount': details['qty'] * details['price'],
-                        'profit': (details['price'] - details['cost']) * details['qty'],
+                        'amount': details['price'],
+                        'profit': (details['price'] - details['cost']),
                         'method': pay_method,
                         'customer_name': cust_name if cust_name else "زبون محل",
                         'phone': cust_phone if cust_phone else "-",
                         'bill_id': bid
                     })
                 
-                # إضافة للسجل العام
                 st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame(sales_list)], ignore_index=True)
                 if sync_to_google():
-                    st.session_state.cart = {} # تصفير السلة لفاتورة جديدة
-                    st.success(f"🎉 تم حفظ الفاتورة بنجاح! الإجمالي: {int(total_bill)} ₪")
+                    st.session_state.cart = {}
+                    st.success(f"🎉 تم حفظ العملية بنجاح!")
                     st.rerun()
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
