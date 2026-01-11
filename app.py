@@ -84,30 +84,41 @@ if menu == "🛒 نقطة البيع":
     cat_sel = c1.selectbox("📂 القسم", ["الكل"] + st.session_state.CATEGORIES)
     search = c2.text_input("🔍 ابحث عن صنف لبيعه...")
     
-    items_to_sell = st.session_state.inventory.items()
-    if cat_sel != "الكل":
-        items_to_sell = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat_sel}.items()
-    
-    items = {k: v for k, v in items_to_sell if search.lower() in k.lower()}
+    items = {k: v for k, v in st.session_state.inventory.items() if (cat_sel == "الكل" or v.get('قسم') == cat_sel) and (search.lower() in k.lower())}
     cols = st.columns(4)
     temp_bill = []
     
     for idx, (it, data) in enumerate(items.items()):
         with cols[idx % 4]:
             st.markdown(f"<div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'><b>{it}</b><br><span style='color:green;'>{data['بيع']} ₪</span><br><small>متوفر: {data['كمية']}</small></div>", unsafe_allow_html=True)
-            # التعديل: جعل القيمة الافتراضية None
-            val = st.number_input("الكمية", key=f"sell_{it}", min_value=0.0, value=None, placeholder="اكتب...")
-            # التعديل: إضافة شرط الأمان None check
+            val = st.number_input("الكمية", key=f"sell_{it}", min_value=0.0, value=None, placeholder="0")
             if val is not None and val > 0:
                 temp_bill.append({'item': it, 'qty': val, 'amount': val * data['بيع'], 'profit': (data['بيع'] - data['شراء']) * val})
     
-    if temp_bill and st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
-        bid = str(uuid.uuid4())[:8]
-        for row in temp_bill:
-            st.session_state.inventory[row['item']]['كمية'] -= row['qty']
-            new_row = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': row['item'], 'amount': row['amount'], 'profit': row['profit'], 'method': 'نقدي', 'customer_name': 'زبون محل', 'bill_id': bid}
-            st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
-        sync_to_google(); st.success("تمت العملية بنجاح!"); st.rerun()
+    # --- قسم تأكيد الفاتورة وبيانات الزبون ---
+    if temp_bill:
+        st.markdown("---")
+        with st.container():
+            col_p1, col_p2 = st.columns(2)
+            pay_method = col_p1.radio("💰 طريقة الدفع:", ["نقدي", "تطبيق"], horizontal=True)
+            cust_name = col_p2.text_input("👤 اسم الزبون (اختياري)")
+            cust_phone = col_p2.text_input("📞 رقم الجوال (اختياري)")
+            
+            total_sum = sum(item['amount'] for item in temp_bill)
+            st.markdown(f"### إجمالي الحساب: :red[{total_sum:,.2f} ₪]")
+
+            if st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
+                bid = str(uuid.uuid4())[:8]
+                for row in temp_bill:
+                    st.session_state.inventory[row['item']]['كمية'] -= row['qty']
+                    new_row = {
+                        'date': datetime.now().strftime("%Y-%m-%d"), 'item': row['item'], 
+                        'amount': row['amount'], 'profit': row['profit'], 'method': pay_method, 
+                        'customer_name': cust_name if cust_name else "زبون محل", 
+                        'phone': cust_phone if cust_phone else "-", 'bill_id': bid
+                    }
+                    st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
+                sync_to_google(); st.success("تم الحفظ بنجاح!"); st.rerun()
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
