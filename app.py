@@ -94,49 +94,60 @@ if menu == "🛒 نقطة البيع":
     
     for idx, (it, data) in enumerate(items.items()):
         with cols[idx % 4]:
+            # تنظيف البيانات قسرياً لضمان عدم وجود "ماينوس" تقني
+            try:
+                # تحويل كل القيم لأرقام مع تنظيفها من أي فراغات أو رموز
+                curr_sell_price = float(str(data.get('بيع', 0)).replace('₪', '').strip())
+                curr_buy_price = float(str(data.get('شراء', 0)).replace('₪', '').strip())
+                curr_qty = float(data.get('كمية', 0))
+            except:
+                curr_sell_price = 0.0
+                curr_buy_price = 0.0
+                curr_qty = 0.0
+
             st.markdown(f"""
                 <div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'>
                     <b>{it}</b><br>
-                    <span style='color:green;'>السعر: {data['بيع']} ₪</span><br>
-                    <small>متوفر: {data['كمية']}</small>
+                    <span style='color:green;'>السعر: {curr_sell_price} ₪</span><br>
+                    <small>متوفر: {curr_qty}</small>
                 </div>
                 """, unsafe_allow_html=True)
             
-            # إدخال المبلغ المراد بيعه
-            money_val = st.number_input(f"المبلغ (₪) - {it}", key=f"v_{it}", min_value=0.0, step=1.0, value=None, placeholder="₪")
+            money_val = st.number_input(f"المبلغ (₪) - {it}", key=f"v_{it}", min_value=0.0, step=0.5, value=None, placeholder="₪")
             
             if money_val and money_val > 0:
-                # تحويل البيانات لأرقام عشرية لضمان دقة الحساب ومنع السالب
-                s_price = float(data['بيع'])
-                b_price = float(data['شراء'])
-                
-                # حساب الكمية بناءً على المبلغ
-                calc_qty = float(money_val) / s_price
-                
-                # حساب الربح الفعلي: (سعر البيع - سعر الشراء) * الكمية المحسوبة
-                # استخدمنا round للتقريب لخانتبن عشريتين
-                calc_profit = round((s_price - b_price) * calc_qty, 2)
-                
-                temp_bill.append({
-                    'item': it, 
-                    'qty': calc_qty, 
-                    'amount': float(money_val), 
-                    'profit': calc_profit
-                })
-    
+                if curr_sell_price > 0:
+                    # الحسبة الدقيقة
+                    calc_qty = float(money_val) / curr_sell_price
+                    # الربح = (سعر البيع - سعر الشراء) * الكمية
+                    single_profit = curr_sell_price - curr_buy_price
+                    calc_profit = round(single_profit * calc_qty, 2)
+                    
+                    # تنبيه إذا كان هناك خسارة قبل الحفظ
+                    if calc_profit < 0:
+                        st.error(f"انتبه! سعر الشراء ({curr_buy_price}) أعلى من البيع!")
+                    
+                    temp_bill.append({
+                        'item': it, 
+                        'qty': calc_qty, 
+                        'amount': float(money_val), 
+                        'profit': calc_profit
+                    })
+                else:
+                    st.warning("سعر البيع مسجل 0!")
+
     st.markdown("---")
     if temp_bill:
-        # عرض ملخص سريع قبل التأكيد
-        total_bill = sum(item['amount'] for item in temp_bill)
-        st.info(f"إجمالي الفاتورة الحالية: {total_bill:.2f} ₪")
+        total_cash = sum(row['amount'] for row in temp_bill)
+        st.subheader(f"💰 إجمالي المبلغ المطلوب: {total_cash:.2f} ₪")
         
-        if st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
+        if st.button("✅ إتمام البيع وحفظ العملية", use_container_width=True):
             bid = str(uuid.uuid4())[:8]
             for row in temp_bill:
-                # تحديث الكمية في المخزن
+                # تحديث المخزن
                 st.session_state.inventory[row['item']]['كمية'] -= row['qty']
                 
-                # تجهيز سطر المبيعات
+                # إضافة لسجل المبيعات
                 new_row = {
                     'date': datetime.now().strftime("%Y-%m-%d"), 
                     'item': row['item'], 
@@ -146,12 +157,10 @@ if menu == "🛒 نقطة البيع":
                     'customer_name': 'زبون محل', 
                     'bill_id': bid
                 }
-                # إضافة العملية للسجل
                 st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
             
-            # المزامنة مع جوجل شيت
             sync_to_google()
-            st.success("تمت العملية بنجاح وتحديث الأرباح!")
+            st.success("تم الحفظ بنجاح، والآن الربح سيظهر بشكل صحيح!")
             st.rerun()
 
 elif menu == "📦 المخزن والجرد":
