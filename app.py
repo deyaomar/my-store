@@ -144,68 +144,99 @@ elif menu == "📦 المخزن والجرد":
     else: st.info("المخزن فارغ.")
 
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 لوحة التحكم والأداء المالي الشامل</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>", unsafe_allow_html=True)
     
-    if not st.session_state.sales_df.empty:
-        # 1. تجهيز البيانات
-        df_sales = st.session_state.sales_df.copy()
-        df_sales['date'] = pd.to_datetime(df_sales['date'])
+    # 1. تجهيز البيانات الأساسية
+    df_sales = st.session_state.sales_df.copy()
+    df_sales['date'] = pd.to_datetime(df_sales['date'])
+    df_sales['amount'] = pd.to_numeric(df_sales['amount'], errors='coerce').fillna(0)
+    df_sales['profit'] = pd.to_numeric(df_sales['profit'], errors='coerce').fillna(0)
+    
+    df_exp = st.session_state.expenses_df.copy()
+    if not df_exp.empty:
+        df_exp['date'] = pd.to_datetime(df_exp['date'])
+        df_exp['amount'] = pd.to_numeric(df_exp['amount'], errors='coerce').fillna(0)
         
-        df_exp = st.session_state.expenses_df.copy()
-        if not df_exp.empty: df_exp['date'] = pd.to_datetime(df_exp['date'])
-            
-        df_waste = st.session_state.waste_df.copy()
-        if not df_waste.empty: df_waste['date'] = pd.to_datetime(df_waste['date'])
+    df_waste = st.session_state.waste_df.copy()
+    if not df_waste.empty:
+        df_waste['date'] = pd.to_datetime(df_waste['date'])
+        df_waste['loss_value'] = pd.to_numeric(df_waste['loss_value'], errors='coerce').fillna(0)
 
-        today = pd.Timestamp(datetime.now().date())
-        last_7_days = today - pd.Timedelta(days=7)
-        
-        # حسابات الأرقام (أسبوعي)
-        w_sales = df_sales[df_sales['date'] >= last_7_days]['amount'].sum()
-        w_profit = df_sales[df_sales['date'] >= last_7_days]['profit'].sum()
-        w_exp = df_exp[df_exp['date'] >= last_7_days]['amount'].sum() if not df_exp.empty else 0
-        w_waste = df_waste[df_waste['date'] >= last_7_days]['loss_value'].sum() if not df_waste.empty else 0
-        w_net = w_profit - w_exp - w_waste
+    today = pd.Timestamp(datetime.now().date())
+    last_7_days = today - pd.Timedelta(days=7)
 
-        # --- الصف الأول: بطاقات الأداء الخمسة ---
-        st.subheader(f"📅 ملخص الأداء للأسبوع الحالي")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        
-        c1.markdown(f"<div style='background:linear-gradient(135deg,#27ae60,#2ecc71);padding:15px;border-radius:12px;color:white;text-align:center;'><b>إجمالي المبيعات</b><h2>{format_num(w_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        c2.markdown(f"<div style='background:linear-gradient(135deg,#2980b9,#3498db);padding:15px;border-radius:12px;color:white;text-align:center;'><b>أرباح البيع</b><h2>{format_num(w_profit)} ₪</h2></div>", unsafe_allow_html=True)
-        c3.markdown(f"<div style='background:linear-gradient(135deg,#e67e22,#f39c12);padding:15px;border-radius:12px;color:white;text-align:center;'><b>المصروفات</b><h2>{format_num(w_exp)} ₪</h2></div>", unsafe_allow_html=True)
-        c4.markdown(f"<div style='background:linear-gradient(135deg,#c0392b,#e74c3c);padding:15px;border-radius:12px;color:white;text-align:center;'><b>خسائر التالف</b><h2>{format_num(w_waste)} ₪</h2></div>", unsafe_allow_html=True)
-        c5.markdown(f"<div style='background:linear-gradient(135deg,#8e44ad,#9b59b6);padding:15px;border-radius:12px;color:white;text-align:center;'><b>الربح الصافي</b><h2>{format_num(w_net)} ₪</h2></div>", unsafe_allow_html=True)
+    # --- حسابات رأس المال (المخزن) ---
+    # رأس المال الأصلي: (كمية البداية * سعر الشراء)
+    total_original_cap = sum(v['شراء'] * v.get('أصلي', v['كمية']) for v in st.session_state.inventory.values())
+    # رأس المال الحالي: (الكمية المتوفرة حالياً * سعر الشراء)
+    current_stock_cap = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
 
-        st.markdown("<br>", unsafe_allow_html=True)
+    # --- حسابات اليوم ---
+    t_sales = df_sales[df_sales['date'] == today]['amount'].sum()
+    t_gross_profit = df_sales[df_sales['date'] == today]['profit'].sum()
+    t_exp = df_exp[df_exp['date'] == today]['amount'].sum() if not df_exp.empty else 0
+    t_waste = df_waste[df_waste['date'] == today]['loss_value'].sum() if not df_waste.empty else 0
+    t_net_profit = t_gross_profit - t_exp - t_waste
 
-        # --- الصف الثاني: تفصيل المبيعات وحركة الزبائن ---
-        t1, t2, t3 = st.tabs(["👥 سجل الزبائن والفواتير", "📈 تحليل يومي", "⚠️ تفاصيل التالف"])
-        
-        with t1:
-            st.markdown("### 📝 تفاصيل عمليات البيع (بالزبائن)")
-            # عرض بيانات الزبائن المخزنة
-            cust_df = df_sales.sort_values(by='date', ascending=False).rename(columns={
-                'date': 'التاريخ', 'item': 'الصنف', 'amount': 'المبلغ', 
-                'customer_name': 'اسم الزبون', 'bill_id': 'رقم الفاتورة'
-            })
-            st.dataframe(cust_df[['التاريخ', 'اسم الزبون', 'الصنف', 'المبلغ', 'رقم الفاتورة']], use_container_width=True)
+    # --- حسابات الأسبوع ---
+    w_sales = df_sales[df_sales['date'] >= last_7_days]['amount'].sum()
+    w_gross_profit = df_sales[df_sales['date'] >= last_7_days]['profit'].sum()
+    w_exp = df_exp[df_exp['date'] >= last_7_days]['amount'].sum() if not df_exp.empty else 0
+    w_waste = df_waste[df_waste['date'] >= last_7_days]['loss_value'].sum() if not df_waste.empty else 0
+    w_net_profit = w_gross_profit - w_exp - w_waste
 
-        with t2:
-            st.markdown("### 📊 نمو المبيعات اليومي")
-            daily_summary = df_sales[df_sales['date'] >= last_7_days].groupby(df_sales['date'].dt.date)['amount'].sum().reset_index()
-            st.line_chart(daily_summary.set_index('date'))
-            st.table(daily_summary.rename(columns={'date': 'التاريخ', 'amount': 'إجمالي مبيعات اليوم'}))
+    # --- عرض بطاقات رأس المال (أولاً) ---
+    st.markdown("### 🏦 حالة رأس المال (المخزن)")
+    col_cap1, col_cap2 = st.columns(2)
+    with col_cap1:
+        st.markdown(f"""<div style='background: #2c3e50; padding: 20px; border-radius: 15px; color: white; text-align: center;'>
+            <p style='margin:0;'>إجمالي رأس المال الأصلي</p><h2 style='margin:0;'>{format_num(total_original_cap)} ₪</h2>
+            <small>قيمة البضاعة عند الإدخال</small></div>""", unsafe_allow_html=True)
+    with col_cap2:
+        st.markdown(f"""<div style='background: #34495e; padding: 20px; border-radius: 15px; color: white; text-align: center;'>
+            <p style='margin:0;'>رأس المال المتوفر حالياً</p><h2 style='margin:0;'>{format_num(current_stock_cap)} ₪</h2>
+            <small>قيمة البضاعة الموجودة على الرف</small></div>""", unsafe_allow_html=True)
 
-        with t3:
-            st.markdown("### ⚠️ أرشيف البضاعة التي تلفت")
-            if not df_waste.empty:
-                st.dataframe(df_waste.sort_values(by='date', ascending=False), use_container_width=True)
-            else:
-                st.info("لا يوجد بيانات تالف حالياً.")
+    st.markdown("---")
 
-    else:
-        st.info("أبو عمر، لا توجد بيانات مبيعات مسجلة لعرضها.")
+    # --- عرض بطاقات الأرباح والمبيعات ---
+    st.markdown("### 💰 تقرير الأرباح والمبيعات الصافية")
+    
+    # مبيعات وصافي اليوم
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"""<div style='background: linear-gradient(135deg, #27ae60, #2ecc71); padding: 20px; border-radius: 15px; color: white; text-align: center;'>
+            <p style='margin:0;'>مبيعات اليوم</p><h2 style='margin:0;'>{format_num(t_sales)} ₪</h2></div>""", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""<div style='background: linear-gradient(135deg, #2980b9, #3498db); padding: 20px; border-radius: 15px; color: white; text-align: center;'>
+            <p style='margin:0;'>صافي ربح اليوم</p><h2 style='margin:0;'>{format_num(t_net_profit)} ₪</h2>
+            <small>بعد خصم مصروفات وتالف اليوم</small></div>""", unsafe_allow_html=True)
+
+    # مبيعات وصافي الأسبوع
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown(f"""<div style='background: linear-gradient(135deg, #8e44ad, #9b59b6); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-top:15px;'>
+            <p style='margin:0;'>مبيعات الأسبوع</p><h2 style='margin:0;'>{format_num(w_sales)} ₪</h2></div>""", unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"""<div style='background: linear-gradient(135deg, #f39c12, #f1c40f); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-top:15px;'>
+            <p style='margin:0;'>صافي ربح الأسبوع</p><h2 style='margin:0;'>{format_num(w_net_profit)} ₪</h2>
+            <small>خصم أسبوعي: {w_exp + w_waste} ₪</small></div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- تفاصيل إضافية في تبويبات ---
+    t1, t2, t3 = st.tabs(["👥 سجل الزبائن", "⚠️ سجل التالف", "📉 المصروفات"])
+    
+    with t1:
+        if not df_sales.empty:
+            st.dataframe(df_sales.sort_values(by='date', ascending=False)[['date', 'customer_name', 'item', 'amount', 'bill_id']], use_container_width=True)
+    with t2:
+        if not df_waste.empty:
+            st.dataframe(df_waste.sort_values(by='date', ascending=False), use_container_width=True)
+            st.error(f"إجمالي خسائر التالف المسجلة: {format_num(df_waste['loss_value'].sum())} ₪")
+    with t3:
+        if not df_exp.empty:
+            st.dataframe(df_exp.sort_values(by='date', ascending=False), use_container_width=True)
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
