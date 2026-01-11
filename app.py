@@ -221,18 +221,64 @@ elif menu == "📊 التقارير المالية":
         st.markdown(f"<div style='background: linear-gradient(135deg, #2980b9, #3498db); padding: 20px; border-radius: 15px; color: white; text-align: center;'><p style='margin:0;'>صافي ربح اليوم</p><h2 style='margin:0;'>{format_num(t_net_profit)} ₪</h2></div>", unsafe_allow_html=True)
 
 elif menu == "💸 المصروفات":
-    st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
-    total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum()
-    st.markdown(f"<div class='report-card'><h5>إجمالي المصروفات</h5><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
-    with st.form("exp_form"):
-        r = st.text_input("البيان")
-        a = st.number_input("المبلغ (₪)", min_value=0.0, value=None, placeholder="0.0")
-        if st.form_submit_button("حفظ"):
-            if r and a and a > 0:
-                new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}
-                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
-                sync_to_google(); st.rerun()
+    st.markdown("<h1 class='main-title'>💸 إدارة وسجل المصروفات</h1>", unsafe_allow_html=True)
+    
+    # حساب إجمالي المصروفات من البيانات الموجودة
+    df_exp = st.session_state.expenses_df.copy()
+    if not df_exp.empty:
+        df_exp['amount'] = pd.to_numeric(df_exp['amount'], errors='coerce').fillna(0)
+    
+    total_exp = df_exp['amount'].sum() if not df_exp.empty else 0
+    
+    st.markdown(f"<div class='report-card'><h5>إجمالي كافة المصروفات المسجلة</h5><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
+    
+    # --- نموذج إضافة مصروف جديد ---
+    with st.expander("➕ تسجيل مصروف جديد", expanded=True):
+        with st.form("exp_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            r = col1.text_input("بيان المصروف (مثلاً: فاتورة كهرباء، أكياس)")
+            a = col2.number_input("المبلغ (₪)", min_value=0.0, value=None, placeholder="0.0")
+            if st.form_submit_button("حفظ المصروف"):
+                if r and a and a > 0:
+                    new_exp = {
+                        'date': datetime.now().strftime("%Y-%m-%d"), 
+                        'reason': r, 
+                        'amount': float(a),
+                        'id': str(uuid.uuid4())[:6] # معرف فريد للحذف
+                    }
+                    st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
+                    sync_to_google()
+                    st.success(f"تم تسجيل {r} بمبلغ {a} ₪")
+                    st.rerun()
+                else:
+                    st.warning("يرجى إدخال البيان والمبلغ")
 
+    st.markdown("---")
+    st.subheader("📋 سجل المصروفات والتحكم")
+
+    # --- عرض السجل والتحكم فيه ---
+    if not st.session_state.expenses_df.empty:
+        # ترتيب المصروفات من الأحدث للأقدم
+        display_df = st.session_state.expenses_df.copy()
+        if 'id' not in display_df.columns: display_df['id'] = [str(uuid.uuid4())[:6] for _ in range(len(display_df))]
+        
+        # عرض المصروفات مع خيار الحذف
+        for index, row in display_df.iterrows():
+            with st.container():
+                c1, c2, c3, c4 = st.columns([2, 3, 2, 1])
+                c1.write(f"📅 {row['date']}")
+                c2.write(f"📝 **{row['reason']}**")
+                c3.write(f"💰 {row['amount']} ₪")
+                
+                # زر الحذف لكل سطر
+                if c4.button("❌", key=f"del_exp_{index}"):
+                    st.session_state.expenses_df = st.session_state.expenses_df.drop(index)
+                    sync_to_google()
+                    st.toast(f"تم حذف مصروف: {row['reason']}")
+                    st.rerun()
+                st.markdown("<hr style='margin:5px 0; border-top:1px dashed #ddd;'>", unsafe_allow_html=True)
+    else:
+        st.info("لا توجد مصروفات مسجلة حالياً.")
 elif menu == "⚙️ الإعدادات":
     st.markdown("<h1 class='main-title'>⚙️ إدارة البضاعة والمشتريات</h1>", unsafe_allow_html=True)
     t1, t2, t3 = st.tabs(["📥 تزويد كمية", "✨ صنف جديد", "📂 إدارة الأقسام"])
