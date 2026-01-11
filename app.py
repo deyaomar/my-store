@@ -166,7 +166,7 @@ if st.session_state.inventory:
 else:
     st.warning("لا توجد أصناف في المخزن حالياً.")
 
-elif menu == "📊 التقارير المالية":
+    elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقرير المالي الدقيق - أبو عمر</h1>", unsafe_allow_html=True)
     today_dt = datetime.now().date()
 
