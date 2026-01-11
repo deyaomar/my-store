@@ -98,50 +98,50 @@ if menu == "🛒 نقطة البيع":
         sync_to_google(); st.success("تمت العملية بنجاح!"); st.rerun()
 
 elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 إدارة ومطابقة المخزن</h1>", unsafe_allow_html=True)
-    tab_view, tab_match = st.tabs(["📋 عرض المخزن والمبيعات", "🎯 مطابقة وجرد الكميات"])
+    st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
     
-    with tab_view:
-        if st.session_state.inventory:
-            # حساب قيمة المخزن الحالية
-            stock_value = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
-            st.markdown(f"<div class='report-card'><h5>إجمالي قيمة البضاعة (رأس المال الحالي)</h5><h2>{format_num(stock_value)} ₪</h2></div>", unsafe_allow_html=True)
-            
-            # عرض الجدول مع ميزة (الأصلي والمباع)
-            inv_display = []
-            for it, d in st.session_state.inventory.items():
-                orig = d.get('أصلي', d['كمية'])
-                sold = orig - d['كمية']
-                inv_display.append({
-                    'الصنف': it,
-                    'الكمية الأصلية (الفاتورة)': orig,
-                    'المباع': sold,
-                    'المتبقي حالياً': d['كمية'],
-                    'سعر البيع': d['بيع']
-                })
-            st.dataframe(pd.DataFrame(inv_display), use_container_width=True)
-        else:
-            st.info("المخزن فارغ.")
-
-    with tab_match:
-        st.subheader("🎯 جرد المحل ومطابقة العجز والزيادة")
-        if st.session_state.inventory:
-            inv_l = [{'الصنف': k, 'الكمية في النظام': v['كمية'], 'سعر الشراء': v['شراء']} for k, v in st.session_state.inventory.items()]
-            df_m = pd.DataFrame(inv_l)
-            ed_df = st.data_editor(df_m, column_config={"الكمية الفعلية": st.column_config.NumberColumn("الكمية الفعلية (جرد يدوي)", min_value=0, default=0)}, disabled=["الصنف", "الكمية في النظام", "سعر الشراء"], hide_index=True, use_container_width=True, key="inv_match_editor")
-            if "الكمية الفعلية" in ed_df.columns:
-                ed_df['الفارق'] = ed_df['الكمية الفعلية'] - ed_df['الكمية في النظام']
-                ed_df['قيمة الفارق (₪)'] = ed_df['الفارق'] * ed_df['سعر الشراء']
-                t_l_g = ed_df['قيمة الفارق (₪)'].sum()
-                st.write("---")
-                if t_l_g < 0: st.error(f"إجمالي العجز: {format_num(abs(t_l_g))} ₪")
-                else: st.success(f"إجمالي الزيادة: {format_num(t_l_g)} ₪")
-                if st.button("💾 اعتماد الجرد وتصحيح المخزن", use_container_width=True):
-                    for _, row in ed_df.iterrows():
-                        st.session_state.inventory[row['الصنف']]['كمية'] = row['الكمية الفعلية']
-                        st.session_state.inventory[row['الصنف']]['أصلي'] = row['الكمية الفعلية'] # تصفير المباع بعد الجرد
-                    sync_to_google(); st.success("تم التحديث!"); st.rerun()
-
+    if st.session_state.inventory:
+        # 1. إحصائية رأس المال الحالية (اختياري)
+        stock_value = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
+        st.markdown(f"<div class='report-card'><h5>إجمالي قيمة البضاعة الحالية (رأس المال)</h5><h2>{format_num(stock_value)} ₪</h2></div><br>", unsafe_allow_html=True)
+        
+        # 2. شريط البحث في المخزن
+        search_st = st.text_input("🔍 ابحث في الأصناف...")
+        
+        # 3. عرض الأصناف بنظام البطاقات (كل سطر فيه 3 بطاقات)
+        cols = st.columns(3)
+        for idx, (it, data) in enumerate(st.session_state.inventory.items()):
+            if search_st.lower() in it.lower():
+                # حساب الكميات
+                orig = data.get('أصلي', data['كمية'])  # الكمية عند التسجيل
+                sold = orig - data['كمية']             # الفرق يمثل المباع
+                
+                with cols[idx % 3]:
+                    # تحديد لون الإطار حسب التوفر (أحمر لو الكمية 0)
+                    card_color = "#27ae60" if data['كمية'] > 5 else ("#f39c12" if data['كمية'] > 0 else "#e74c3c")
+                    
+                    st.markdown(f"""
+                        <div class='stock-card' style='border-top: 6px solid {card_color};'>
+                            <h3 style='margin-bottom:10px; color:#1a1a1a;'>{it}</h3>
+                            <div style='display: flex; justify-content: center; gap: 10px; margin-bottom:15px;'>
+                                <span style='background:#e74c3c; color:white; padding:3px 10px; border-radius:15px; font-size:13px;'>المباع: {sold}</span>
+                                <span style='background:#27ae60; color:white; padding:3px 10px; border-radius:15px; font-size:13px;'>المتبقي: {data['كمية']}</span>
+                            </div>
+                            <p style='margin:0; color:#7f8c8d; font-size:14px;'>الكمية الأصلية: {orig}</p>
+                            <h4 style='margin-top:10px; color:#2c3e50;'>سعر البيع: {data['بيع']} ₪</h4>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # زر التعديل السريع تحت كل بطاقة
+                    with st.expander(f"⚙️ جرد سريع لـ {it}"):
+                        new_q = st.number_input("الكمية الفعلية حالياً", value=float(data['كمية']), key=f"inv_q_{it}")
+                        if st.button("تحديث الكمية", key=f"inv_btn_{it}"):
+                            st.session_state.inventory[it]['كمية'] = new_q
+                            st.session_state.inventory[it]['أصلي'] = new_q  # تصفير عداد المباع عند الجرد اليدوي
+                            sync_to_google()
+                            st.rerun()
+    else:
+        st.info("لا يوجد بضاعة مسجلة في المخزن حالياً.")
 elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقارير والتحليل المالي</h1>", unsafe_allow_html=True)
     sales = st.session_state.sales_df.copy(); sales['amount'] = pd.to_numeric(sales['amount'], errors='coerce').fillna(0); sales['profit'] = pd.to_numeric(sales['profit'], errors='coerce').fillna(0)
