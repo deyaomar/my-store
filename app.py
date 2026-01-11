@@ -444,17 +444,65 @@ if menu == "⚙️ الإعدادات":
                 else:
                     st.error("⚠️ يرجى ملء جميع الخانات (الاسم، السعر، والكمية) قبل الحفظ")
 
-    # 2. تبويبة إدارة الأقسام
+    # 2. إدارة الأقسام (تعديل وحذف)
     with tab_cats:
-        st.subheader("📂 إدارة أقسام المحل")
-        st.write("الأقسام المضافة حالياً:")
-        st.info(", ".join(st.session_state.CATEGORIES))
+        st.subheader("📂 التحكم في أقسام المحل")
         
-        new_cat = st.text_input("اكتب اسم القسم الجديد هنا")
-        if st.button("➕ إضافة القسم"):
-            if new_cat and new_cat not in st.session_state.CATEGORIES:
-                st.session_state.CATEGORIES.append(new_cat)
-                st.success(f"تم إضافة قسم {new_cat}")
+        # عرض الأقسام الحالية في جدول بسيط
+        cat_data = [{"القسم": c} for c in st.session_state.CATEGORIES]
+        st.table(pd.DataFrame(cat_data))
+        
+        col_c1, col_c2 = st.columns(2)
+        
+        with col_c1:
+            st.markdown("### ✏️ تعديل اسم قسم")
+            old_name = st.selectbox("اختر القسم المراد تعديله", st.session_state.CATEGORIES, key="edit_cat_sel")
+            new_name = st.text_input("الاسم الجديد للقسم")
+            if st.button("تحديث الاسم"):
+                if new_name and new_name not in st.session_state.CATEGORIES:
+                    # تحديث القائمة الأساسية
+                    idx = st.session_state.CATEGORIES.index(old_name)
+                    st.session_state.CATEGORIES[idx] = new_name
+                    
+                    # تحديث الأصناف المرتبطة بهذا القسم في المخزن
+                    for item, data in st.session_state.inventory.items():
+                        if data.get('قسم') == old_name:
+                            st.session_state.inventory[item]['قسم'] = new_name
+                    
+                    sync_to_google()
+                    st.success(f"تم تغيير {old_name} إلى {new_name} وتحديث الأصناف")
+                    st.rerun()
+
+        with col_c2:
+            st.markdown("### 🗑️ حذف قسم")
+            cat_to_del = st.selectbox("اختر القسم المراد حذفه", st.session_state.CATEGORIES, key="del_cat_sel")
+            st.warning("عند حذف القسم، سيتم نقل أصنافه إلى قسم 'أخرى'")
+            if st.button("تأكيد الحذف"):
+                if len(st.session_state.CATEGORIES) > 1:
+                    # نقل الأصناف لقسم أخرى
+                    for item, data in st.session_state.inventory.items():
+                        if data.get('قسم') == cat_to_del:
+                            st.session_state.inventory[item]['قسم'] = "أخرى"
+                    
+                    # حذف القسم من القائمة
+                    st.session_state.CATEGORIES.remove(cat_to_del)
+                    if "أخرى" not in st.session_state.CATEGORIES:
+                        st.session_state.CATEGORIES.append("أخرى")
+                        
+                    sync_to_google()
+                    st.success(f"تم حذف قسم {cat_to_del}")
+                    st.rerun()
+                else:
+                    st.error("يجب أن يبقى قسم واحد على الأقل في النظام")
+
+        st.divider()
+        st.markdown("### ➕ إضافة قسم جديد")
+        add_cat = st.text_input("اسم القسم الجديد", key="new_cat_input")
+        if st.button("إضافة القسم"):
+            if add_cat and add_cat not in st.session_state.CATEGORIES:
+                st.session_state.CATEGORIES.append(add_cat)
+                sync_to_google()
+                st.success(f"تم إضافة {add_cat}")
                 st.rerun()
 
     # 3. تبويبة إصلاح الأرباح
