@@ -72,55 +72,125 @@ with st.sidebar:
 # --- المنطق الرئيسي ---
 
 if menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>🛒 نظام سلة المشتريات</h1>", unsafe_allow_html=True)
+    
+    # تهيئة السلة في ذاكرة المتصفح إذا لم تكن موجودة
+    if 'cart' not in st.session_state:
+        st.session_state.cart = {}
+
     c1, c2 = st.columns([1, 2])
     cat_sel = c1.selectbox("📂 القسم", ["الكل"] + st.session_state.CATEGORIES)
-    search = c2.text_input("🔍 ابحث عن صنف لبيعه...")
+    search = c2.text_input("🔍 ابحث عن صنف لإضافته للسلة...")
     
-    items_to_sell = st.session_state.inventory.items()
+    # تصفية الأصناف
+    items_to_show = st.session_state.inventory.items()
     if cat_sel != "الكل":
-        items_to_sell = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat_sel}.items()
+        items_to_show = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat_sel}.items()
     
-    items = {k: v for k, v in items_to_sell if search.lower() in k.lower()}
+    items = {k: v for k, v in items_to_show if search.lower() in k.lower()}
+    
+    # عرض الأصناف كبطاقات
     cols = st.columns(4)
-    temp_bill = []
-    
     for idx, (it, data) in enumerate(items.items()):
         with cols[idx % 4]:
-            st.markdown(f"<div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'><b>{it}</b><br><span style='color:green;'>{data['بيع']} ₪</span><br><small>متوفر: {int(data['كمية'])}</small></div>", unsafe_allow_html=True)
-            # تم تعديل min_value و step ليكون الرقم صحيحاً بدون أصفار
-            val = st.number_input("الكمية", key=f"sell_{it}", min_value=0, step=1, value=None, placeholder="0")
-            if val is not None and val > 0:
-                temp_bill.append({'item': it, 'qty': val, 'amount': val * data['بيع'], 'profit': (data['بيع'] - data['شراء']) * val})
-    
-    if temp_bill:
-        st.markdown("<div class='bill-section'>", unsafe_allow_html=True)
-        col_pay1, col_pay2 = st.columns(2)
-        with col_pay1:
-            pay_method = st.radio("💰 طريقة الدفع:", ["نقدي", "تطبيق"], horizontal=True)
-            cust_name = st.text_input("👤 اسم الزبون (اختياري)")
-        with col_pay2:
-            cust_phone = st.text_input("📞 رقم الجوال (اختياري)")
-            total_sum = sum(item['amount'] for item in temp_bill)
-            st.markdown(f"### إجمالي الحساب: :red[{total_sum:,.2f} ₪]")
+            st.markdown(f"""
+            <div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'>
+                <b>{it}</b><br>
+                <span style='color:green; font-weight:bold;'>{int(data['بيع']) if float(data['بيع']).is_integer() else data['بيع']} ₪</span><br>
+                <small>متوفر: {int(data['كمية'])}</small>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button(f"➕ إضافة", key=f"add_{it}"):
+                if data['كمية'] > 0:
+                    if it in st.session_state.cart:
+                        if st.session_state.cart[it]['qty'] < data['كمية']:
+                            st.session_state.cart[it]['qty'] += 1
+                        else:
+                            st.error("الكمية غير كافية!")
+                    else:
+                        st.session_state.cart[it] = {'qty': 1, 'price': data['بيع'], 'cost': data['شراء']}
+                    st.rerun()
+                else:
+                    st.error("نفدت الكمية!")
 
-        if st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
-            bid = str(uuid.uuid4())[:8]
-            for row in temp_bill:
-                st.session_state.inventory[row['item']]['كمية'] -= row['qty']
-                new_row = {
-                    'date': datetime.now().strftime("%Y-%m-%d"), 
-                    'item': row['item'], 
-                    'amount': row['amount'], 
-                    'profit': row['profit'], 
-                    'method': pay_method, 
-                    'customer_name': cust_name if cust_name else "زبون محل", 
-                    'phone': cust_phone if cust_phone else "-",
-                    'bill_id': bid
-                }
-                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
-            sync_to_google(); st.success("تمت العملية بنجاح!"); st.rerun()
+    # --- عرض السلة وإتمام العملية ---
+    if st.session_state.cart:
+        st.markdown("---")
+        st.markdown("### 🛍️ محتويات السلة")
+        
+        for item_name, info in list(st.session_state.cart.items()):
+            col_i, col_q, col_p, col_del = st.columns([3, 2, 2, 1])
+            col_i.write(f"**{item_name}**")
+            # إمكانية تعديل الكمية مباشرة من السلة
+            new_q = col_q.number_input("الكمية", min_value=1, max_value=int(st.session_state.inventory[item_name]['كمية']), value=info['qty'], key=f"cart_q_{item_name}")
+            st.session_state.cart[item_name]['qty'] = new_q
+            
+            subtotal = new_q * info['price']
+            col_p.write(f"{int(subtotal) if float(subtotal).is_integer() else subtotal} ₪")
+            
+            if col_del.button("🗑️", key=f"del_cart_{item_name}"):
+                del st.session_state.cart[item_name]
+                st.rerun()
+
+        st.markdown("<div class='bill-section'>", unsafe_allow_html=True)
+        total_sum = sum(v['qty'] * v['price'] for v in st.session_state.cart.values())
+        st.markdown(f"## إجمالي الحساب: :green[{int(total_sum) if float(total_sum).is_integer() else total_sum} ₪]")
+        
+        # خيارات الدفع (الأولوية للتطبيق)
+        pay_method = st.radio("💰 طريقة الدفع:", ["تطبيق", "نقدي"], horizontal=True)
+        
+        cust_name = ""
+        cust_phone = ""
+        
+        if pay_method == "تطبيق":
+            st.warning("⚠️ يرجى تسجيل بيانات الزبون لعملية الدفع عبر التطبيق")
+            c_col1, c_col2 = st.columns(2)
+            cust_name = c_col1.text_input("👤 اسم الزبون (مطلوب)")
+            cust_phone = c_col2.text_input("📞 رقم الجوال (مطلوب)")
+        else:
+            c_col1, c_col2 = st.columns(2)
+            cust_name = c_col1.text_input("👤 اسم الزبون (اختياري)")
+            cust_phone = c_col2.text_input("📞 رقم الجوال (اختياري)")
+
+        if st.button("✅ تأكيد البيع وطباعة الفاتورة", use_container_width=True, type="primary"):
+            # التحقق من البيانات إذا كان الدفع تطبيق
+            if pay_method == "تطبيق" and (not cust_name or not cust_phone):
+                st.error("❌ يرجى إدخال اسم الزبون ورقم جواله لإتمام الدفع عبر التطبيق")
+            else:
+                bid = str(uuid.uuid4())[:8]
+                sales_to_add = []
+                
+                for item_name, info in st.session_state.cart.items():
+                    # خصم من المخزن
+                    st.session_state.inventory[item_name]['كمية'] -= info['qty']
+                    
+                    # تحضير سجل البيع
+                    new_row = {
+                        'date': datetime.now().strftime("%Y-%m-%d"),
+                        'item': item_name,
+                        'amount': info['qty'] * info['price'],
+                        'profit': (info['price'] - info['cost']) * info['qty'],
+                        'method': pay_method,
+                        'customer_name': cust_name if cust_name else "زبون محل",
+                        'phone': cust_phone if cust_phone else "-",
+                        'bill_id': bid
+                    }
+                    sales_to_add.append(new_row)
+                
+                # تحديث البيانات
+                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame(sales_to_add)], ignore_index=True)
+                if sync_to_google():
+                    st.session_state.cart = {} # تفريغ السلة
+                    st.success("✅ تم إتمام العملية بنجاح!")
+                    st.rerun()
+        
+        if st.button("❌ إلغاء السلة بالكامل"):
+            st.session_state.cart = {}
+            st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        st.info("سلة المشتريات فارغة. اختر أصنافاً من الأعلى للبدء.")
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
