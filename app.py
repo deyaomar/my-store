@@ -135,58 +135,30 @@ if menu == "🛒 نقطة البيع":
             st.rerun()
 
 # --- 📊 التقارير المالية (تم إصلاح الجمع التراكمي هنا) ---
+# --- 📊 التقارير المالية (كشف الخلل) ---
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقارير المالية</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>📊 فحص الأرباح والخسائر</h1>", unsafe_allow_html=True)
     
-    # ضمان أن كل القيم رقمية قبل أي عملية حسابية
     sales = st.session_state.sales_df.copy()
     if not sales.empty:
         sales['profit'] = pd.to_numeric(sales['profit'], errors='coerce').fillna(0)
-        sales['amount'] = pd.to_numeric(sales['amount'], errors='coerce').fillna(0)
-        sales['date_only'] = pd.to_datetime(sales['date']).dt.strftime('%Y-%m-%d')
-    
-    today = datetime.now().strftime("%Y-%m-%d")
-    
-    # حسابات دقيقة
+        
+        # ترتيب المبيعات من الأكثر خسارة للأكثر ربحاً
+        flagged_sales = sales.sort_values(by='profit', ascending=True)
+        
+        st.subheader("⚠️ فواتير مشبوهة (ربح سالب)")
+        negative_sales = flagged_sales[flagged_sales['profit'] < 0]
+        
+        if not negative_sales.empty:
+            st.error(f"يوجد {len(negative_sales)} عمليات بيع مسجلة بالخسارة!")
+            st.table(negative_sales[['date', 'item', 'amount', 'profit']])
+        else:
+            st.success("جميع عمليات البيع مسجلة بربح (لا يوجد سالب في الفواتير).")
+
+    # الحسابات العامة
     raw_profit = sales['profit'].sum() if not sales.empty else 0
-    total_sales = sales['amount'].sum() if not sales.empty else 0
     total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum() if not st.session_state.expenses_df.empty else 0
     total_waste = pd.to_numeric(st.session_state.waste_df['loss_value'], errors='coerce').sum() if not st.session_state.waste_df.empty else 0
     
     net_profit = raw_profit - total_exp - total_waste
-
-    c1, c2, c3 = st.columns(3)
-    c1.markdown(f"<div class='report-card'><h3>💰 إجمالي المبيعات</h3><h2>{format_num(total_sales)} ₪</h2></div>", unsafe_allow_html=True)
-    p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
-    c2.markdown(f"<div class='report-card' style='border-top:5px solid {p_color}'><h3>💵 صافي الربح التراكمي</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
-    c3.markdown(f"<div class='report-card' style='border-top:5px solid #e74c3c'><h3>🗑️ تالف ومصاريف</h3><h2>{format_num(total_exp + total_waste)} ₪</h2></div>", unsafe_allow_html=True)
-
-    st.divider()
-    st.subheader("📋 تفاصيل العمليات")
-    st.dataframe(sales[['date', 'item', 'amount', 'profit', 'method']] if not sales.empty else pd.DataFrame())
-
-# --- ⚙️ الإعدادات (تبويبة الإصلاح) ---
-elif menu == "⚙️ الإعدادات":
-    st.markdown("<h1 class='main-title'>⚙️ الإعدادات</h1>", unsafe_allow_html=True)
-    t1, t2 = st.tabs(["➕ إضافة أصناف", "🛠️ إصلاح البيانات"])
-    
-    with t1:
-        with st.form("add_p"):
-            name = st.text_input("اسم الصنف")
-            c1, c2, c3 = st.columns(3)
-            bp = c1.number_input("شراء", value=None)
-            sp = c2.number_input("بيع", value=None)
-            qt = c3.number_input("كمية", value=None)
-            if st.form_submit_button("حفظ"):
-                if name and bp and sp:
-                    st.session_state.inventory[name] = {'شراء': bp, 'بيع': sp, 'كمية': qt, 'قسم': 'أخرى'}
-                    sync_to_google()
-                    st.success("تم!")
-    
-    with t2:
-        st.warning("استخدم هذا الزر إذا شعرت أن الأرقام غير دقيقة، سيقوم بتحويل كل النصوص لأرقام.")
-        if st.button("🔄 إصلاح تضارب الأرقام"):
-            st.session_state.sales_df['profit'] = pd.to_numeric(st.session_state.sales_df['profit'], errors='coerce').fillna(0)
-            st.session_state.sales_df['amount'] = pd.to_numeric(st.session_state.sales_df['amount'], errors='coerce').fillna(0)
-            sync_to_google()
-            st.success("تم الإصلاح بنجاح!")
+    st.metric("صافي الربح التراكمي النهائي", format_num(net_profit), delta=format_num(net_profit))
