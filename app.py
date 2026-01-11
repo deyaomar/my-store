@@ -176,28 +176,59 @@ elif menu == "📦 المخزن والجرد":
 
 elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>", unsafe_allow_html=True)
-    df_sales = st.session_state.sales_df.copy()
-    if not df_sales.empty:
-        df_sales['date'] = pd.to_datetime(df_sales['date'])
-        df_sales['amount'] = pd.to_numeric(df_sales['amount'], errors='coerce').fillna(0)
-        df_sales['profit'] = pd.to_numeric(df_sales['profit'], errors='coerce').fillna(0)
     
-    today = pd.Timestamp(datetime.now().date())
+    # 1. تجهيز البيانات
+    df_sales = st.session_state.sales_df.copy()
+    df_exp = st.session_state.expenses_df.copy()
+    df_waste = st.session_state.waste_df.copy()
+    
+    # تحويل التواريخ والأرقام لضمان دقة الحسابات
+    for df in [df_sales, df_exp, df_waste]:
+        if not df.empty:
+            df['date'] = pd.to_datetime(df['date']).dt.date
+
+    today = datetime.now().date()
+
+    # 2. حسابات رأس المال
     total_original_cap = sum(v['شراء'] * v.get('أصلي', v['كمية']) for v in st.session_state.inventory.values())
     current_stock_cap = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
 
-    t_sales = df_sales[df_sales['date'] == today]['amount'].sum() if not df_sales.empty else 0
-    t_gross_profit = df_sales[df_sales['date'] == today]['profit'].sum() if not df_sales.empty else 0
+    # 3. حسابات اليوم (مبيعات، أرباح، مصروفات، تالف)
+    day_sales_df = df_sales[df_sales['date'] == today] if not df_sales.empty else pd.DataFrame()
+    t_sales = day_sales_df['amount'].sum() if not day_sales_df.empty else 0
+    t_gross_profit = day_sales_df['profit'].sum() if not day_sales_df.empty else 0
     
-    st.markdown("### 🏦 حالة رأس المال")
-    col_cap1, col_cap2 = st.columns(2)
-    col_cap1.metric("رأس المال الأصلي", f"{format_num(total_original_cap)} ₪")
-    col_cap2.metric("رأس المال الحالي", f"{format_num(current_stock_cap)} ₪")
+    day_exp_df = df_exp[df_exp['date'] == today] if not df_exp.empty else pd.DataFrame()
+    t_exp = pd.to_numeric(day_exp_df['amount'], errors='coerce').sum() if not day_exp_df.empty else 0
+    
+    day_waste_df = df_waste[df_waste['date'] == today] if not df_waste.empty else pd.DataFrame()
+    t_waste = pd.to_numeric(day_waste_df['loss_value'], errors='coerce').sum() if not day_waste_df.empty else 0
+    
+    # صافي الربح = إجمالي أرباح البيع - المصروفات - قيمة التالف
+    t_net_profit = t_gross_profit - t_exp - t_waste
 
-    st.markdown("### 💰 الأرباح اليومية")
-    c1, c2 = st.columns(2)
+    # --- عرض النتائج ---
+    st.markdown("### 🏦 حالة رأس المال (المخزن)")
+    col_cap1, col_cap2 = st.columns(2)
+    with col_cap1:
+        st.markdown(f"<div style='background: #2c3e50; padding: 20px; border-radius: 15px; color: white; text-align: center;'><p style='margin:0;'>إجمالي رأس المال الأصلي</p><h2 style='margin:0;'>{format_num(total_original_cap)} ₪</h2></div>", unsafe_allow_html=True)
+    with col_cap2:
+        st.markdown(f"<div style='background: #34495e; padding: 20px; border-radius: 15px; color: white; text-align: center;'><p style='margin:0;'>رأس المال المتوفر حالياً</p><h2 style='margin:0;'>{format_num(current_stock_cap)} ₪</h2></div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 💰 تقرير الأرباح اليومية")
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("مبيعات اليوم", f"{format_num(t_sales)} ₪")
-    c2.metric("ربح اليوم (تقريبي)", f"{format_num(t_gross_profit)} ₪")
+    c2.metric("ربح البيع", f"{format_num(t_gross_profit)} ₪")
+    c3.metric("مصروفات/تالف اليوم", f"{format_num(t_exp + t_waste)} ₪", delta_color="inverse")
+    
+    # عرض صافي الربح في كرت ملون
+    st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #27ae60, #2ecc71); padding: 25px; border-radius: 15px; color: white; text-align: center; margin-top: 20px;'>
+            <p style='margin:0; font-size: 1.2em;'>صافي ربح اليوم الفعلي (بعد الخصم)</p>
+            <h1 style='margin:0; font-size: 3em;'>{format_num(t_net_profit)} ₪</h1>
+        </div>
+    """, unsafe_allow_html=True)
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة وسجل المصروفات</h1>", unsafe_allow_html=True)
