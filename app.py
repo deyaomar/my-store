@@ -143,18 +143,70 @@ elif menu == "📦 المخزن والجرد":
     else:
         st.info("لا يوجد بضاعة مسجلة في المخزن حالياً.")
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقارير والتحليل المالي</h1>", unsafe_allow_html=True)
-    sales = st.session_state.sales_df.copy(); sales['amount'] = pd.to_numeric(sales['amount'], errors='coerce').fillna(0); sales['profit'] = pd.to_numeric(sales['profit'], errors='coerce').fillna(0)
-    exp = st.session_state.expenses_df.copy(); exp['amount'] = pd.to_numeric(exp['amount'], errors='coerce').fillna(0)
-    waste = st.session_state.waste_df.copy(); waste['loss_value'] = pd.to_numeric(waste['loss_value'], errors='coerce').fillna(0)
-    t_sales = sales['amount'].sum(); t_raw_p = sales['profit'].sum(); t_exp = exp['amount'].sum(); t_waste = waste['loss_value'].sum(); n_profit = t_raw_p - t_exp - t_waste
-    col1, col2, col3, col4 = st.columns(4)
-    col1.markdown(f"<div class='report-card'><h5>إجمالي المبيعات</h5><h2>{format_num(t_sales)} ₪</h2></div>", unsafe_allow_html=True)
-    col2.markdown(f"<div class='report-card'><h5>أرباح المبيعات</h5><h2>{format_num(t_raw_p)} ₪</h2></div>", unsafe_allow_html=True)
-    col3.markdown(f"<div class='report-card'><h5>مصاريف + تالف</h5><h2 style='color:red;'>{format_num(t_exp + t_waste)} ₪</h2></div>", unsafe_allow_html=True)
-    col4.markdown(f"<div class='report-card'><h5>صافي الربح</h5><h2 style='color:green;'>{format_num(n_profit)} ₪</h2></div>", unsafe_allow_html=True)
-    st.subheader("📝 تفاصيل العمليات")
-    st.dataframe(sales.sort_index(ascending=False), use_container_width=True)
+    st.markdown("<h1 class='main-title'>📊 التقارير المالية والأرشيف</h1>", unsafe_allow_html=True)
+    
+    if not st.session_state.sales_df.empty:
+        # تحويل التاريخ لنوع تاريخ حقيقي للحسابات
+        df_sales = st.session_state.sales_df.copy()
+        df_sales['date'] = pd.to_datetime(df_sales['date'])
+        df_sales['amount'] = pd.to_numeric(df_sales['amount'])
+        df_sales['profit'] = pd.to_numeric(df_sales['profit'])
+        
+        today = pd.Timestamp(datetime.now().date())
+        last_7_days = today - pd.Timedelta(days=7)
+        
+        # --- 1. ملخص اليوم والأسبوع ---
+        st.subheader("🗓️ الملخص السريع")
+        today_sales = df_sales[df_sales['date'] == today]
+        week_sales = df_sales[df_sales['date'] >= last_7_days]
+        
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("مبيعات اليوم", f"{format_num(today_sales['amount'].sum())} ₪")
+        c2.metric("أرباح اليوم", f"{format_num(today_sales['profit'].sum())} ₪")
+        c3.metric("مبيعات الأسبوع", f"{format_num(week_sales['amount'].sum())} ₪")
+        c4.metric("أرباح الأسبوع", f"{format_num(week_sales['profit'].sum())} ₪")
+        
+        st.markdown("---")
+        
+        # --- 2. البحث المتقدم (من - إلى) ---
+        st.subheader("🔍 استخراج تقرير لفترة محددة")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            date_from = st.date_input("من تاريخ", value=last_7_days)
+        with col_b:
+            date_to = st.date_input("إلى تاريخ", value=today)
+            
+        mask = (df_sales['date'] >= pd.Timestamp(date_from)) & (df_sales['date'] <= pd.Timestamp(date_to))
+        filtered_df = df_sales.loc[mask]
+        
+        if not filtered_df.empty:
+            st.success(f"تقرير من {date_from} إلى {date_to}")
+            st.write(f"**إجمالي مبيعات الفترة:** {format_num(filtered_df['amount'].sum())} ₪ | **إجمالي الأرباح:** {format_num(filtered_df['profit'].sum())} ₪")
+            st.dataframe(filtered_df.sort_values(by='date', ascending=False), use_container_width=True)
+        else:
+            st.warning("لا يوجد مبيعات في هذه الفترة.")
+            
+        st.markdown("---")
+        
+        # --- 3. أرشيف مبيعات الأسبوع (جدول لكل يوم) ---
+        st.subheader("📅 أرشيف مبيعات آخر 7 أيام")
+        # تجميع البيانات حسب اليوم
+        daily_summary = week_sales.groupby(week_sales['date'].dt.date).agg({
+            'amount': 'sum',
+            'profit': 'sum'
+        }).reset_index()
+        daily_summary.columns = ['التاريخ', 'إجمالي المبيعات', 'صافي الربح']
+        
+        # إضافة عمود لاسم اليوم باللغة العربية
+        days_ara = {"Monday":"الاثنين", "Tuesday":"الثلاثاء", "Wednesday":"الأربعاء", "Thursday":"الخميس", "Friday":"الجمعة", "Saturday":"السبت", "Sunday":"الأحد"}
+        daily_summary['اليوم'] = pd.to_datetime(daily_summary['التاريخ']).dt.day_name().map(days_ara)
+        
+        # إعادة ترتيب الأعمدة وعرضها
+        daily_summary = daily_summary[['اليوم', 'التاريخ', 'إجمالي المبيعات', 'صافي الربح']]
+        st.table(daily_summary.sort_values(by='التاريخ', ascending=False))
+        
+    else:
+        st.info("لا توجد مبيعات مسجلة للبدء في تحليل البيانات.")
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
