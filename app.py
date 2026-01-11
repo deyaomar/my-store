@@ -81,7 +81,17 @@ if menu == "🛒 نقطة البيع":
             st.markdown(f"<div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'><b>{it}</b><br><span style='color:green;'>{data['بيع']} ₪</span><br><small>متوفر: {data['كمية']}</small></div>", unsafe_allow_html=True)
             val = st.number_input(f"الكمية ({it})", key=f"v_{it}", min_value=0.0, step=0.1)
             if val > 0:
-                temp_bill.append({'item': it, 'qty': val, 'amount': val * data['بيع'], 'profit': (data['بيع'] - data['شراء']) * val})
+                # --- التعديل: فحص الربح قبل الإضافة ---
+                profit_unit = data['بيع'] - data['شراء']
+                if profit_unit < 0:
+                    st.error(f"⚠️ انتبه: شراء {it} ({data['شراء']}) أغلى من بيعه!")
+                
+                temp_bill.append({
+                    'item': it, 
+                    'qty': val, 
+                    'amount': val * data['بيع'], 
+                    'profit': profit_unit * val
+                })
     
     if temp_bill and st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
         bid = str(uuid.uuid4())[:8]
@@ -93,64 +103,59 @@ if menu == "🛒 نقطة البيع":
 
 elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقرير المالي الدقيق - أبو عمر</h1>", unsafe_allow_html=True)
-    
     today_dt = datetime.now().date()
 
-    # دالة محسنة جداً لمنع الـ KeyError
     def get_safe_sum(df, date_col, value_col):
-        if df is None or df.empty:
-            return 0.0
+        if df is None or df.empty: return 0.0
         try:
             temp = df.copy()
-            # توحيد التواريخ
             temp[date_col] = pd.to_datetime(temp[date_col], errors='coerce').dt.date
-            # فلترة اليوم
             today_data = temp[temp[date_col] == today_dt]
-            
-            # التأكد من وجود العمود المطلوب في البيانات المفلترة
             if not today_data.empty and value_col in today_data.columns:
                 return pd.to_numeric(today_data[value_col], errors='coerce').fillna(0).sum()
             return 0.0
-        except:
-            return 0.0
+        except: return 0.0
 
-    # 1. جلب الحسابات بأمان
     t_sales = get_safe_sum(st.session_state.sales_df, 'date', 'amount')
     t_gross_profit = get_safe_sum(st.session_state.sales_df, 'date', 'profit')
     t_exp = get_safe_sum(st.session_state.expenses_df, 'date', 'amount')
     t_waste = get_safe_sum(st.session_state.waste_df, 'date', 'loss_value')
 
-    # 2. الحسبة النهائية
     net_profit = t_gross_profit - t_exp - t_waste
 
-    # --- عرض النتائج ---
     st.markdown(f"### 🕒 تقرير اليوم: {today_dt}")
-    
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f"<div class='report-card'><h5>مبيعات اليوم</h5><h2 style='color:#27ae60;'>{format_num(t_sales)} ₪</h2></div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"<div class='report-card' style='border-top-color: #e67e22;'><h5>مصاريف وتوالف اليوم</h5><h2 style='color:#e67e22;'>{format_num(t_exp + t_waste)} ₪</h2></div>", unsafe_allow_html=True)
-    with col3:
-        # تلوين الصافي: أخضر للموجب وأحمر للسالب
-        color = "#27ae60" if net_profit >= 0 else "#e74c3c"
-        st.markdown(f"<div class='report-card' style='border-top-color: {color};'><h5>صافي ربح اليوم</h5><h2 style='color:{color};'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+    col1.markdown(f"<div class='report-card'><h5>مبيعات اليوم</h5><h2 style='color:#27ae60;'>{format_num(t_sales)} ₪</h2></div>", unsafe_allow_html=True)
+    col2.markdown(f"<div class='report-card' style='border-top-color: #e67e22;'><h5>مصاريف وتوالف اليوم</h5><h2 style='color:#e67e22;'>{format_num(t_exp + t_waste)} ₪</h2></div>", unsafe_allow_html=True)
+    
+    color = "#27ae60" if net_profit >= 0 else "#e74c3c"
+    col3.markdown(f"<div class='report-card' style='border-top-color: {color};'><h5>صافي ربح اليوم</h5><h2 style='color:{color};'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+
+    if net_profit < 0:
+        st.warning("⚠️ صافي الربح بالسالب! تفقد جدول الخسائر أدناه.")
 
     st.divider()
     
-    # تفاصيل لضمان صحة الأرقام
-    st.info(f"💡 **توضيح الحسبة:** ربح المبيعات ({format_num(t_gross_profit)}) - مصاريف ({format_num(t_exp)}) - توالف ({format_num(t_waste)}) = {format_num(net_profit)} ₪")
-
-    with st.expander("🔍 عرض مبيعات اليوم المسجلة"):
-        if not st.session_state.sales_df.empty:
-            temp_sales = st.session_state.sales_df.copy()
-            temp_sales['date'] = pd.to_datetime(temp_sales['date'], errors='coerce').dt.date
-            st.dataframe(temp_sales[temp_sales['date'] == today_dt], use_container_width=True)
+    # --- التعديل: عرض مبيعات اليوم مع فحص الخسارة ---
+    st.subheader("📄 مراجعة مبيعات اليوم")
+    if not st.session_state.sales_df.empty:
+        temp_sales = st.session_state.sales_df.copy()
+        temp_sales['date'] = pd.to_datetime(temp_sales['date'], errors='coerce').dt.date
+        today_sales = temp_sales[temp_sales['date'] == today_dt]
+        
+        if not today_sales.empty:
+            # تمييز الخسائر بالأحمر
+            st.dataframe(today_sales.style.apply(lambda x: ['background-color: #ffcccc' if x.profit < 0 else '' for i in x], axis=1), use_container_width=True)
+            
+            loss_items = today_sales[today_sales['profit'] < 0]
+            if not loss_items.empty:
+                st.error("❌ أصناف بيعت بخسارة اليوم (تأكد من سعر الشراء في المخزن):")
+                st.table(loss_items[['item', 'amount', 'profit']])
         else:
-            st.write("لا توجد مبيعات مسجلة اليوم.")
+            st.info("لا توجد مبيعات اليوم بعد.")
+
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
-    
     with st.form("exp_form"):
         r = st.text_input("البيان")
         a = st.number_input("المبلغ (₪)", min_value=0.0)
@@ -160,7 +165,7 @@ elif menu == "💸 المصروفات":
                 st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
                 sync_to_google(); st.rerun()
 
-    st.subheader("سجل المصروفات (يمكنك الحذف من هنا)")
+    st.subheader("سجل المصروفات")
     if not st.session_state.expenses_df.empty:
         for idx, row in st.session_state.expenses_df.iterrows():
             colx, coly, colz = st.columns([3, 2, 1])
@@ -170,4 +175,11 @@ elif menu == "💸 المصروفات":
                 st.session_state.expenses_df = st.session_state.expenses_df.drop(idx)
                 sync_to_google(); st.rerun()
 
-# (بقية الأقسام: المخزن والإعدادات تظل كما هي في كودك)
+elif menu == "📦 المخزن والجرد":
+    st.markdown("<h1 class='main-title'>📦 المخزن والجرد</h1>", unsafe_allow_html=True)
+    # أضف هنا كود المخزن الخاص بك
+    st.write("استخدم صفحة الإعدادات لتصحيح أسعار الشراء إذا ظهرت أرباح سالبة.")
+
+elif menu == "⚙️ الإعدادات":
+    st.markdown("<h1 class='main-title'>⚙️ الإعدادات</h1>", unsafe_allow_html=True)
+    # أضف هنا كود إضافة الأصناف الخاص بك
