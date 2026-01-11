@@ -98,7 +98,6 @@ if menu == "🛒 نقطة البيع":
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 حالة المخزن والجرد</h1>", unsafe_allow_html=True)
     
-    # تسجيل التوالف
     with st.expander("⚠️ تسجيل بضاعة تالفة (فاقد)"):
         with st.form("waste_form"):
             col_w1, col_w2 = st.columns(2)
@@ -113,7 +112,6 @@ elif menu == "📦 المخزن والجرد":
                     sync_to_google(); st.success(f"تم تسجيل التالف"); st.rerun()
                 else: st.error("الكمية غير كافية!")
 
-    # عرض حالة المخزن
     if st.session_state.inventory:
         stock_value = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
         st.markdown(f"<div class='report-card'><h5>إجمالي قيمة رأس المال في البضاعة</h5><h2>{format_num(stock_value)} ₪</h2></div><br>", unsafe_allow_html=True)
@@ -135,38 +133,28 @@ elif menu == "📦 المخزن والجرد":
                             st.session_state.inventory[it]['كمية'] = new_q
                             sync_to_google(); st.rerun()
                 display_idx += 1
-# كود عرض جدول مراجعة الأسعار والكميات - لأبو عمر
-st.subheader("📋 كشف مراجعة الأصناف (الأسعار والكميات)")
 
-if st.session_state.inventory:
-    # تحويل بيانات المخزن إلى جدول (DataFrame) لسهولة العرض
-    inventory_review_df = [{'الصنف': k, 
-                            'القسم': v.get('قسم', 'غير مصنف'), 
-                            'سعر الشراء (₪)': v['شراء'], 
-                            'سعر البيع (₪)': v['بيع'], 
-                            'الكمية المتوفرة': v['كمية'],
-                            'الحالة': '✅ سليم' if v['بيع'] > v['شراء'] else '❌ خطأ (البيع أقل من الشراء)'} 
-                           for k, v in st.session_state.inventory.items()]
-    
-    df_review = pd.DataFrame(inventory_review_df)
+    st.subheader("📋 كشف مراجعة الأصناف (الأسعار والكميات)")
+    if st.session_state.inventory:
+        inventory_review_df = [{'الصنف': k, 
+                                'القسم': v.get('قسم', 'غير مصنف'), 
+                                'سعر الشراء (₪)': v['شراء'], 
+                                'سعر البيع (₪)': v['بيع'], 
+                                'الكمية المتوفرة': v['كمية'],
+                                'الحالة': '✅ سليم' if v['بيع'] > v['شراء'] else '❌ خطأ (البيع أقل من الشراء)'} 
+                               for k, v in st.session_state.inventory.items()]
+        
+        df_review = pd.DataFrame(inventory_review_df)
+        def color_errors(val):
+            color = '#ffcccc' if '❌' in str(val) else ''
+            return f'background-color: {color}'
 
-    # عرض الجدول مع تنسيق الألوان لتنبيهك للأخطاء
-    def color_errors(val):
-        color = '#ffcccc' if '❌' in str(val) else ''
-        return f'background-color: {color}'
+        st.dataframe(df_review.style.applymap(color_errors, subset=['الحالة']), use_container_width=True, hide_index=True)
+        st.info("💡 نصيحة: أي صنف حالته '❌ خطأ' يعني أن سعر الشراء أعلى من البيع.")
+    else:
+        st.warning("لا توجد أصناف في المخزن حالياً.")
 
-    st.dataframe(
-        df_review.style.applymap(color_errors, subset=['الحالة']),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # إضافة زر لتصدير هذه القائمة إذا احتجت
-    st.info("💡 نصيحة: أي صنف حالته '❌ خطأ' يعني أنك سجلت سعر الشراء أعلى من البيع، وهذا هو سبب ظهور الأرباح بالسالب.")
-else:
-    st.warning("لا توجد أصناف في المخزن حالياً.")
-
-    elif menu == "📊 التقارير المالية":
+elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقرير المالي الدقيق - أبو عمر</h1>", unsafe_allow_html=True)
     today_dt = datetime.now().date()
 
