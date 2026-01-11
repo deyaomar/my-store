@@ -166,27 +166,15 @@ elif menu == "📊 التقارير المالية":
 
 
 
-    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>")
 
 
 
-    # ... (بقية قسم التقارير يبقى كما هو لأنه يعتمد على البيانات المسجلة مسبقاً)
+
+    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>", unsafe_allow_html=True)
 
 
 
-    df_sales = st.session_state.sales_df.copy()
 
-
-
-    if not df_sales.empty:
-
-
-
-        df_sales['date'] = pd.to_datetime(df_sales['date'])
-
-
-
-        st.dataframe(df_sales.sort_values(by='date', ascending=False), use_container_width=True)
 
 
 
@@ -194,51 +182,572 @@ elif menu == "📊 التقارير المالية":
 
 
 
+
+
+
+
+    df_sales = st.session_state.sales_df.copy()
+
+
+
+
+
+
+
+    df_sales['date'] = pd.to_datetime(df_sales['date'])
+
+
+
+
+
+
+
+    df_sales['amount'] = pd.to_numeric(df_sales['amount'], errors='coerce').fillna(0)
+
+
+
+
+
+
+
+    df_sales['profit'] = pd.to_numeric(df_sales['profit'], errors='coerce').fillna(0)
+
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+    df_exp = st.session_state.expenses_df.copy()
+
+
+
+
+
+
+
+    if not df_exp.empty:
+
+
+
+
+
+
+
+        df_exp['date'] = pd.to_datetime(df_exp['date'])
+
+
+
+
+
+
+
+        df_exp['amount'] = pd.to_numeric(df_exp['amount'], errors='coerce').fillna(0)
+
+
+
+
+
+
+
+        
+
+
+
+
+
+
+
+    df_waste = st.session_state.waste_df.copy()
+
+
+
+
+
+
+
+    if not df_waste.empty:
+
+
+
+
+
+
+
+        df_waste['date'] = pd.to_datetime(df_waste['date'])
+
+
+
+
+
+
+
+        df_waste['loss_value'] = pd.to_numeric(df_waste['loss_value'], errors='coerce').fillna(0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    today = pd.Timestamp(datetime.now().date())
+
+
+
+
+
+
+
+    last_7_days = today - pd.Timedelta(days=7)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    total_original_cap = sum(v['شراء'] * v.get('أصلي', v['كمية']) for v in st.session_state.inventory.values())
+
+
+
+
+
+
+
+    current_stock_cap = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    t_sales = df_sales[df_sales['date'] == today]['amount'].sum()
+
+
+
+
+
+
+
+    t_gross_profit = df_sales[df_sales['date'] == today]['profit'].sum()
+
+
+
+
+
+
+
+    t_exp = df_exp[df_exp['date'] == today]['amount'].sum() if not df_exp.empty else 0
+
+
+
+
+
+
+
+    t_waste = df_waste[df_waste['date'] == today]['loss_value'].sum() if not df_waste.empty else 0
+
+
+
+
+
+
+
+    t_net_profit = t_gross_profit - t_exp - t_waste
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    w_sales = df_sales[df_sales['date'] >= last_7_days]['amount'].sum()
+
+
+
+
+
+
+
+    w_gross_profit = df_sales[df_sales['date'] >= last_7_days]['profit'].sum()
+
+
+
+
+
+
+
+    w_exp = df_exp[df_exp['date'] >= last_7_days]['amount'].sum() if not df_exp.empty else 0
+
+
+
+
+
+
+
+    w_waste = df_waste[df_waste['date'] >= last_7_days]['loss_value'].sum() if not df_waste.empty else 0
+
+
+
+
+
+
+
+    w_net_profit = w_gross_profit - w_exp - w_waste
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.markdown("### 🏦 حالة رأس المال (المخزن)")
+
+
+
+
+
+
+
+    col_cap1, col_cap2 = st.columns(2)
+
+
+
+
+
+
+
+    with col_cap1:
+
+
+
+
+
+
+
+        st.markdown(f"<div style='background: #2c3e50; padding: 20px; border-radius: 15px; color: white; text-align: center;'><p style='margin:0;'>إجمالي رأس المال الأصلي</p><h2 style='margin:0;'>{format_num(total_original_cap)} ₪</h2></div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+    with col_cap2:
+
+
+
+
+
+
+
+        st.markdown(f"<div style='background: #34495e; padding: 20px; border-radius: 15px; color: white; text-align: center;'><p style='margin:0;'>رأس المال المتوفر حالياً</p><h2 style='margin:0;'>{format_num(current_stock_cap)} ₪</h2></div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.markdown("---")
+
+
+
+
+
+
+
+    st.markdown("### 💰 تقرير الأرباح والمبيعات الصافية")
+
+
+
+
+
+
+
+    c1, c2 = st.columns(2)
+
+
+
+
+
+
+
+    with c1:
+
+
+
+
+
+
+
+        st.markdown(f"<div style='background: linear-gradient(135deg, #27ae60, #2ecc71); padding: 20px; border-radius: 15px; color: white; text-align: center;'><p style='margin:0;'>مبيعات اليوم</p><h2 style='margin:0;'>{format_num(t_sales)} ₪</h2></div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+    with c2:
+
+
+
+
+
+
+
+        st.markdown(f"<div style='background: linear-gradient(135deg, #2980b9, #3498db); padding: 20px; border-radius: 15px; color: white; text-align: center;'><p style='margin:0;'>صافي ربح اليوم</p><h2 style='margin:0;'>{format_num(t_net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    c3, c4 = st.columns(2)
+
+
+
+
+
+
+
+    with c3:
+
+
+
+
+
+
+
+        st.markdown(f"<div style='background: linear-gradient(135deg, #8e44ad, #9b59b6); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-top:15px;'><p style='margin:0;'>مبيعات الأسبوع</p><h2 style='margin:0;'>{format_num(w_sales)} ₪</h2></div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+    with c4:
+
+
+
+
+
+
+
+        st.markdown(f"<div style='background: linear-gradient(135deg, #f39c12, #f1c40f); padding: 20px; border-radius: 15px; color: white; text-align: center; margin-top:15px;'><p style='margin:0;'>صافي ربح الأسبوع</p><h2 style='margin:0;'>{format_num(w_net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+
+
+
+
+
+
+    t1, t2, t3 = st.tabs(["👥 سجل الزبائن", "⚠️ سجل التالف", "📉 المصروفات"])
+
+
+
+
+
+
+
+    with t1:
+
+
+
+
+
+
+
+        if not df_sales.empty: st.dataframe(df_sales.sort_values(by='date', ascending=False), use_container_width=True)
+
+
+
+
+
+
+
+    with t2:
+
+
+
+
+
+
+
+        if not df_waste.empty: st.dataframe(df_waste.sort_values(by='date', ascending=False), use_container_width=True)
+
+
+
+
+
+
+
+    with t3:
+
+
+
+
+
+
+
+        if not df_exp.empty: st.dataframe(df_exp.sort_values(by='date', ascending=False), use_container_width=True)
+
+
+
+
+
+
+
+# --- إضافة ميزة حذف آخر فاتورة ---
+
+    st.markdown("---")
+
+    st.subheader("🛠️ إدارة العمليات الأخيرة")
+
+    
+
     if not st.session_state.sales_df.empty:
 
-
-
-        st.subheader("🛠️ إدارة العمليات الأخيرة")
-
-
+        # الحصول على آخر معرف فاتورة
 
         last_bill_id = st.session_state.sales_df.iloc[-1]['bill_id']
 
+        
 
+        # عرض زر الحذف مع تنبيه
 
         if st.button(f"🗑️ حذف آخر فاتورة (رقم: {last_bill_id})", use_container_width=True):
 
-
+            # 1. استخراج المنتجات التي كانت في هذه الفاتورة
 
             last_bill_items = st.session_state.sales_df[st.session_state.sales_df['bill_id'] == last_bill_id]
 
+            
 
+            # 2. إرجاع الكميات للمخزن
 
             for index, row in last_bill_items.iterrows():
 
-
-
                 item_name = row['item']
 
+                # حساب الكمية التي كانت مباعة (المبلغ ÷ سعر البيع)
 
+                # أو الأفضل نعدل كود البيع ليخزن الكميةqty في السيلز، لكن حالياً سنعتمد على الحسبة التالية:
 
                 item_price = st.session_state.inventory[item_name]['بيع']
 
-
-
                 qty_to_return = row['amount'] / item_price
 
-
+                
 
                 if item_name in st.session_state.inventory:
 
-
-
                     st.session_state.inventory[item_name]['كمية'] += qty_to_return
 
+            
 
+            # 3. حذف أسطر الفاتورة من ملف المبيعات
 
             st.session_state.sales_df = st.session_state.sales_df[st.session_state.sales_df['bill_id'] != last_bill_id]
+
+            
+
+            # 4. المزامنة مع جوجل شيت
+
+            if sync_to_google():
+
+                st.success(f"تم حذف الفاتورة {last_bill_id} وإعادة البضاعة للمخزن بنجاح!")
+
+                st.rerun()
+
+    else:
+
+        st.info("لا توجد مبيعات مسجلة حالياً لحذفها.")
+
 
 
 
