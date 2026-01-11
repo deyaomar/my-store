@@ -13,16 +13,11 @@ st.markdown("""
     html, body, [class*="css"], .stMarkdown { font-family: 'Tajawal', sans-serif !important; direction: rtl !important; text-align: right !important; }
     .main-title { color: #1a1a1a; font-weight: 900; font-size: 30px; border-right: 8px solid #27ae60; padding-right: 15px; margin-bottom: 25px; }
     .report-card { background: white; padding: 20px; border-radius: 15px; border-top: 5px solid #27ae60; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-    .stock-card { background: white; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 20px; transition: 0.3s; }
-    .stock-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+    .stock-card { background: white; padding: 15px; border-radius: 12px; border: 1px solid #eee; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. الدوال المساعدة
-def format_num(val):
-    return f"{val:,.2f}"
-
-# 3. الاتصال والمزامنة
+# 2. المزامنة والبيانات
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def sync_to_google():
@@ -34,11 +29,8 @@ def sync_to_google():
         conn.update(worksheet="Waste", data=st.session_state.waste_df)
         st.cache_data.clear()
         return True
-    except Exception as e:
-        st.error(f"خطأ في المزامنة: {e}")
-        return False
+    except: return False
 
-# 4. تحميل البيانات
 if 'inventory' not in st.session_state:
     try:
         inv_df = conn.read(worksheet="Inventory", ttl=0)
@@ -47,190 +39,85 @@ if 'inventory' not in st.session_state:
         st.session_state.expenses_df = conn.read(worksheet="Expenses", ttl=0)
         st.session_state.waste_df = conn.read(worksheet="Waste", ttl=0)
     except:
-        st.session_state.inventory = {}
-        st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
-        st.session_state.expenses_df = pd.DataFrame(columns=['date', 'reason', 'amount'])
-        st.session_state.waste_df = pd.DataFrame(columns=['date', 'item', 'qty', 'loss_value'])
+        st.session_state.inventory = {}; st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
+        st.session_state.expenses_df = pd.DataFrame(columns=['date', 'reason', 'amount']); st.session_state.waste_df = pd.DataFrame(columns=['date', 'item', 'qty', 'loss_value'])
 
 if 'CATEGORIES' not in st.session_state:
     st.session_state.CATEGORIES = ["مواد غذائية", "منظفات", "أدوات منزلية", "أخرى"]
 
-# 5. القائمة الجانبية
+# 3. القائمة الجانبية
 with st.sidebar:
-    st.markdown(f"<h2 style='text-align:center;'>أهلاً أبو عمر 👋</h2>", unsafe_allow_html=True)
-    menu = st.radio("انتقل إلى:", ["🛒 نقطة البيع", "📦 المخزن والجرد", "📊 التقارير المالية", "💸 المصروفات", "⚙️ الإعدادات"])
-    if st.button("🔄 تحديث البيانات"): st.rerun()
+    st.markdown("### أهلاً أبو عمر 👋")
+    menu = st.radio("القائمة:", ["🛒 نقطة البيع", "📦 المخزن والجرد", "📊 التقارير المالية", "⚙️ الإعدادات"])
+    if st.button("🔄 تحديث"): st.rerun()
 
-# --- المنطق الرئيسي ---
+# --- التنفيذ ---
 
 if menu == "🛒 نقطة البيع":
-    st.markdown("<h1 class='main-title'>🛒 شاشة البيع السريع</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>🛒 البيع السريع (كل الأصناف)</h1>", unsafe_allow_html=True)
     c1, c2 = st.columns([1, 2])
     cat_sel = c1.selectbox("📂 القسم", ["الكل"] + st.session_state.CATEGORIES)
-    search = c2.text_input("🔍 ابحث عن صنف لبيعه...")
+    search = c2.text_input("🔍 ابحث هنا...")
     
-    items_to_sell = st.session_state.inventory.items()
-    if cat_sel != "الكل":
-        items_to_sell = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat_sel}.items()
+    # فلترة وعرض كافة الأصناف دون استثناء
+    items = {k: v for k, v in st.session_state.inventory.items() if (cat_sel == "الكل" or v.get('قسم') == cat_sel) and (search.lower() in k.lower())}
     
-    items = {k: v for k, v in items_to_sell if search.lower() in k.lower()}
-    cols = st.columns(4)
+    cols = st.columns(4) # عرض 4 أصناف في كل سطر حتى تنتهي القائمة بالكامل
     temp_bill = []
     
     for idx, (it, data) in enumerate(items.items()):
         with cols[idx % 4]:
-            st.markdown(f"<div style='background:#fff; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'><b>{it}</b><br><span style='color:green;'>{data['بيع']} ₪</span><br><small>متوفر: {data['كمية']}</small></div>", unsafe_allow_html=True)
-            val = st.number_input(f"الكمية ({it})", key=f"v_{it}", min_value=0.0, step=0.1)
+            st.markdown(f"<div style='background:#f9f9f9; border:1px solid #ddd; padding:10px; border-radius:10px; text-align:center;'><b>{it}</b><br><span style='color:green;'>{data['بيع']} ₪</span><br><small>المخزن: {data['كمية']}</small></div>", unsafe_allow_html=True)
+            val = st.number_input(f"الكمية", key=f"sale_{it}", min_value=0.0, step=0.1)
             if val > 0:
-                profit_unit = data['بيع'] - data['شراء']
-                if profit_unit < 0:
-                    st.error(f"⚠️ خطأ في سعر {it}")
-                temp_bill.append({'item': it, 'qty': val, 'amount': val * data['بيع'], 'profit': profit_unit * val})
+                temp_bill.append({'item': it, 'qty': val, 'amount': val * data['بيع'], 'profit': (data['بيع'] - data['شراء']) * val})
     
-    if temp_bill and st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
+    if temp_bill and st.button("✅ تنفيذ البيع لجميع المختار", use_container_width=True):
         bid = str(uuid.uuid4())[:8]
         for row in temp_bill:
             st.session_state.inventory[row['item']]['كمية'] -= row['qty']
-            new_row = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': row['item'], 'amount': row['amount'], 'profit': row['profit'], 'method': 'نقدي', 'customer_name': 'زبون محل', 'bill_id': bid}
+            new_row = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': row['item'], 'amount': row['amount'], 'profit': row['profit'], 'method': 'نقدي', 'customer_name': 'زبون', 'bill_id': bid}
             st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
-        sync_to_google(); st.success("تمت العملية بنجاح!"); st.rerun()
+        sync_to_google(); st.success("تم الحفظ!"); st.rerun()
 
 elif menu == "📦 المخزن والجرد":
-    st.markdown("<h1 class='main-title'>📦 حالة المخزن والجرد</h1>", unsafe_allow_html=True)
-    
-    with st.expander("⚠️ تسجيل بضاعة تالفة (فاقد)"):
-        with st.form("waste_form"):
-            col_w1, col_w2 = st.columns(2)
-            w_item = col_w1.selectbox("اختر الصنف التالف", list(st.session_state.inventory.keys()))
-            w_qty = col_w2.number_input("الكمية التالفة", min_value=0.0, step=0.1)
-            if st.form_submit_button("تسجيل التالف وخصمه"):
-                if w_qty > 0 and w_qty <= st.session_state.inventory[w_item]['كمية']:
-                    st.session_state.inventory[w_item]['كمية'] -= w_qty
-                    loss = w_qty * st.session_state.inventory[w_item]['شراء']
-                    new_waste = {'date': datetime.now().strftime("%Y-%m-%d"), 'item': w_item, 'qty': w_qty, 'loss_value': loss}
-                    st.session_state.waste_df = pd.concat([st.session_state.waste_df, pd.DataFrame([new_waste])], ignore_index=True)
-                    sync_to_google(); st.success(f"تم تسجيل التالف"); st.rerun()
-                else: st.error("الكمية غير كافية!")
-
+    st.markdown("<h1 class='main-title'>📦 قائمة الجرد الشاملة</h1>", unsafe_allow_html=True)
     if st.session_state.inventory:
-        stock_value = sum(v['شراء'] * v['كمية'] for v in st.session_state.inventory.values())
-        st.markdown(f"<div class='report-card'><h5>إجمالي قيمة رأس المال في البضاعة</h5><h2>{format_num(stock_value)} ₪</h2></div><br>", unsafe_allow_html=True)
+        # عرض جدول واحد ضخم فيه كل شيء
+        full_data = []
+        for k, v in st.session_state.inventory.items():
+            full_data.append({'الصنف': k, 'القسم': v.get('قسم'), 'الشراء': v['شراء'], 'البيع': v['بيع'], 'الكمية': v['كمية']})
         
-        c1, c2 = st.columns([1, 2])
-        f_cat = c1.selectbox("📂 تصفية حسب القسم", ["الكل"] + st.session_state.CATEGORIES)
-        search_st = c2.text_input("🔍 ابحث في الأصناف...")
-        
-        cols = st.columns(3); display_idx = 0
-        for it, data in st.session_state.inventory.items():
-            item_cat = data.get('قسم', 'أخرى')
-            if (f_cat == "الكل" or item_cat == f_cat) and (search_st.lower() in it.lower()):
-                with cols[display_idx % 3]:
-                    card_color = "#27ae60" if data['كمية'] > 5 else ("#f39c12" if data['كمية'] > 0 else "#e74c3c")
-                    st.markdown(f"<div class='stock-card' style='border-top: 6px solid {card_color};'><small>{item_cat}</small><h3>{it}</h3><p>المتبقي: {data['كمية']}</p><h4>بيع: {data['بيع']} ₪</h4></div>", unsafe_allow_html=True)
-                    with st.expander(f"⚙️ جرد سريع لـ {it}"):
-                        new_q = st.number_input("الكمية الفعلية", value=float(data['كمية']), key=f"inv_q_{it}")
-                        if st.button("تحديث الكمية فقط", key=f"inv_btn_{it}"):
-                            st.session_state.inventory[it]['كمية'] = new_q
-                            sync_to_google(); st.rerun()
-                display_idx += 1
-
-    st.subheader("📋 كشف مراجعة الأصناف (الأسعار والكميات)")
-    if st.session_state.inventory:
-        inventory_review_df = [{'الصنف': k, 'القسم': v.get('قسم', 'غير مصنف'), 'سعر الشراء (₪)': v['شراء'], 'سعر البيع (₪)': v['بيع'], 'الكمية المتوفرة': v['كمية'], 'الحالة': '✅ سليم' if v['بيع'] > v['شراء'] else '❌ خطأ (البيع أقل من الشراء)'} for k, v in st.session_state.inventory.items()]
-        df_review = pd.DataFrame(inventory_review_df)
-        def color_errors(val):
-            color = '#ffcccc' if '❌' in str(val) else ''
-            return f'background-color: {color}'
-        st.dataframe(df_review.style.applymap(color_errors, subset=['الحالة']), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(full_data), use_container_width=True, height=600) # تم زيادة الارتفاع ليظهر الكل
     else:
-        st.warning("لا توجد أصناف في المخزن حالياً.")
-
-elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقرير المالي الدقيق - أبو عمر</h1>", unsafe_allow_html=True)
-    today_dt = datetime.now().date()
-    def get_safe_sum(df, date_col, value_col):
-        if df is None or df.empty: return 0.0
-        try:
-            temp = df.copy()
-            temp[date_col] = pd.to_datetime(temp[date_col], errors='coerce').dt.date
-            today_data = temp[temp[date_col] == today_dt]
-            if not today_data.empty and value_col in today_data.columns:
-                return pd.to_numeric(today_data[value_col], errors='coerce').fillna(0).sum()
-            return 0.0
-        except: return 0.0
-    t_sales = get_safe_sum(st.session_state.sales_df, 'date', 'amount')
-    t_gross_profit = get_safe_sum(st.session_state.sales_df, 'date', 'profit')
-    t_exp = get_safe_sum(st.session_state.expenses_df, 'date', 'amount')
-    t_waste = get_safe_sum(st.session_state.waste_df, 'date', 'loss_value')
-    net_profit = t_gross_profit - t_exp - t_waste
-    st.markdown(f"### 🕒 تقرير اليوم: {today_dt}")
-    col1, col2, col3 = st.columns(3)
-    col1.markdown(f"<div class='report-card'><h5>مبيعات اليوم</h5><h2 style='color:#27ae60;'>{format_num(t_sales)} ₪</h2></div>", unsafe_allow_html=True)
-    col2.markdown(f"<div class='report-card' style='border-top-color: #e67e22;'><h5>مصاريف وتوالف اليوم</h5><h2 style='color:#e67e22;'>{format_num(t_exp + t_waste)} ₪</h2></div>", unsafe_allow_html=True)
-    color = "#27ae60" if net_profit >= 0 else "#e74c3c"
-    col3.markdown(f"<div class='report-card' style='border-top-color: {color};'><h5>صافي ربح اليوم</h5><h2 style='color:{color};'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
-
-elif menu == "💸 المصروفات":
-    st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
-    with st.form("exp_form"):
-        r = st.text_input("البيان")
-        a = st.number_input("المبلغ (₪)", min_value=0.0)
-        if st.form_submit_button("حفظ المصروف"):
-            if r and a > 0:
-                new_exp = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': r, 'amount': a}
-                st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_exp])], ignore_index=True)
-                sync_to_google(); st.rerun()
+        st.warning("المخزن فارغ.")
 
 elif menu == "⚙️ الإعدادات":
-    st.markdown("<h1 class='main-title'>⚙️ إدارة الأصناف والأقسام</h1>", unsafe_allow_html=True)
-    t1, t2, t3, t4 = st.tabs(["📥 تزويد كمية", "✨ صنف جديد", "✏️ تعديل/حذف صنف", "📂 إدارة الأقسام"])
+    st.markdown("<h1 class='main-title'>⚙️ الإدارة</h1>", unsafe_allow_html=True)
+    t1, t2 = st.tabs(["✨ صنف جديد", "✏️ تعديل صنف موجود"])
     
     with t1:
-        if st.session_state.inventory:
-            with st.form("add_stock_form"):
-                item_name = st.selectbox("اختر الصنف", list(st.session_state.inventory.keys()))
-                plus_q = st.number_input("الكمية المضافة", min_value=0.0)
-                if st.form_submit_button("إضافة للمخزن"):
-                    st.session_state.inventory[item_name]['كمية'] += plus_q
-                    sync_to_google(); st.success("تم التحديث"); st.rerun()
+        with st.form("new"):
+            n = st.text_input("الاسم")
+            cat = st.selectbox("القسم", st.session_state.CATEGORIES)
+            b = st.number_input("شراء")
+            s = st.number_input("بيع")
+            q = st.number_input("كمية")
+            if st.form_submit_button("إضافة"):
+                st.session_state.inventory[n] = {'قسم': cat, 'شراء': b, 'بيع': s, 'كمية': q}
+                sync_to_google(); st.rerun()
 
     with t2:
-        with st.form("add_form"):
-            n = st.text_input("اسم الصنف الجديد")
-            cat = st.selectbox("القسم", st.session_state.CATEGORIES)
-            b = st.number_input("سعر الشراء")
-            s = st.number_input("سعر البيع")
-            q = st.number_input("الكمية الأولية")
-            if st.form_submit_button("إضافة صنف"):
-                if n:
-                    st.session_state.inventory[n] = {'قسم': cat, 'شراء': b, 'بيع': s, 'كمية': q}
-                    sync_to_google(); st.success(f"تمت إضافة {n}"); st.rerun()
-
-    with t3: # قسم تعديل الأسعار والأسماء وحذف الأصناف
         if st.session_state.inventory:
-            edit_item = st.selectbox("اختر الصنف المراد تعديله أو حذفه", list(st.session_state.inventory.keys()))
-            old_data = st.session_state.inventory[edit_item]
-            with st.form("edit_item_form"):
-                new_n = st.text_input("تعديل اسم الصنف", value=edit_item)
-                new_cat = st.selectbox("تعديل القسم", st.session_state.CATEGORIES, index=st.session_state.CATEGORIES.index(old_data.get('قسم', 'أخرى')) if old_data.get('قسم') in st.session_state.CATEGORIES else 0)
-                new_b = st.number_input("تعديل سعر الشراء", value=float(old_data['شراء']))
-                new_s = st.number_input("تعديل سعر البيع", value=float(old_data['بيع']))
-                new_q = st.number_input("تعديل الكمية", value=float(old_data['كمية']))
-                
-                c_del, c_save = st.columns(2)
-                if c_save.form_submit_button("💾 حفظ التعديلات"):
-                    if new_n != edit_item: del st.session_state.inventory[edit_item]
-                    st.session_state.inventory[new_n] = {'قسم': new_cat, 'شراء': new_b, 'بيع': new_s, 'كمية': new_q}
-                    sync_to_google(); st.success("تم التعديل"); st.rerun()
-                
-                if c_del.form_submit_button("🗑️ حذف الصنف نهائياً"):
-                    del st.session_state.inventory[edit_item]
-                    sync_to_google(); st.warning("تم الحذف"); st.rerun()
-        else: st.info("المخزن فارغ حالياً.")
-
-    with t4:
-        new_cat = st.text_input("اسم القسم الجديد")
-        if st.button("حفظ القسم"):
-            if new_cat and new_cat not in st.session_state.CATEGORIES:
-                st.session_state.CATEGORIES.append(new_cat); st.rerun()
-        st.write("الأقسام الحالية:", st.session_state.CATEGORIES)
+            # هنا تظهر كل الأصناف في القائمة المنسدلة للتعديل
+            edit_name = st.selectbox("اختر الصنف للتعديل", list(st.session_state.inventory.keys()))
+            d = st.session_state.inventory[edit_name]
+            with st.form("edit"):
+                new_n = st.text_input("الاسم", value=edit_name)
+                new_b = st.number_input("شراء", value=float(d['شراء']))
+                new_s = st.number_input("بيع", value=float(d['بيع']))
+                new_q = st.number_input("كمية", value=float(d['كمية']))
+                if st.form_submit_button("حفظ التعديل"):
+                    if new_n != edit_name: del st.session_state.inventory[edit_name]
+                    st.session_state.inventory[new_n] = {'قسم': d.get('قسم'), 'شراء': new_b, 'بيع': new_s, 'كمية': new_q}
+                    sync_to_google(); st.rerun()
