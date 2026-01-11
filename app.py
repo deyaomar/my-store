@@ -854,7 +854,39 @@ elif menu == "📊 التقارير المالية":
 
 
 
-
+# --- إضافة ميزة حذف آخر فاتورة ---
+    st.markdown("---")
+    st.subheader("🛠️ إدارة العمليات الأخيرة")
+    
+    if not st.session_state.sales_df.empty:
+        # الحصول على آخر معرف فاتورة
+        last_bill_id = st.session_state.sales_df.iloc[-1]['bill_id']
+        
+        # عرض زر الحذف مع تنبيه
+        if st.button(f"🗑️ حذف آخر فاتورة (رقم: {last_bill_id})", use_container_width=True):
+            # 1. استخراج المنتجات التي كانت في هذه الفاتورة
+            last_bill_items = st.session_state.sales_df[st.session_state.sales_df['bill_id'] == last_bill_id]
+            
+            # 2. إرجاع الكميات للمخزن
+            for index, row in last_bill_items.iterrows():
+                item_name = row['item']
+                # حساب الكمية التي كانت مباعة (المبلغ ÷ سعر البيع)
+                # أو الأفضل نعدل كود البيع ليخزن الكميةqty في السيلز، لكن حالياً سنعتمد على الحسبة التالية:
+                item_price = st.session_state.inventory[item_name]['بيع']
+                qty_to_return = row['amount'] / item_price
+                
+                if item_name in st.session_state.inventory:
+                    st.session_state.inventory[item_name]['كمية'] += qty_to_return
+            
+            # 3. حذف أسطر الفاتورة من ملف المبيعات
+            st.session_state.sales_df = st.session_state.sales_df[st.session_state.sales_df['bill_id'] != last_bill_id]
+            
+            # 4. المزامنة مع جوجل شيت
+            if sync_to_google():
+                st.success(f"تم حذف الفاتورة {last_bill_id} وإعادة البضاعة للمخزن بنجاح!")
+                st.rerun()
+    else:
+        st.info("لا توجد مبيعات مسجلة حالياً لحذفها.")
 
 
 
