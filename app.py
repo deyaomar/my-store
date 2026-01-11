@@ -186,120 +186,38 @@ elif menu == "📦 المخزن والجرد":
     else:
         st.info("لا يوجد بضاعة مسجلة.")
 
-elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 لوحة التحكم والأداء المالي الصافي</h1>", unsafe_allow_html=True)
-    
-    if not st.session_state.sales_df.empty:
-        # 1. تجهيز البيانات وتحويل التواريخ والأرقام
-        df_sales = st.session_state.sales_df.copy()
-        df_sales['date'] = pd.to_datetime(df_sales['date'])
-        df_sales['amount'] = pd.to_numeric(df_sales['amount'])
-        df_sales['profit'] = pd.to_numeric(df_sales['profit'])
+# --- إضافة قسم أرشيف التالف في نهاية التقارير ---
+        st.markdown("---")
+        st.markdown("### ⚠️ أرشيف البضاعة التالفة (خسائر المخزن)")
         
-        df_exp = st.session_state.expenses_df.copy()
-        if not df_exp.empty:
-            df_exp['date'] = pd.to_datetime(df_exp['date'])
-            df_exp['amount'] = pd.to_numeric(df_exp['amount'])
+        if not st.session_state.waste_df.empty:
+            # تجهيز بيانات التالف للعرض
+            df_w_display = st.session_state.waste_df.copy()
+            df_w_display['date'] = pd.to_datetime(df_w_display['date'])
             
-        df_waste = st.session_state.waste_df.copy()
-        if not df_waste.empty:
-            df_waste['date'] = pd.to_datetime(df_waste['date'])
-            df_waste['loss_value'] = pd.to_numeric(df_waste['loss_value'])
-
-        today = pd.Timestamp(datetime.now().date())
-        last_7_days = today - pd.Timedelta(days=7)
-        
-        # --- 2. حسابات اليوم (صافي) ---
-        t_sales = df_sales[df_sales['date'] == today]['amount'].sum()
-        t_gross_profit = df_sales[df_sales['date'] == today]['profit'].sum()
-        t_exp = df_exp[df_exp['date'] == today]['amount'].sum() if not df_exp.empty else 0
-        t_waste = df_waste[df_waste['date'] == today]['loss_value'].sum() if not df_waste.empty else 0
-        t_net_profit = t_gross_profit - t_exp - t_waste
-
-        # --- 3. حسابات الأسبوع (صافي) ---
-        w_sales = df_sales[df_sales['date'] >= last_7_days]['amount'].sum()
-        w_gross_profit = df_sales[df_sales['date'] >= last_7_days]['profit'].sum()
-        w_exp = df_exp[df_exp['date'] >= last_7_days]['amount'].sum() if not df_exp.empty else 0
-        w_waste = df_waste[df_waste['date'] >= last_7_days]['loss_value'].sum() if not df_waste.empty else 0
-        w_net_profit = w_gross_profit - w_exp - w_waste
-
-        # --- الصف الأول: بطاقات الأداء الملونة (صافي الأرباح) ---
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""<div style='background: linear-gradient(135deg, #27ae60, #2ecc71); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(39,174,96,0.3);'>
-                <p style='margin:0; font-size:16px;'>مبيعات اليوم</p>
-                <h2 style='margin:0;'>{format_num(t_sales)} ₪</h2>
-            </div>""", unsafe_allow_html=True)
-
-        with col2:
-            p_color = "#2980b9" if t_net_profit >= 0 else "#e74c3c"
-            st.markdown(f"""<div style='background: {p_color}; padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(41,128,185,0.3);'>
-                <p style='margin:0; font-size:16px;'>صافي ربح اليوم</p>
-                <h2 style='margin:0;'>{format_num(t_net_profit)} ₪</h2>
-                <small>خصم: {t_exp + t_waste} (مصاريف+تالف)</small>
-            </div>""", unsafe_allow_html=True)
-
-        with col3:
-            st.markdown(f"""<div style='background: linear-gradient(135deg, #8e44ad, #9b59b6); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(142,68,173,0.3);'>
-                <p style='margin:0; font-size:16px;'>مبيعات الأسبوع</p>
-                <h2 style='margin:0;'>{format_num(w_sales)} ₪</h2>
-            </div>""", unsafe_allow_html=True)
-
-        with col4:
-            st.markdown(f"""<div style='background: linear-gradient(135deg, #f39c12, #f1c40f); padding: 20px; border-radius: 15px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(243,156,18,0.3);'>
-                <p style='margin:0; font-size:16px;'>صافي ربح الأسبوع</p>
-                <h2 style='margin:0;'>{format_num(w_net_profit)} ₪</h2>
-                <small>خصم أسبوعي: {w_exp + w_waste} ₪</small>
-            </div>""", unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # --- الصف الثاني: البحث المتقدم ---
-        with st.expander("🔍 استعلام متقدم عن فترة محددة", expanded=False):
-            c_a, c_b = st.columns(2)
-            d_from = c_a.date_input("من تاريخ", value=last_7_days, key="rep_from")
-            d_to = c_b.date_input("إلى تاريخ", value=today, key="rep_to")
+            # فلترة التالف لآخر 7 أيام فقط أو حسب الرغبة
+            w_mask = (df_w_display['date'] >= last_7_days)
+            f_waste = df_w_display.loc[w_mask].sort_values(by='date', ascending=False)
             
-            mask = (df_sales['date'] >= pd.Timestamp(d_from)) & (df_sales['date'] <= pd.Timestamp(d_to))
-            f_df = df_sales.loc[mask]
-            
-            if not f_df.empty:
-                st.info(f"إحصائية الفترة المختارة: مبيعات ({format_num(f_df['amount'].sum())} ₪) | أرباح مبيعات ({format_num(f_df['profit'].sum())} ₪)")
-                st.dataframe(f_df.sort_values(by='date', ascending=False), use_container_width=True)
-
-        # --- الصف الثالث: الأرشيف اليومي (آخر 7 أيام) ---
-        st.markdown("### 📅 الأرشيف اليومي الصافي")
-        
-        # تجميع المبيعات اليومية
-        daily_summary = df_sales[df_sales['date'] >= last_7_days].groupby(df_sales['date'].dt.date).agg({
-            'amount': 'sum',
-            'profit': 'sum'
-        }).reset_index()
-        
-        # دمج المصاريف والتالف في الجدول اليومي للحصول على الصافي لكل يوم
-        daily_summary['date_str'] = pd.to_datetime(daily_summary['date'])
-        
-        days_ara = {"Monday":"الاثنين", "Tuesday":"الثلاثاء", "Wednesday":"الأربعاء", "Thursday":"الخميس", "Friday":"الجمعة", "Saturday":"السبت", "Sunday":"الأحد"}
-        daily_summary['اليوم'] = daily_summary['date_str'].dt.day_name().map(days_ara)
-        
-        # حساب الصافي اليومي في الجدول
-        def get_daily_net(row):
-            d = row['date']
-            e = df_exp[df_exp['date'].dt.date == d]['amount'].sum() if not df_exp.empty else 0
-            w = df_waste[df_waste['date'].dt.date == d]['loss_value'].sum() if not df_waste.empty else 0
-            return row['profit'] - e - w
-
-        daily_summary['صافي الربح'] = daily_summary.apply(get_daily_net, axis=1)
-        daily_summary = daily_summary.rename(columns={'date': 'التاريخ', 'amount': 'إجمالي المبيعات'})
-        
-        st.table(daily_summary[['اليوم', 'التاريخ', 'إجمالي المبيعات', 'صافي الربح']].sort_values(by='التاريخ', ascending=False))
-        
-        st.markdown("### 📈 نمو المبيعات الأسبوعي")
-        st.line_chart(daily_summary.set_index('التاريخ')['إجمالي المبيعات'])
-
-    else:
-        st.info("لا توجد مبيعات مسجلة لعرض التقارير.")
+            if not f_waste.empty:
+                # تحويل التاريخ لشكل مقروء
+                f_waste['التاريخ'] = f_waste['date'].dt.strftime('%Y-%m-%d')
+                f_waste = f_waste.rename(columns={
+                    'item': 'الصنف التالف',
+                    'qty': 'الكمية',
+                    'loss_value': 'قيمة الخسارة (₪)'
+                })
+                
+                # عرض الجدول
+                st.dataframe(f_waste[['التاريخ', 'الصنف التالف', 'الكمية', 'قيمة الخسارة (₪)']], use_container_width=True)
+                
+                # إجمالي خسارة التالف
+                total_w_loss = f_waste['قيمة الخسارة (₪)'].sum()
+                st.warning(f"إجمالي خسارة البضاعة التالفة في هذه الفترة: {format_num(total_w_loss)} ₪")
+            else:
+                st.success("لا توجد بضاعة تالفة مسجلة في آخر 7 أيام.")
+        else:
+            st.info("سجل التالف فارغ تماماً.")
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة المصروفات</h1>", unsafe_allow_html=True)
     total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum()
