@@ -78,18 +78,46 @@ with st.sidebar:
 
 # --- المنطق الرئيسي ---
 
-# --- 🛒 نقطة البيع (معدلة لتشمل طريقة الدفع) ---
+# --- 🛒 نقطة البيع (بتصميم البطاقات الملونة للدفع) ---
 if menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع بالمبلغ (شيكل)</h1>", unsafe_allow_html=True)
+
+    # 1. نظام اختيار طريقة الدفع في أعلى الشاشة (بطاقات ملونة)
+    if 'pay_method_selected' not in st.session_state:
+        st.session_state.pay_method_selected = "نقدي 💵"
+
+    st.markdown("### 💳 اختر طريقة الدفع")
+    col_m1, col_m2 = st.columns(2)
+    
+    # بطاقة النقدي
+    cash_style = "border: 3px solid #27ae60; background: #ebf9f1;" if st.session_state.pay_method_selected == "نقدي 💵" else "border: 1px solid #ddd; background: #fff;"
+    if col_m1.button("💵 الدفع نقدي (Cash)", use_container_width=True):
+        st.session_state.pay_method_selected = "نقدي 💵"
+        st.rerun()
+    col_m1.markdown(f"<div style='{cash_style} text-align:center; padding:5px; border-radius:10px; margin-top:-10px;'><small>تم اختيار النقدي</small></div>" if st.session_state.pay_method_selected == "نقدي 💵" else "", unsafe_allow_html=True)
+
+    # بطاقة التطبيق
+    app_style = "border: 3px solid #2980b9; background: #eaf2f8;" if st.session_state.pay_method_selected == "تطبيق 📱" else "border: 1px solid #ddd; background: #fff;"
+    if col_m2.button("📱 الدفع تطبيق (App)", use_container_width=True):
+        st.session_state.pay_method_selected = "تطبيق 📱"
+        st.rerun()
+    col_m2.markdown(f"<div style='{app_style} text-align:center; padding:5px; border-radius:10px; margin-top:-10px;'><small>تم اختيار التطبيق</small></div>" if st.session_state.pay_method_selected == "تطبيق 📱" else "", unsafe_allow_html=True)
+
+    st.divider()
+
+    # 2. الفلترة والبحث
     c1, c2 = st.columns([1, 2])
     cat_sel = c1.selectbox("📂 القسم", ["الكل"] + st.session_state.CATEGORIES)
     search = c2.text_input("🔍 ابحث عن صنف لبيعه...")
     
+    # منطق تصفية الأصناف
     items_to_sell = st.session_state.inventory.items()
     if cat_sel != "الكل":
         items_to_sell = {k: v for k, v in st.session_state.inventory.items() if v.get('قسم') == cat_sel}.items()
     
     items = {k: v for k, v in items_to_sell if search.lower() in k.lower()}
+    
+    # 3. عرض الأصناف
     cols = st.columns(4)
     temp_bill = []
     
@@ -118,50 +146,42 @@ if menu == "🛒 نقطة البيع":
                     single_profit = curr_sell_price - curr_buy_price
                     calc_profit = round(single_profit * calc_qty, 2)
                     
-                    if calc_profit < 0:
-                        st.error(f"انتبه! خسارة في {it}!")
-                    
                     temp_bill.append({
-                        'item': it, 
-                        'qty': calc_qty, 
-                        'amount': float(money_val), 
-                        'profit': calc_profit
+                        'item': it, 'qty': calc_qty, 'amount': float(money_val), 'profit': calc_profit
                     })
 
     st.markdown("---")
     
+    # 4. إتمام العملية
     if temp_bill:
         total_cash = sum(row['amount'] for row in temp_bill)
         
-        # --- الإضافة الجديدة: اختيار طريقة الدفع واسم الزبون ---
-        col_pay1, col_pay2 = st.columns(2)
-        with col_pay1:
-            pay_method = st.radio("💳 طريقة الدفع:", ["نقدي 💵", "تطبيق 📱"], horizontal=True)
-        with col_pay2:
-            cust_name = st.text_input("👤 اسم الزبون (اختياري)", value="زبون محل")
+        col_end1, col_end2 = st.columns([2, 1])
+        with col_end1:
+            st.subheader(f"💰 المبلغ المطلوب: {total_cash:.2f} ₪ ({st.session_state.pay_method_selected})")
+        with col_end2:
+            cust_name = st.text_input("👤 اسم الزبون", value="زبون محل")
 
-        st.subheader(f"💰 إجمالي المبلغ المطلوب: {total_cash:.2f} ₪")
-        
-        if st.button("✅ إتمام البيع وحفظ العملية", use_container_width=True):
+        if st.button(f"✅ إتمام البيع ({st.session_state.pay_method_selected})", use_container_width=True):
             bid = str(uuid.uuid4())[:8]
             for row in temp_bill:
-                # تحديث المخزن
+                # تحديث الكمية في المخزن
                 st.session_state.inventory[row['item']]['كمية'] -= row['qty']
                 
-                # إضافة لسجل المبيعات مع الطريقة الجديدة
+                # تسجيل العملية
                 new_row = {
-                    'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # أضفت الوقت ليكون أدق
+                    'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                     'item': row['item'], 
                     'amount': row['amount'], 
                     'profit': row['profit'], 
-                    'method': pay_method, # هنا يتم حفظ نقدي أو تطبيق
+                    'method': st.session_state.pay_method_selected, # القيمة المختارة من البطاقات
                     'customer_name': cust_name, 
                     'bill_id': bid
                 }
                 st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
             
             sync_to_google()
-            st.success(f"تمت عملية البيع ({pay_method}) بنجاح!")
+            st.success(f"تم تسجيل الفاتورة بنجاح - طريقة الدفع: {st.session_state.pay_method_selected}")
             st.rerun()
 
 # --- 📦 المخزن والجرد ---
