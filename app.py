@@ -102,31 +102,57 @@ if menu == "🛒 نقطة البيع":
                 </div>
                 """, unsafe_allow_html=True)
             
+            # إدخال المبلغ المراد بيعه
             money_val = st.number_input(f"المبلغ (₪) - {it}", key=f"v_{it}", min_value=0.0, step=1.0, value=None, placeholder="₪")
             
             if money_val and money_val > 0:
+                # تحويل البيانات لأرقام عشرية لضمان دقة الحساب ومنع السالب
                 s_price = float(data['بيع'])
                 b_price = float(data['شراء'])
-                calc_qty = money_val / s_price
-                calc_profit = (s_price - b_price) * calc_qty
                 
-                temp_bill.append({'item': it, 'qty': calc_qty, 'amount': money_val, 'profit': calc_profit})
+                # حساب الكمية بناءً على المبلغ
+                calc_qty = float(money_val) / s_price
+                
+                # حساب الربح الفعلي: (سعر البيع - سعر الشراء) * الكمية المحسوبة
+                # استخدمنا round للتقريب لخانتبن عشريتين
+                calc_profit = round((s_price - b_price) * calc_qty, 2)
+                
+                temp_bill.append({
+                    'item': it, 
+                    'qty': calc_qty, 
+                    'amount': float(money_val), 
+                    'profit': calc_profit
+                })
     
-    if temp_bill and st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
-        bid = str(uuid.uuid4())[:8]
-        for row in temp_bill:
-            st.session_state.inventory[row['item']]['كمية'] -= row['qty']
-            new_row = {
-                'date': datetime.now().strftime("%Y-%m-%d"), 
-                'item': row['item'], 
-                'amount': row['amount'], 
-                'profit': row['profit'], 
-                'method': 'نقدي', 
-                'customer_name': 'زبون محل', 
-                'bill_id': bid
-            }
-            st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
-        sync_to_google(); st.success("تمت العملية بنجاح!"); st.rerun()
+    st.markdown("---")
+    if temp_bill:
+        # عرض ملخص سريع قبل التأكيد
+        total_bill = sum(item['amount'] for item in temp_bill)
+        st.info(f"إجمالي الفاتورة الحالية: {total_bill:.2f} ₪")
+        
+        if st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True):
+            bid = str(uuid.uuid4())[:8]
+            for row in temp_bill:
+                # تحديث الكمية في المخزن
+                st.session_state.inventory[row['item']]['كمية'] -= row['qty']
+                
+                # تجهيز سطر المبيعات
+                new_row = {
+                    'date': datetime.now().strftime("%Y-%m-%d"), 
+                    'item': row['item'], 
+                    'amount': row['amount'], 
+                    'profit': row['profit'], 
+                    'method': 'نقدي', 
+                    'customer_name': 'زبون محل', 
+                    'bill_id': bid
+                }
+                # إضافة العملية للسجل
+                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
+            
+            # المزامنة مع جوجل شيت
+            sync_to_google()
+            st.success("تمت العملية بنجاح وتحديث الأرباح!")
+            st.rerun()
 
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 تفاصيل وإدارة المخزن</h1>", unsafe_allow_html=True)
