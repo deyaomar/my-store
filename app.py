@@ -112,53 +112,46 @@ if menu == "🛒 نقطة البيع":
                         st.session_state.cart[it] = {'qty': 1, 'price': sell_price, 'cost': float(data['شراء'])}
                     st.rerun()
 
-    # --- منطقة السلة (حساب بناءً على ما تكتبه أنت يا أبا عمر) ---
+    # --- منطقة السلة (بدون عمود مبالغ الأصناف - المجموع في الأسفل فقط) ---
     if st.session_state.cart:
         st.markdown("---")
-        st.markdown("### 🛍️ سلة المشتريات (أدخل المبالغ يدوياً)")
+        st.markdown("### 🛍️ سلة المشتريات")
         
-        # العناوين
-        h1, h2, h3, h4 = st.columns([3, 2, 2, 1])
+        # العناوين الجديدة (صنف وكمية وحذف فقط)
+        h1, h2, h3 = st.columns([4, 2, 1])
         h1.markdown("**الصنف**")
-        h2.markdown("**الكمية**")
-        h3.markdown("**المبلغ (شيكل)**")
-        h4.markdown("**حذف**")
+        h2.markdown("**الكمية المطلوبة**")
+        h3.markdown("**حذف**")
         
         total_sum = 0.0
         
         for item_name, info in list(st.session_state.cart.items()):
-            c_name, c_qty, c_price, c_del = st.columns([3, 2, 2, 1])
+            c_name, c_qty, c_del = st.columns([4, 2, 1])
             
             # 1. اسم الصنف
-            c_name.write(item_name)
+            c_name.write(f"🔹 {item_name}")
             
-            # 2. الكمية (تخصم من المخزن)
+            # 2. إدخال الكمية
             max_q = int(st.session_state.inventory[item_name]['كمية'])
-            qty = c_qty.number_input(f"الكمية", min_value=1, max_value=max_q, 
+            qty = c_qty.number_input(f"الكمية لـ {item_name}", min_value=1, max_value=max_q, 
                                     value=int(info['qty']), key=f"q_{item_name}", step=1, label_visibility="collapsed")
             st.session_state.cart[item_name]['qty'] = qty
             
-            # 3. الخانة المهمة: سعر البيع الذي تكتبه أنت الآن
-            # القيمة الافتراضية هي سعر البيع المخزن، لكن يمكنك تغييرها
-            manual_price = c_price.number_input("السعر", min_value=0, step=1, 
-                                               value=int(info['price']), key=f"p_{item_name}", label_visibility="collapsed")
+            # حساب المجموع (داخلياً بناءً على سعر البيع المخزن ليعطيك إجمالي الحساب بالأسفل)
+            total_sum += qty * float(info['price'])
             
-            # حساب الإجمالي لهذا الصنف بناءً على السعر الذي كتبته "manual_price"
-            line_total = qty * manual_price
-            total_sum += line_total
-            
-            # 4. زر الحذف
+            # 3. زر الحذف
             if c_del.button("❌", key=f"del_{item_name}"):
                 del st.session_state.cart[item_name]
                 st.rerun()
         
         st.markdown("---")
         
-        # صندوق المجموع النهائي (يجمع الأرقام التي كتبتها في خانات السعر)
+        # صندوق المجموع النهائي (الرقم الذي يهمك)
         st.markdown(f"""
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border: 2px solid #27ae60; text-align: center;">
-                <h2 style="margin: 0; color: #1a1a1a;">إجمالي الحساب المطلوب</h2>
-                <h1 style="margin: 0; color: #e74c3c; font-size: 50px;">{int(total_sum)} ₪</h1>
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 15px; border: 2px solid #27ae60; text-align: center;">
+                <h2 style="margin: 0; color: #1a1a1a; font-family: 'Tajawal';">إجمالي الحساب المطلوب</h2>
+                <h1 style="margin: 0; color: #e74c3c; font-size: 55px; font-weight: 900;">{int(total_sum)} ₪</h1>
             </div>
         """, unsafe_allow_html=True)
         
@@ -168,28 +161,25 @@ if menu == "🛒 نقطة البيع":
         
         col_z1, col_z2 = st.columns(2)
         if pay_method == "تطبيق":
-            cust_name = col_z1.text_input("👤 اسم الزبون (إجباري)")
+            cust_name = col_z1.text_input("👤 اسم صاحب التطبيق (إجباري)")
             cust_phone = col_z2.text_input("📞 رقم الجوال (إجباري)")
         else:
-            cust_name = col_z1.text_input("👤 اسم الزبون")
-            cust_phone = col_z2.text_input("📞 رقم الجوال")
+            cust_name = col_z1.text_input("👤 اسم الزبون (اختياري)")
+            cust_phone = col_z2.text_input("📞 رقم الجوال (اختياري)")
 
-        if st.button("✅ حفظ العملية وتحديث المخزن", use_container_width=True, type="primary"):
+        if st.button("✅ إتمام البيع وحفظ الفاتورة", use_container_width=True, type="primary"):
             if pay_method == "تطبيق" and (not cust_name or not cust_phone):
-                st.error("❌ يرجى إدخال بيانات الزبون للدفع بالتطبيق")
+                st.error("❌ يرجى كتابة الاسم والجوال لتوثيق دفع التطبيق")
             else:
                 bid = str(uuid.uuid4())[:8]
                 sales_to_save = []
                 for name, details in st.session_state.cart.items():
-                    # السعر الذي سيتم اعتماده هو الذي كتبته في خانة السعر باللحظة الحالية
-                    final_sell_price = st.session_state[f"p_{name}"]
-                    
                     st.session_state.inventory[name]['كمية'] -= details['qty']
                     sales_to_save.append({
                         'date': datetime.now().strftime("%Y-%m-%d"),
                         'item': name,
-                        'amount': details['qty'] * final_sell_price,
-                        'profit': (final_sell_price - details['cost']) * details['qty'],
+                        'amount': details['qty'] * details['price'],
+                        'profit': (details['price'] - details['cost']) * details['qty'],
                         'method': pay_method,
                         'customer_name': cust_name if cust_name else "زبون محل",
                         'phone': cust_phone if cust_phone else "-",
@@ -198,7 +188,7 @@ if menu == "🛒 نقطة البيع":
                 st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame(sales_to_save)], ignore_index=True)
                 if sync_to_google():
                     st.session_state.cart = {}
-                    st.success("✅ تم حفظ الفاتورة بنجاح")
+                    st.success("🎉 تم الحفظ بنجاح وتحديث المخزن")
                     st.rerun()
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 حالة المخزن والمبيعات</h1>", unsafe_allow_html=True)
