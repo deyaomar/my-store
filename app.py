@@ -209,96 +209,78 @@ elif menu == "📦 المخزن والجرد":
     else:
         st.info("المخزن فارغ.")
 
+# --- 📊 التقارير المالية ---
 elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>", unsafe_allow_html=True)
+    from datetime import timedelta # تأكد من وجود هذا الاستيراد في أعلى الملف
     
-    # --- 1. تجهيز البيانات والتواريخ ---
-    df_sales = st.session_state.sales_df.copy()
-    df_exp = st.session_state.expenses_df.copy()
-    df_waste = st.session_state.waste_df.copy()
+    st.markdown("<h1 class='main-title'>📊 التقارير المالية الشاملة</h1>", unsafe_allow_html=True)
     
-    for df in [df_sales, df_exp, df_waste]:
-        if not df.empty:
-            df['date'] = pd.to_datetime(df['date']).dt.date
-
-    today = datetime.now().date()
-    start_of_week = today - pd.Timedelta(days=today.weekday() + 1) # حساب بداية الأسبوع
-
-    # --- 2. حسابات الأداء (اليوم والأسبوع) ---
-    def get_stats(df_s, df_e, df_w, target_date=None):
-        if target_date == "week":
-            s = df_s[df_s['date'] >= start_of_week] if not df_s.empty else pd.DataFrame()
-            e = df_e[df_e['date'] >= start_of_week] if not df_e.empty else pd.DataFrame()
-            w = df_w[df_w['date'] >= start_of_week] if not df_w.empty else pd.DataFrame()
-        else:
-            s = df_s[df_s['date'] == today] if not df_s.empty else pd.DataFrame()
-            e = df_e[df_e['date'] == today] if not df_e.empty else pd.DataFrame()
-            w = df_w[df_w['date'] == today] if not df_w.empty else pd.DataFrame()
-        
-        sales_val = s['amount'].sum() if not s.empty else 0
-        gross_p = s['profit'].sum() if not s.empty else 0
-        exp_val = pd.to_numeric(e['amount'], errors='coerce').sum() if not e.empty else 0
-        waste_val = pd.to_numeric(w['loss_value'], errors='coerce').sum() if not w.empty else 0
-        net_p = gross_p - exp_val - waste_val
-        return sales_val, gross_p, exp_val + waste_val, net_p
-
-    # استخراج القيم
-    d_sales, d_gross, d_lost, d_net = get_stats(df_sales, df_exp, df_waste)
-    w_sales, w_gross, w_lost, w_net = get_stats(df_sales, df_exp, df_waste, "week")
-
-    # --- 3. عرض كروت الأداء ---
-    st.subheader("🗓️ ملخص الأداء المالي")
-    tab1, tab2 = st.tabs(["💰 أداء اليوم", "📅 أداء الأسبوع"])
-    
-    with tab1:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("مبيعات اليوم", f"{format_num(d_sales)} ₪")
-        c2.metric("ربح البيع", f"{format_num(d_gross)} ₪")
-        c3.metric("مصروفات وتالف", f"{format_num(d_lost)} ₪", delta_color="inverse")
-        st.markdown(f"<div style='background:#27ae60; color:white; padding:15px; border-radius:10px; text-align:center;'><h3>صافي ربح اليوم: {format_num(d_net)} ₪</h3></div>", unsafe_allow_html=True)
-
-    with tab2:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("مبيعات الأسبوع", f"{format_num(w_sales)} ₪")
-        c2.metric("ربح الأسبوع", f"{format_num(w_gross)} ₪")
-        c3.metric("مصروفات وتالف", f"{format_num(w_lost)} ₪", delta_color="inverse")
-        st.markdown(f"<div style='background:#2980b9; color:white; padding:15px; border-radius:10px; text-align:center;'><h3>صافي ربح الأسبوع: {format_num(w_net)} ₪</h3></div>", unsafe_allow_html=True)
-
-    # --- 4. سجل المبيعات والزبائن ---
-    st.markdown("---")
-    st.subheader("📑 سجل العمليات والمبيعات")
-    if not df_sales.empty:
-        # ترتيب العمليات من الأحدث للأقدم
-        display_sales = df_sales.sort_values(by='date', ascending=False)
-        st.dataframe(display_sales[['date', 'item', 'amount', 'profit', 'customer_name']], use_container_width=True, hide_index=True)
+    # تحويل التواريخ لضمان الحسابات الصحيحة
+    if not st.session_state.sales_df.empty:
+        st.session_state.sales_df['date_only'] = pd.to_datetime(st.session_state.sales_df['date']).dt.strftime('%Y-%m-%d')
     else:
-        st.info("لا يوجد مبيعات مسجلة بعد.")
+        st.session_state.sales_df['date_only'] = None
 
-    # --- 5. تقرير التالف والمصروفات ---
-    st.markdown("---")
-    col_w1, col_w2 = st.columns(2)
-    with col_w1:
-        st.subheader("💸 سجل المصروفات")
-        if not df_exp.empty:
-            st.table(df_exp[['date', 'reason', 'amount']].tail(5))
-        else: st.write("لا يوجد مصروفات.")
+    today = datetime.now().strftime("%Y-%m-%d")
+    last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     
-    with col_w2:
-        st.subheader("⚠️ سجل التالف")
-        if not df_waste.empty:
-            st.table(df_waste[['date', 'item', 'loss_value']].tail(5))
-        else: st.write("لا يوجد تالف.")
+    # --- 1. حساب القيم المالية ---
+    daily_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] == today]['amount'].sum() if not st.session_state.sales_df.empty else 0
+    weekly_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]['amount'].sum() if not st.session_state.sales_df.empty else 0
+    
+    # رأس المال (قيمة البضاعة الحالية بالمخزن)
+    cap_stock = sum(v.get('كمية', 0) * v.get('شراء', 0) for v in st.session_state.inventory.values())
+    
+    # الأرباح والمصاريف
+    raw_profit = st.session_state.sales_df['profit'].sum() if not st.session_state.sales_df.empty else 0
+    total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum() if not st.session_state.expenses_df.empty else 0
+    total_waste = pd.to_numeric(st.session_state.waste_df['loss_value'], errors='coerce').sum() if not st.session_state.waste_df.empty else 0
+    
+    net_profit = raw_profit - total_exp - total_waste
 
-    # --- 6. إقفال الدورة المالية ---
-    st.markdown("---")
-    st.subheader("🔒 إقفال الدورة المالية")
-    with st.expander("تحذير: إقفال الدورة يقوم بأرشفة مبيعات اليوم"):
-        st.warning("عند الضغط على الزر، سيتم اعتبار أن اليوم قد انتهى. (يفضل أخذ نسخة من جوجل شيت دائماً)")
-        if st.button("🚀 إقفال اليوم وبدء دورة جديدة"):
-            # هنا يمكنك إضافة كود لنقل البيانات لجدول أرشيف إذا رغبت، 
-            # لكن حالياً سنكتفي بتحديث الواجهة
-            st.success("تم إقفال الدورة المالية بنجاح!")
-            st.rerun()
+    # --- 2. عرض الصف الأول من البطاقات ---
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
+    c2.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
+    c3.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(cap_stock)} ₪</h2></div>", unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # --- 3. عرض الصف الثاني من البطاقات ---
+    c4, c5, c6 = st.columns(3)
+    p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
+    
+    c4.markdown(f"<div class='report-card' style='border-top: 5px solid {p_color}'><h3>💵 صافي الأرباح العام</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+    c5.markdown(f"<div class='report-card' style='border-top: 5px solid #e74c3c'><h3>🗑️ إجمالي التالف</h3><h2 style='color:#e74c3c'>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
+    c6.markdown(f"<div class='report-card' style='border-top: 5px solid #34495e'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- 4. سجل الزبائن اليومي ---
+    st.subheader("👥 سجل الزبائن والعمليات اليومي")
+    sel_date = st.date_input("اختر التاريخ للعرض", datetime.now()).strftime('%Y-%m-%d')
+    
+    if not st.session_state.sales_df.empty:
+        cust_df = st.session_state.sales_df[st.session_state.sales_df['date_only'] == sel_date].copy()
+        
+        if not cust_df.empty:
+            # التأكد من وجود الأعمدة المطلوبة حتى لا يحدث خطأ
+            for col in ['customer_phone', 'method']:
+                if col not in cust_df.columns: cust_df[col] = "-"
+
+            display_df = cust_df[['date', 'customer_name', 'customer_phone', 'item', 'amount', 'method']].rename(columns={
+                'date': 'الوقت/التاريخ',
+                'customer_name': 'الزبون',
+                'customer_phone': 'الهاتف',
+                'item': 'الصنف',
+                'amount': 'المبلغ (₪)',
+                'method': 'طريقة الدفع'
+            })
+            st.table(display_df)
+        else:
+            st.warning(f"لا توجد عمليات بيع مسجلة في تاريخ {sel_date}")
+    else:
+        st.info("سجل المبيعات فارغ تماماً.")
 
 elif menu == "💸 المصروفات":
     st.markdown("<h1 class='main-title'>💸 إدارة وسجل المصروفات</h1>", unsafe_allow_html=True)
