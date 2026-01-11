@@ -261,7 +261,7 @@ with st.sidebar:
 
 
 
-elif menu == "📊 التقارير المالية":
+    elif menu == "📊 التقارير المالية":
     st.markdown("<h1 class='main-title'>📊 التقرير المالي الشامل - أبو عمر</h1>", unsafe_allow_html=True)
     
     df_sales = st.session_state.sales_df.copy()
