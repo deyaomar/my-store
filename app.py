@@ -377,48 +377,73 @@ elif menu == "💸 المصروفات":
                 st.session_state.expenses_df = st.session_state.expenses_df.drop(index)
                 sync_to_google(); st.rerun()
 
+# --- ⚙️ الإعدادات (الإصدار المكتمل) ---
 if menu == "⚙️ الإعدادات":
-    st.markdown("<h1 class='main-title'>⚙️ الإعدادات ونظام الإصلاح</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-title'>⚙️ الإعدادات وإدارة النظام</h1>", unsafe_allow_html=True)
     
-    # --- قسم إصلاح البيانات ---
-    st.subheader("🛠️ أدوات صيانة البيانات")
-    st.info("هذا الزر يقوم بإعادة حساب الأرباح لكل المبيعات القديمة بناءً على أسعار الشراء والبيع الحالية في المخزن.")
-    
-    if st.button("🔄 إصلاح سجل الأرباح (تنظيف الماينوس)"):
-        with st.spinner("جاري معالجة البيانات وإصلاح الأرباح..."):
-            # 1. نسخة من سجل المبيعات
-            fixed_sales = st.session_state.sales_df.copy()
+    tab_add, tab_cats, tab_fix, tab_danger = st.tabs([
+        "➕ إضافة صنف", "📂 إدارة الأقسام", "🛠️ إصلاح البيانات", "🗑️ حذف أصناف"
+    ])
+
+    # 1. إضافة صنف جديد
+    with tab_add:
+        st.subheader("📦 إضافة صنف جديد للمخزن")
+        with st.form("add_form", clear_on_submit=True):
+            name = st.text_input("اسم الصنف")
+            c1, c2, c3 = st.columns(3)
+            b_p = c1.number_input("سعر الشراء", min_value=0.0)
+            s_p = c2.number_input("سعر البيع", min_value=0.0)
+            qty = c3.number_input("الكمية المتوفرة", min_value=0.0)
+            cat = st.selectbox("القسم", st.session_state.CATEGORIES)
             
-            # 2. حلقة فحص لكل عملية بيع
+            if st.form_submit_button("إضافة للمخزن"):
+                if name:
+                    st.session_state.inventory[name] = {
+                        'شراء': b_p, 'بيع': s_p, 'كمية': qty, 'قسم': cat, 'أصلي': qty
+                    }
+                    sync_to_google()
+                    st.success(f"تم إضافة {name} بنجاح!")
+                    st.rerun()
+                else:
+                    st.error("يرجى كتابة اسم الصنف")
+
+    # 2. إدارة الأقسام
+    with tab_cats:
+        st.subheader("📂 الأقسام الحالية")
+        st.write(", ".join(st.session_state.CATEGORIES))
+        new_cat = st.text_input("أضف قسم جديد")
+        if st.button("حفظ القسم الجديد"):
+            if new_cat and new_cat not in st.session_state.CATEGORIES:
+                st.session_state.CATEGORIES.append(new_cat)
+                st.success("تم إضافة القسم")
+                st.rerun()
+
+    # 3. إصلاح البيانات (الذي أضفناه سابقاً)
+    with tab_fix:
+        st.subheader("🛠️ أدوات صيانة البيانات")
+        st.info("إعادة حساب الأرباح بناءً على الأسعار الحالية لتنظيف المبيعات من أخطاء الماينوس.")
+        if st.button("🔄 تشغيل نظام الإصلاح"):
+            fixed_sales = st.session_state.sales_df.copy()
             for index, row in fixed_sales.iterrows():
                 item_name = row['item']
-                
-                # التأكد من وجود الصنف في المخزن لجلب سعره
                 if item_name in st.session_state.inventory:
-                    data = st.session_state.inventory[item_name]
-                    
-                    try:
-                        s_price = float(str(data.get('بيع', 0)).replace('₪', '').strip())
-                        b_price = float(str(data.get('شراء', 0)).replace('₪', '').strip())
-                        
-                        # حساب الكمية اللي كانت مباعة (المبلغ / سعر البيع)
-                        # إذا كان المبلغ مسجل، نعيد حساب الربح
-                        sold_amount = float(row['amount'])
-                        if s_price > 0:
-                            actual_qty = sold_amount / s_price
-                            correct_profit = round((s_price - b_price) * actual_qty, 2)
-                            
-                            # تحديث الربح في الجدول
-                            fixed_sales.at[index, 'profit'] = correct_profit
-                    except Exception as e:
-                        continue
-            
-            # 3. حفظ التعديلات في السيشن وفي جوجل شيت
+                    inv = st.session_state.inventory[item_name]
+                    s_p = float(inv.get('بيع', 0))
+                    b_p = float(inv.get('شراء', 0))
+                    if s_p > 0:
+                        qty = float(row['amount']) / s_p
+                        fixed_sales.at[index, 'profit'] = round((s_p - b_p) * qty, 2)
             st.session_state.sales_df = fixed_sales
             sync_to_google()
-            
-            st.success("✅ تم إصلاح كافة الأرباح بنجاح! اذهب الآن للتقرير المالي وستجد الأرقام صحيحة.")
-            st.rerun()
+            st.success("✅ تم الإصلاح بنجاح!")
 
-    st.markdown("---")
-    # ... باقي كود الإعدادات الخاص بك (تعديل الأقسام، حذف الأصناف، إلخ)
+    # 4. حذف الأصناف
+    with tab_danger:
+        st.subheader("⚠️ منطقة الخطر")
+        item_to_del = st.selectbox("اختر صنفاً لحذفه نهائياً", [""] + list(st.session_state.inventory.keys()))
+        if st.button("❌ حذف الصنف المحدد"):
+            if item_to_del:
+                del st.session_state.inventory[item_to_del]
+                sync_to_google()
+                st.warning(f"تم حذف {item_to_del} من المخزن")
+                st.rerun()
