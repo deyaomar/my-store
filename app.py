@@ -106,10 +106,12 @@ if menu == "🛒 نقطة البيع":
             st.markdown(f"<div style='background:#f9f9f9; padding:10px; border-radius:10px; border:1px solid #ddd; text-align:center;'><b>{it}</b><br><span style='color:green;'>{curr_sell} ₪</span></div>", unsafe_allow_html=True)
             money_val = st.number_input(f"المبلغ", key=f"v_{it}", min_value=0.0, step=0.5, value=None)
             
-            if money_val and money_val > 0 and curr_sell > 0:
-                calc_qty = money_val / curr_sell
-                calc_profit = round((curr_sell - curr_buy) * calc_qty, 2)
-                temp_bill.append({'item': it, 'qty': calc_qty, 'amount': float(money_val), 'profit': float(calc_profit)})
+            if money_val and money_val > 0:
+    temp_bill.append({
+        'item': it,
+        'amount': float(money_val)
+    })
+
 
     if temp_bill:
         total_cash = sum(row['amount'] for row in temp_bill)
