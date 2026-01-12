@@ -114,11 +114,10 @@ if menu == "🛒 نقطة البيع":
             st.success("تم الحفظ!")
             st.rerun()
 
-# --- 📦 المخزن والجرد (تمت إعادة خيارات الإضافة والتزويد) ---
+# --- 📦 المخزن والجرد ---
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
     
-    # خيار إضافة صنف جديد
     with st.expander("➕ إضافة صنف جديد للمحل"):
         with st.form("add_new_item"):
             n_name = st.text_input("اسم الصنف")
@@ -150,14 +149,12 @@ elif menu == "📦 المخزن والجرد":
                         الكمية: {qty} | الشراء: {buy_p} | <span style='color:green;'>البيع: {sell_p}</span>
                     </div>""", unsafe_allow_html=True)
                     with st.expander("تعديل / تزويد الكمية"):
-                        # خيار تزويد الكمية (زيادة على الموجود)
                         add_q = st.number_input("إضافة كمية جديدة", min_value=0.0, key=f"add_{it}")
                         if st.button("تحديث الكمية", key=f"up_{it}"):
                             st.session_state.inventory[it]['كمية'] += add_q
                             sync_to_google()
                             st.rerun()
                         st.divider()
-                        # تعديل البيانات الأساسية
                         nq = st.number_input("تعديل الكمية الكلية", value=qty, key=f"q_{it}")
                         nb = st.number_input("سعر الشراء", value=buy_p, key=f"b_{it}")
                         ns = st.number_input("سعر البيع", value=sell_p, key=f"s_{it}")
@@ -167,39 +164,38 @@ elif menu == "📦 المخزن والجرد":
                             st.rerun()
 
 # --- 📊 التقارير المالية ---
-# --- 📊 التقارير المالية ---
-    elif menu == "📊 التقارير المالية":
-        st.markdown("<h1 class='main-title'>📊 التقارير المالية الشاملة</h1>", unsafe_allow_html=True)
-        st.session_state.sales_df['date_only'] = pd.to_datetime(st.session_state.sales_df['date']).dt.strftime('%Y-%m-%d')
-        today = datetime.now().strftime("%Y-%m-%d")
-        last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-        
-        daily_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] == today]['amount'].sum()
-        weekly_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]['amount'].sum()
-        cap_stock = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
-        raw_profit = st.session_state.sales_df['profit'].sum()
-        total_exp = st.session_state.expenses_df['amount'].sum()
-        total_waste = st.session_state.waste_df['loss_value'].sum()
-        net_profit = raw_profit - total_exp - total_waste
+elif menu == "📊 التقارير المالية":
+    st.markdown("<h1 class='main-title'>📊 التقارير المالية الشاملة</h1>", unsafe_allow_html=True)
+    st.session_state.sales_df['date_only'] = pd.to_datetime(st.session_state.sales_df['date']).dt.strftime('%Y-%m-%d')
+    today = datetime.now().strftime("%Y-%m-%d")
+    last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+    
+    daily_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] == today]['amount'].sum()
+    weekly_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]['amount'].sum()
+    cap_stock = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
+    raw_profit = st.session_state.sales_df['profit'].sum()
+    total_exp = st.session_state.expenses_df['amount'].sum()
+    total_waste = st.session_state.waste_df['loss_value'].sum()
+    net_profit = raw_profit - total_exp - total_waste
 
-        c1, c2, c3 = st.columns(3)
-        c1.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        c2.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
-        c3.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(cap_stock)} ₪</h2></div>", unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        c4, c5, c6 = st.columns(3)
-        p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
-        c4.markdown(f"<div class='report-card' style='border-color:{p_color}'><h3>💵 صافي الأرباح</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
-        c5.markdown(f"<div class='report-card' style='border-color:#e74c3c'><h3>🗑️ إجمالي التالف</h3><h2>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
-        c6.markdown(f"<div class='report-card'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
+    c2.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
+    c3.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(cap_stock)} ₪</h2></div>", unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    c4, c5, c6 = st.columns(3)
+    p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
+    c4.markdown(f"<div class='report-card' style='border-color:{p_color}'><h3>💵 صافي الأرباح</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
+    c5.markdown(f"<div class='report-card' style='border-color:#e74c3c'><h3>🗑️ إجمالي التالف</h3><h2>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
+    c6.markdown(f"<div class='report-card'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
 
-        st.divider()
-        st.subheader("👥 سجل الزبائن اليومي")
-        sel_date = st.date_input("اختر التاريخ", datetime.now()).strftime('%Y-%m-%d')
-        cust_df = st.session_state.sales_df[st.session_state.sales_df['date_only'] == sel_date]
-        if not cust_df.empty:
-            st.table(cust_df[['date', 'customer_name', 'customer_phone', 'item', 'amount', 'method']].rename
+    st.divider()
+    st.subheader("👥 سجل الزبائن اليومي")
+    sel_date = st.date_input("اختر التاريخ", datetime.now()).strftime('%Y-%m-%d')
+    cust_df = st.session_state.sales_df[st.session_state.sales_df['date_only'] == sel_date]
+    if not cust_df.empty:
+        st.table(cust_df[['date', 'customer_name', 'item', 'amount', 'method']])
 
 # --- 💸 المصروفات ---
 elif menu == "💸 المصروفات":
