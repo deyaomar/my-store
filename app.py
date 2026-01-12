@@ -107,11 +107,10 @@ if menu == "🛒 نقطة البيع":
             money_val = st.number_input(f"المبلغ", key=f"v_{it}", min_value=0.0, step=0.5, value=None)
             
             if money_val and money_val > 0:
-    temp_bill.append({
-        'item': it,
-        'amount': float(money_val)
-    })
-
+                temp_bill.append({
+                    'item': it,
+                    'amount': float(money_val)
+                })
 
     if temp_bill:
         total_cash = sum(row['amount'] for row in temp_bill)
@@ -119,25 +118,24 @@ if menu == "🛒 نقطة البيع":
         if st.button(f"✅ إتمام البيع", use_container_width=True):
             bid = str(uuid.uuid4())[:8]
             for row in temp_bill:
-    new_row = {
-        'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'item': row['item'],
-        'amount': row['amount'],
-        'profit': 0,  # مؤقت – جوجل هو اللي يحسبه
-        'method': st.session_state.pay_method_selected,
-        'customer_name': "زبون محل",
-        'bill_id': bid
-    }
-
-    st.session_state.sales_df = pd.concat(
-        [st.session_state.sales_df, pd.DataFrame([new_row])],
-        ignore_index=True
-    )
+                new_row = {
+                    'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'item': row['item'],
+                    'amount': row['amount'],
+                    'profit': 0,
+                    'method': st.session_state.pay_method_selected,
+                    'customer_name': "زبون محل",
+                    'bill_id': bid
+                }
+                st.session_state.sales_df = pd.concat(
+                    [st.session_state.sales_df, pd.DataFrame([new_row])],
+                    ignore_index=True
+                )
             sync_to_google()
             st.success("تم الحفظ!")
             st.rerun()
 
-# --- 📦 المخزن والجرد (تمت استعادته وإصلاحه) ---
+# --- 📦 المخزن والجرد ---
 elif menu == "📦 المخزن والجرد":
     st.markdown("<h1 class='main-title'>📦 إدارة المخزن</h1>", unsafe_allow_html=True)
     if st.session_state.inventory:
@@ -149,7 +147,6 @@ elif menu == "📦 المخزن والجرد":
                 buy_p = clean_num(data.get('شراء', 0))
                 sell_p = clean_num(data.get('بيع', 0))
                 
-                # تنبيه في حال كان سعر البيع أقل من الشراء (سبب السالب)
                 loss_alert = ""
                 if sell_p < buy_p: loss_alert = "<br><span style='color:red; font-weight:bold;'>⚠️ السعر يسبب خسارة!</span>"
 
@@ -168,293 +165,66 @@ elif menu == "📦 المخزن والجرد":
                             st.rerun()
 
 # --- 📊 التقارير المالية ---
-# --- 📊 التقارير المالية ---
-
-
-
 elif menu == "📊 التقارير المالية":
-
-
-
-    from datetime import timedelta # تأكد من وجود هذا الاستيراد في أعلى الملف
-
-
-
-    
-
-
-
+    from datetime import timedelta
     st.markdown("<h1 class='main-title'>📊 التقارير المالية الشاملة</h1>", unsafe_allow_html=True)
-
-
-
     
-
-
-
-    # تحويل التواريخ لضمان الحسابات الصحيحة
-
-
-
     if not st.session_state.sales_df.empty:
-
-
-
         st.session_state.sales_df['date_only'] = pd.to_datetime(st.session_state.sales_df['date']).dt.strftime('%Y-%m-%d')
-
-
-
     else:
-
-
-
         st.session_state.sales_df['date_only'] = None
 
-
-
-
-
-
-
     today = datetime.now().strftime("%Y-%m-%d")
-
-
-
     last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-
-
-
     
-
-
-
-    # --- 1. حساب القيم المالية ---
-
-
-
     daily_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] == today]['amount'].sum() if not st.session_state.sales_df.empty else 0
-
-
-
     weekly_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]['amount'].sum() if not st.session_state.sales_df.empty else 0
-
-
-
     
-
-
-
-    # رأس المال (قيمة البضاعة الحالية بالمخزن)
-
-
-
     cap_stock = sum(v.get('كمية', 0) * v.get('شراء', 0) for v in st.session_state.inventory.values())
-
-
-
     
-
-
-
-    # الأرباح والمصاريف
-
-
-
     raw_profit = st.session_state.sales_df['profit'].sum() if not st.session_state.sales_df.empty else 0
-
-
-
     total_exp = pd.to_numeric(st.session_state.expenses_df['amount'], errors='coerce').sum() if not st.session_state.expenses_df.empty else 0
-
-
-
     total_waste = pd.to_numeric(st.session_state.waste_df['loss_value'], errors='coerce').sum() if not st.session_state.waste_df.empty else 0
-
-
-
     
-
-
-
     net_profit = raw_profit - total_exp - total_waste
 
-
-
-
-
-
-
-    # --- 2. عرض الصف الأول من البطاقات ---
-
-
-
     c1, c2, c3 = st.columns(3)
-
-
-
     c1.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
-
-
-
     c2.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
-
-
-
     c3.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(cap_stock)} ₪</h2></div>", unsafe_allow_html=True)
-
-
-
     
-
-
-
     st.markdown("<br>", unsafe_allow_html=True)
-
-
-
     
-
-
-
-    # --- 3. عرض الصف الثاني من البطاقات ---
-
-
-
     c4, c5, c6 = st.columns(3)
-
-
-
     p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
-
-
-
     
-
-
-
     c4.markdown(f"<div class='report-card' style='border-top: 5px solid {p_color}'><h3>💵 صافي الأرباح العام</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
-
-
-
     c5.markdown(f"<div class='report-card' style='border-top: 5px solid #e74c3c'><h3>🗑️ إجمالي التالف</h3><h2 style='color:#e74c3c'>{format_num(total_waste)} ₪</h2></div>", unsafe_allow_html=True)
-
-
-
     c6.markdown(f"<div class='report-card' style='border-top: 5px solid #34495e'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
 
-
-
-
-
-
-
     st.divider()
-
-
-
-
-
-
-
-    # --- 4. سجل الزبائن اليومي ---
-
-
-
     st.subheader("👥 سجل الزبائن والعمليات اليومي")
-
-
-
     sel_date = st.date_input("اختر التاريخ للعرض", datetime.now()).strftime('%Y-%m-%d')
-
-
-
     
-
-
-
     if not st.session_state.sales_df.empty:
-
-
-
         cust_df = st.session_state.sales_df[st.session_state.sales_df['date_only'] == sel_date].copy()
-
-
-
-        
-
-
-
         if not cust_df.empty:
-
-
-
-            # التأكد من وجود الأعمدة المطلوبة حتى لا يحدث خطأ
-
-
-
             for col in ['customer_phone', 'method']:
-
-
-
                 if col not in cust_df.columns: cust_df[col] = "-"
 
-
-
-
-
-
-
             display_df = cust_df[['date', 'customer_name', 'customer_phone', 'item', 'amount', 'method']].rename(columns={
-
-
-
                 'date': 'الوقت/التاريخ',
-
-
-
                 'customer_name': 'الزبون',
-
-
-
                 'customer_phone': 'الهاتف',
-
-
-
                 'item': 'الصنف',
-
-
-
                 'amount': 'المبلغ (₪)',
-
-
-
                 'method': 'طريقة الدفع'
-
-
-
             })
-
-
-
             st.table(display_df)
-
-
-
         else:
-
-
-
             st.warning(f"لا توجد عمليات بيع مسجلة في تاريخ {sel_date}")
-
-
-
     else:
-
-
-
         st.info("سجل المبيعات فارغ تماماً.")
-
-
 
 # --- 💸 المصروفات ---
 elif menu == "💸 المصروفات":
