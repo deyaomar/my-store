@@ -75,43 +75,43 @@ with st.sidebar:
 # --- 🛒 نقطة البيع ---
 if menu == "🛒 نقطة البيع":
     st.markdown("<h1 class='main-title'>🛒 شاشة البيع</h1>", unsafe_allow_html=True)
-    if 'pay_method_selected' not in st.session_state: st.session_state.pay_method_selected = "نقدي 💵"
+    if 'show_customer_form' not in st.session_state:
+        st.session_state.show_customer_form = False
+        st.session_state.current_bill_items = []
 
-    col_m1, col_m2 = st.columns(2)
-    if col_m1.button("💵 نقدي (Cash)", use_container_width=True):
-        st.session_state.pay_method_selected = "نقدي 💵"
-        st.rerun()
-    if col_m2.button("📱 تطبيق (App)", use_container_width=True):
-        st.session_state.pay_method_selected = "تطبيق 📱"
-        st.rerun()
-
-    c1, c2 = st.columns([1, 2])
-    cat_sel = c1.selectbox("📂 القسم", ["الكل"] + st.session_state.CATEGORIES)
-    search = c2.text_input("🔍 ابحث عن صنف...")
-    
-    items = {k: v for k, v in st.session_state.inventory.items() if (cat_sel == "الكل" or v.get('قسم') == cat_sel) and search.lower() in k.lower()}
-    
-    cols = st.columns(4)
-    temp_bill = []
-    
-    for idx, (it, data) in enumerate(items.items()):
-        with cols[idx % 4]:
-            curr_sell = clean_num(data.get('بيع', 0))
-            st.markdown(f"<div style='background:#f9f9f9; padding:10px; border-radius:10px; border:1px solid #ddd; text-align:center;'><b>{it}</b><br><span style='color:green;'>{curr_sell} ₪</span></div>", unsafe_allow_html=True)
-            money_val = st.number_input(f"المبلغ", key=f"v_{it}", min_value=0.0, step=0.5, value=None)
-            if money_val and money_val > 0:
-                temp_bill.append({'item': it, 'amount': float(money_val)})
-
-    if temp_bill:
-        total_cash = sum(row['amount'] for row in temp_bill)
-        st.subheader(f"💰 الإجمالي: {total_cash:.2f} ₪")
-        if st.button(f"✅ إتمام البيع", use_container_width=True):
+    if not st.session_state.show_customer_form:
+        c1, c2 = st.columns([1, 2])
+        p_meth = c1.selectbox("💳 طريقة الدفع", ["تطبيق", "نقداً"])
+        search_q = c2.text_input("🔍 ابحث عن صنف...")
+        temp_bill = []
+        cols = st.columns(3)
+        filtered_items = [(k, v) for k, v in st.session_state.inventory.items() if not search_q or search_q in k]
+        
+        for idx, (it, data) in enumerate(filtered_items):
+            with cols[idx % 3]:
+                st.markdown(f'<div style="background:white; padding:10px; border-radius:10px; border:1px solid #eee; text-align:center;"><b>{it}</b><br><span style="color:#27ae60">{data["بيع"]} ₪</span></div>', unsafe_allow_html=True)
+                mc1, mc2 = st.columns(2)
+                mode = mc1.radio("بـ", ["₪", "كجم"], key=f"m_{it}", horizontal=True)
+                val = clean_num(mc2.text_input("المقدار", key=f"v_{it}"))
+                if val > 0:
+                    q = val if mode == "كجم" else val / data["بيع"]
+                    temp_bill.append({"item": it, "qty": q, "amount": val if mode == "₪" else val * data["بيع"], "profit": (data["بيع"] - data["شراء"]) * q, "method": p_meth})
+        
+        if temp_bill and st.button("🚀 إتمام العملية"):
+            st.session_state.current_bill_items = temp_bill
+            st.session_state.show_customer_form = True
+            st.rerun()
+    else:
+        c_n = st.text_input("اسم الزبون")
+        c_p = st.text_input("رقم الهاتف")
+        if st.button("✅ تأكيد"):
             bid = str(uuid.uuid4())[:8]
-            for row in temp_bill:
-                new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'item': row['item'], 'amount': row['amount'], 'profit': 0, 'method': st.session_state.pay_method_selected, 'customer_name': "زبون محل", 'bill_id': bid}
-                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
+            for e in st.session_state.current_bill_items:
+                st.session_state.inventory[e["item"]]["كمية"] -= e["qty"]
+                new_s = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'item': e['item'], 'amount': e['amount'], 'profit': e['profit'], 'method': e['method'], 'customer_name': c_n, 'customer_phone': c_p, 'bill_id': bid}
+                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_s])], ignore_index=True)
             sync_to_google()
-            st.success("تم الحفظ!")
+            st.session_state.show_customer_form = False
             st.rerun()
 
 # --- 📦 المخزن والجرد ---
