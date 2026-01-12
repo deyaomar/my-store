@@ -119,9 +119,20 @@ if menu == "🛒 نقطة البيع":
         if st.button(f"✅ إتمام البيع", use_container_width=True):
             bid = str(uuid.uuid4())[:8]
             for row in temp_bill:
-                st.session_state.inventory[row['item']]['كمية'] -= row['qty']
-                new_row = {'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'item': row['item'], 'amount': row['amount'], 'profit': row['profit'], 'method': st.session_state.pay_method_selected, 'customer_name': "زبون محل", 'bill_id': bid}
-                st.session_state.sales_df = pd.concat([st.session_state.sales_df, pd.DataFrame([new_row])], ignore_index=True)
+    new_row = {
+        'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'item': row['item'],
+        'amount': row['amount'],
+        'profit': 0,  # مؤقت – جوجل هو اللي يحسبه
+        'method': st.session_state.pay_method_selected,
+        'customer_name': "زبون محل",
+        'bill_id': bid
+    }
+
+    st.session_state.sales_df = pd.concat(
+        [st.session_state.sales_df, pd.DataFrame([new_row])],
+        ignore_index=True
+    )
             sync_to_google()
             st.success("تم الحفظ!")
             st.rerun()
