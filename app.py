@@ -195,20 +195,20 @@ elif menu == "📊 التقارير المالية":
     sel_date = st.date_input("اختر التاريخ", datetime.now()).strftime('%Y-%m-%d')
     cust_df = st.session_state.sales_df[st.session_state.sales_df['date_only'] == sel_date]
     if not cust_df.empty:
-        st.table(cust_df[['date', 'customer_name', 'item', 'amount', 'method']])
+        st.table(cust_df[['date', 'customer_name', 'customer_phone', 'item', 'amount', 'method']].rename(columns={'date':'الوقت','customer_name':'الزبون','customer_phone':'الهاتف','item':'الصنف','amount':'المبلغ'}))
 
 # --- 💸 المصروفات ---
 elif menu == "💸 المصروفات":
-    st.markdown("<h1 class='main-title'>💸 المصروفات</h1>", unsafe_allow_html=True)
-    with st.form("exp_f"):
-        reason = st.text_input("السبب")
-        amount = st.number_input("المبلغ", min_value=0.0)
-        if st.form_submit_button("إضافة مصروف"):
-            new_e = {'date': datetime.now().strftime("%Y-%m-%d"), 'reason': reason, 'amount': amount, 'id': str(uuid.uuid4())[:6]}
+    st.markdown("<h1 class='main-title'>💸 سجل المصروفات</h1>", unsafe_allow_html=True)
+    with st.form("exp"):
+        r = st.text_input("البيان")
+        a = st.number_input("المبلغ")
+        if st.form_submit_button("حفظ"):
+            new_e = {'date': datetime.now().strftime("%Y-%m-%d %H:%M"), 'reason': r, 'amount': a}
             st.session_state.expenses_df = pd.concat([st.session_state.expenses_df, pd.DataFrame([new_e])], ignore_index=True)
             sync_to_google()
             st.rerun()
-    st.table(st.session_state.expenses_df)
+    st.table(st.session_state.expenses_df.sort_values(by='date', ascending=False))
 
 # --- ⚙️ الإعدادات ---
 elif menu == "⚙️ الإعدادات":
