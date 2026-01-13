@@ -171,44 +171,43 @@ elif menu == "📦 المخزن والجرد":
                             st.rerun()
 
 # --- 📊 التقارير المالية ---
-if 'inventory' not in st.session_state:
-    try:
-        inv_df = conn.read(worksheet="Inventory", ttl=0)
-        st.session_state.inventory = inv_df.set_index('item').to_dict('index') if not inv_df.empty else {}
-        
-        s_df = conn.read(worksheet="Sales", ttl=0)
-        if not s_df.empty:
-            # حذف السطور الفارغة تماماً وتنسيق التاريخ بأمان
-            s_df = s_df.dropna(subset=['date']) 
-            s_df['date'] = pd.to_datetime(s_df['date'], errors='coerce')
-            s_df = s_df.dropna(subset=['date']) # حذف أي سطر فشل تحويل تاريخه
-            st.session_state.sales_df = s_df
-        else:
-            st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
-            
-        st.session_state.expenses_df = conn.read(worksheet="Expenses", ttl=0)
-        st.session_state.waste_df = conn.read(worksheet="Waste", ttl=0)
-    except Exception as e:
-        st.error(f"حدث خطأ أثناء تحميل البيانات: {e}")
-        st.session_state.inventory = {}
-        st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
+elif menu == "📊 التقارير المالية":
+    st.markdown("<h1 class='main-title'>📊 التقارير المالية الشاملة</h1>", unsafe_allow_html=True)
+    
+    # تحويل آمن للتاريخ لمعالجة القيم الفارغة أو الخاطئة ومنع الـ ValueError
+    if not st.session_state.sales_df.empty:
+        # تحويل العمود مع تحويل الأخطاء إلى قيم فارغة (NaT)
+        temp_dates = pd.to_datetime(st.session_state.sales_df['date'], errors='coerce')
+        # إنشاء عمود التاريخ فقط للفلترة
+        st.session_state.sales_df['date_only'] = temp_dates.dt.strftime('%Y-%m-%d')
+    else:
+        st.session_state.sales_df['date_only'] = None
+
     today = datetime.now().strftime("%Y-%m-%d")
     last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     
-    daily_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] == today]['amount'].sum()
-    weekly_sales = st.session_state.sales_df[st.session_state.sales_df['date_only'] >= last_week]['amount'].sum()
-    cap_stock = sum(v['كمية'] * v['شراء'] for v in st.session_state.inventory.values())
-    raw_profit = st.session_state.sales_df['profit'].sum()
-    total_exp = st.session_state.expenses_df['amount'].sum()
-    total_waste = st.session_state.waste_df['loss_value'].sum()
+    # الحسابات المالية مع التأكد من وجود بيانات
+    sales_df = st.session_state.sales_df
+    daily_sales = sales_df[sales_df['date_only'] == today]['amount'].apply(clean_num).sum()
+    weekly_sales = sales_df[sales_df['date_only'] >= last_week]['amount'].apply(clean_num).sum()
+    
+    cap_stock = sum(clean_num(v.get('كمية', 0)) * clean_num(v.get('شراء', 0)) for v in st.session_state.inventory.values())
+    raw_profit = sales_df['profit'].apply(clean_num).sum()
+    
+    total_exp = st.session_state.expenses_df['amount'].apply(clean_num).sum() if not st.session_state.expenses_df.empty else 0
+    total_waste = st.session_state.waste_df['loss_value'].apply(clean_num).sum() if not st.session_state.waste_df.empty else 0
+    
     net_profit = raw_profit - total_exp - total_waste
 
+    # عرض البطاقات العلوية
     c1, c2, c3 = st.columns(3)
     c1.markdown(f"<div class='report-card'><h3>💰 مبيعات اليوم</h3><h2>{format_num(daily_sales)} ₪</h2></div>", unsafe_allow_html=True)
     c2.markdown(f"<div class='report-card'><h3>📅 مبيعات الأسبوع</h3><h2>{format_num(weekly_sales)} ₪</h2></div>", unsafe_allow_html=True)
     c3.markdown(f"<div class='report-card'><h3>🏗️ رأس المال الحالي</h3><h2>{format_num(cap_stock)} ₪</h2></div>", unsafe_allow_html=True)
     
     st.markdown("<br>", unsafe_allow_html=True)
+    
+    # عرض البطاقات السفلية (الأرباح والمصاريف)
     c4, c5, c6 = st.columns(3)
     p_color = "#27ae60" if net_profit >= 0 else "#e74c3c"
     c4.markdown(f"<div class='report-card' style='border-color:{p_color}'><h3>💵 صافي الأرباح</h3><h2 style='color:{p_color}'>{format_num(net_profit)} ₪</h2></div>", unsafe_allow_html=True)
@@ -216,11 +215,25 @@ if 'inventory' not in st.session_state:
     c6.markdown(f"<div class='report-card'><h3>📉 إجمالي المصروفات</h3><h2>{format_num(total_exp)} ₪</h2></div>", unsafe_allow_html=True)
 
     st.divider()
+    
+    # سجل الزبائن
     st.subheader("👥 سجل الزبائن اليومي")
     sel_date = st.date_input("اختر التاريخ", datetime.now()).strftime('%Y-%m-%d')
-    cust_df = st.session_state.sales_df[st.session_state.sales_df['date_only'] == sel_date]
+    cust_df = sales_df[sales_df['date_only'] == sel_date]
+    
     if not cust_df.empty:
-        st.table(cust_df[['date', 'customer_name', 'customer_phone', 'item', 'amount', 'method']].rename(columns={'date':'الوقت','customer_name':'الزبون','customer_phone':'الهاتف','item':'الصنف','amount':'المبلغ'}))
+        # عرض الجدول مع تحسين المسميات
+        display_df = cust_df[['date', 'customer_name', 'customer_phone', 'item', 'amount', 'method']].copy()
+        st.table(display_df.rename(columns={
+            'date': 'الوقت',
+            'customer_name': 'الزبون',
+            'customer_phone': 'الهاتف',
+            'item': 'الصنف',
+            'amount': 'المبلغ',
+            'method': 'الطريقة'
+        }))
+    else:
+        st.info("لا توجد مبيعات مسجلة في هذا التاريخ.")
 
 # --- 💸 المصروفات ---
 elif menu == "💸 المصروفات":
