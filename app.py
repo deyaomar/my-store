@@ -48,20 +48,27 @@ def sync_to_google():
         st.error(f"خطأ في المزامنة: {e}")
         return False
 
-# 4. تحميل البيانات
 if 'inventory' not in st.session_state:
     try:
         inv_df = conn.read(worksheet="Inventory", ttl=0)
         st.session_state.inventory = inv_df.set_index('item').to_dict('index') if not inv_df.empty else {}
+        
         s_df = conn.read(worksheet="Sales", ttl=0)
-        st.session_state.sales_df = s_df if not s_df.empty else pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
+        if not s_df.empty:
+            # حذف السطور الفارغة تماماً وتنسيق التاريخ بأمان
+            s_df = s_df.dropna(subset=['date']) 
+            s_df['date'] = pd.to_datetime(s_df['date'], errors='coerce')
+            s_df = s_df.dropna(subset=['date']) # حذف أي سطر فشل تحويل تاريخه
+            st.session_state.sales_df = s_df
+        else:
+            st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
+            
         st.session_state.expenses_df = conn.read(worksheet="Expenses", ttl=0)
         st.session_state.waste_df = conn.read(worksheet="Waste", ttl=0)
-    except:
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء تحميل البيانات: {e}")
         st.session_state.inventory = {}
         st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
-        st.session_state.expenses_df = pd.DataFrame(columns=['date', 'reason', 'amount', 'id'])
-        st.session_state.waste_df = pd.DataFrame(columns=['date', 'item', 'qty', 'loss_value'])
 
 if 'CATEGORIES' not in st.session_state:
     st.session_state.CATEGORIES = ["مواد غذائية", "منظفات", "أدوات منزلية", "أخرى"]
@@ -164,9 +171,27 @@ elif menu == "📦 المخزن والجرد":
                             st.rerun()
 
 # --- 📊 التقارير المالية ---
-elif menu == "📊 التقارير المالية":
-    st.markdown("<h1 class='main-title'>📊 التقارير المالية الشاملة</h1>", unsafe_allow_html=True)
-    st.session_state.sales_df['date_only'] = pd.to_datetime(st.session_state.sales_df['date']).dt.strftime('%Y-%m-%d')
+if 'inventory' not in st.session_state:
+    try:
+        inv_df = conn.read(worksheet="Inventory", ttl=0)
+        st.session_state.inventory = inv_df.set_index('item').to_dict('index') if not inv_df.empty else {}
+        
+        s_df = conn.read(worksheet="Sales", ttl=0)
+        if not s_df.empty:
+            # حذف السطور الفارغة تماماً وتنسيق التاريخ بأمان
+            s_df = s_df.dropna(subset=['date']) 
+            s_df['date'] = pd.to_datetime(s_df['date'], errors='coerce')
+            s_df = s_df.dropna(subset=['date']) # حذف أي سطر فشل تحويل تاريخه
+            st.session_state.sales_df = s_df
+        else:
+            st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
+            
+        st.session_state.expenses_df = conn.read(worksheet="Expenses", ttl=0)
+        st.session_state.waste_df = conn.read(worksheet="Waste", ttl=0)
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء تحميل البيانات: {e}")
+        st.session_state.inventory = {}
+        st.session_state.sales_df = pd.DataFrame(columns=['date', 'item', 'amount', 'profit', 'method', 'customer_name', 'bill_id'])
     today = datetime.now().strftime("%Y-%m-%d")
     last_week = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     
